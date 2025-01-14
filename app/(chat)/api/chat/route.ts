@@ -32,9 +32,7 @@ import {
 } from '@/lib/utils';
 
 import { generateTitleFromUserMessage } from '../../actions';
-
-// Import Assistant API utility
-import { fetchAssistantContext } from '@/lib/assistant';
+import { fetchAssistantContext } from '@/lib/assistant'; // Import Assistant API utility
 
 export const maxDuration = 60;
 
@@ -96,17 +94,22 @@ export async function POST(request: Request) {
     ],
   });
 
-  // Fetch context from the Assistant API (new logic added here)
+  // Convert userMessage.content to a string (handle array of parts)
+  const userInput = Array.isArray(userMessage.content)
+    ? userMessage.content.map((part: any) => part.text || '').join(' ')
+    : String(userMessage.content || '');
+
+  // Fetch context from the Assistant API
   let assistantContext = '';
   try {
-    console.log("Fetching context from Assistant API for input:", userMessage.content);
-    assistantContext = await fetchAssistantContext(userMessage.content);
+    console.log("Fetching context from Assistant API for input:", userInput);
+    assistantContext = await fetchAssistantContext(userInput);
     console.log("Received context from Assistant API:", assistantContext);
   } catch (error) {
     console.error('Failed to fetch Assistant API context:', error);
   }
 
-  // Prepend Assistant context as a system message (new logic)
+  // Prepend Assistant context as a system message
   const updatedMessages = [
     { role: 'system', content: `Assistant Context: ${assistantContext}` },
     ...coreMessages,
