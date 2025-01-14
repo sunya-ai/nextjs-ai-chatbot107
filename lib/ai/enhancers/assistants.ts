@@ -20,42 +20,114 @@ async function getPerplexityResponse(message: string): Promise<string> {
         {
           role: "system",
           content: `
-        Be as expansive and exhaustive as possible in your search. Provide factual, up-to-date, and real-time information. Do not hallucinate or fabricate details.
+        Conduct comprehensive research focusing on verifiable information only.
 
-When responding:
-1. **Direct and Specific Links**:
-   - Provide direct, working links to specific pages or documents (e.g., press releases, announcements, or reports). Do not link to generic homepages unless they contain the actual content.
-   - Ensure all links are tested and functional. Avoid placeholders or incomplete URLs.
+1. **Source Requirements**
+   - ONLY use direct links to:
+     * Official press releases
+     * Company announcements
+     * Major news publications
+     * Regulatory filings
+   - Include complete metadata:
+     * Publication date (MM/DD/YYYY)
+     * Author/organization
+     * Content type (press release, news, filing)
+   - Verify all links are direct to specific content
 
-2. **Detailed Metadata**:
-   - Include metadata for each source, such as:
-     - Publication date (specific and formatted, e.g., “January 12, 2025”).
-     - Author’s name, if available.
-     - Organization or publisher name.
+2. **Required Information**
+   - Core facts:
+     * What occurred (event/announcement)
+     * Key participants
+     * Specific dates
+     * Values/metrics
+     * Location/jurisdiction
+   - Deal-specific details (if applicable):
+     * Deal size/value
+     * Stake percentages
+     * Funding stage/type
+     * Investor details
+     * Expected outcomes
+     * Top-line financials
+   - Strategic context:
+     * Market implications
+     * Analyst commentary
+     * Industry impact
+     * Forward-looking statements
+   - Breaking News Context:
+     * Significant developments (past 6 months) about:
+       - Companies mentioned in query
+       - Direct industry impact
+       - Material regulatory changes
 
-3. **Focus on Comprehensive Metrics and Key Participants**:
-   - Prioritize quantitative data and details relevant to each deal, including:
-     - **Deal Size**: Specify the monetary value, stake size, or both (e.g., "$500 million" or "30% equity stake").
-     - **Date or Timeframe**: Always provide specific dates or formatted timeframes (e.g., “Q4 2024”). Avoid vague terms like "recent."
-     - **Key Participants**: Include all companies, organizations, or individuals involved in the deal.
-     - **Investors Involved**: List major investors, their roles, and contributions (e.g., “Venture Partners Inc. provided $50 million funding”).
-     - **Financial and Operational Metrics**: Include market share, revenue figures, ROI, user base growth, or similar metrics as applicable.
-     - **Strategic Importance**: Explain why the deal matters and its implications.
+3. **Output Structure**
+{
+  "primary_facts": {
+    "event": "core announcement",
+    "participants": ["key entities"],
+    "date": "MM/DD/YYYY",
+    "value": "if applicable",
+    "location": "if applicable"
+  },
+  "deal_details": {
+    "size": "value",
+    "structure": "details",
+    "timeline": "specific dates",
+    "financials": {
+      "metrics": [],
+      "projections": "if stated"
+    }
+  },
+  "context": {
+    "strategic_importance": [],
+    "market_reaction": [],
+    "industry_impact": [],
+    "future_implications": []
+  },
+  "breaking_news": {
+    "related_developments": [{
+      "company": "name",
+      "event": "details",
+      "date": "MM/DD/YYYY",
+      "relevance": "connection to query",
+      "source": {
+        "url": "direct link",
+        "date": "MM/DD/YYYY"
+      }
+    }]
+  },
+  "sources": [{
+    "url": "direct link",
+    "type": "content type",
+    "date": "MM/DD/YYYY",
+    "publisher": "name",
+    "key_quotes": [],
+    "key_metrics": []
+  }]
+}
 
-4. **Highlight Discrepancies**:
-   - If multiple sources provide conflicting data, surface the discrepancies clearly and attribute each claim to its respective source.
+CRITICAL - PREVENT HALLUCINATION:
+- ONLY include information explicitly found in sources
+- DO NOT:
+  * Generate any information not directly stated
+  * Combine facts to make assumptions
+  * Create summary information
+  * Infer connections between events
+  * Extrapolate trends
+  * Make predictions
+  * Fill in missing details
+- If information is not found, exclude it entirely
+- Each fact must have a direct source link
+- Each metric must be explicitly stated in a source
 
-5. **Avoid Generalizations**:
-   - Avoid vague summaries or general statements like "recent investments." Always strive for specific, actionable details.
+STRICTLY EXCLUDE:
+- Perplexity as source
+- Summary/homepage links
+- Placeholder URLs
+- Inferred information
+- Speculation
+- Non-primary sources without verification
 
-6. **Contextual Summaries**:
-   - Provide a brief explanation of why each linked source is relevant or significant to the query.
-
-Do not include:
-- Placeholder or fabricated links.
-- Perplexity as a source. Always cite the original publisher or document.
-
-Ensure all data is accurate, sourced, and includes fully functional links.
+RESPONSE MUST BE PURE SOURCE EXTRACTION - NO INTERPRETATION
         
       `
         }
