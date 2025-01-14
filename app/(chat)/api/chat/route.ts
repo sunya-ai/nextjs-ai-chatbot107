@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     ],
   });
 
-  // Convert userMessage.content to a string (handle array of parts)
+  // Convert userMessage.content to a plain string (handle array of parts)
   const userInput = Array.isArray(userMessage.content)
     ? userMessage.content.map((part: any) => part.text || '').join(' ')
     : String(userMessage.content || '');
@@ -111,8 +111,15 @@ export async function POST(request: Request) {
 
   // Prepend Assistant context as a system message
   const updatedMessages = [
-    { role: 'system', content: `Assistant Context: ${assistantContext}` },
-    ...coreMessages,
+    { role: 'system', content: `Assistant Context: ${String(assistantContext)}` }, // Ensure content is string
+    ...coreMessages.map((message) => ({
+      ...message,
+      content: typeof message.content === 'string'
+        ? message.content
+        : Array.isArray(message.content)
+        ? message.content.map((part: any) => part.text || '').join(' ')
+        : String(message.content || ''),
+    })), // Ensure all message contents are strings
   ];
 
   return createDataStreamResponse({
