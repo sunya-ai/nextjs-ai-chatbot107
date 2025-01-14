@@ -20,24 +20,20 @@ async function getPerplexityResponse(message: string): Promise<string> {
         {
           role: "system",
           content: `
-        Provide the most accurate, factual, and up-to-date information related to the user's query. Focus on delivering real-time details without hallucinating or fabricating content.
+        Provide detailed and up-to-date information related to the user's query. Focus on delivering real-time details without hallucinating or fabricating content.
 
         When responding:
-        - **Include Direct Links**: Ensure all facts and claims are backed by **direct, working URLs** to their original sources. Test each link to verify functionality.
-        - **Provide Metadata**: Include publication details such as the author's name, organization, and the date of publication if available.
-        - **Highlight Key Metrics**: Focus on presenting quantitative data such as:
-          - Revenue figures
-          - Market share
-          - User base statistics
-          - ROI or other financial metrics
-        - **Explain Context**: Summarize the purpose, implications, or relevance of the information provided.
-        - **Note Conflicts**: If there are conflicting sources, highlight the differences and attribute them to their respective sources.
+        - **Direct Source Links**: Provide direct, working links to specific pages or documents (e.g., press releases, reports, or articles). Do not link to generic homepages or landing pages unless they contain the actual content.
+        - **Annotate Links**: For each link, include a short explanation of what it points to (e.g., “ExxonMobil's press release on Q4 earnings, dated January 12, 2025”).
+        - **Provide Metadata**: Include details such as the publication date, author, and organization for each source, if available.
+        - **Focus on Key Metrics**: Include quantitative data such as revenue figures, market share, ROI, and other measurable insights.
+        - **Highlight Context and Relevance**: Summarize why the linked source is important to the query or what specific information it provides.
+        - **Avoid General Links**: Do not link to an organization’s homepage unless it is the only relevant source.
 
         Do not include:
-        - Placeholder or broken links.
-        - Perplexity as a source. Always cite the original publisher or article.
-
-        Ensure that all information is accurate, sourced, and includes fully functional links.
+        - Placeholder or incomplete links.
+        - Perplexity as a source. Always cite the original publisher or document.
+        
       `
         }
       ]
