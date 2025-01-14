@@ -15,11 +15,11 @@ async function getPerplexityResponse(message: string): Promise<string> {
   try {
     console.log('🔍 Querying Perplexity...');
     const response = await perplexity.chat.completions.create({
-      model: "llama-3.1-sonar-large-128k-online",
+      model: "llama-3.1-sonar-small-128k-online",
       messages: [
         {
           role: "system",
-          content: "Be precise and concise. Focus on providing factual, up-to-date information."
+          content: "Be as expansive as you can in your search. Focus on providing factual, up-to-date information and be real-time. Do not hallucinate."
         },
         {
           role: "user",
