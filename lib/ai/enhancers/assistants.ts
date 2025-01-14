@@ -19,7 +19,7 @@ async function getPerplexityResponse(message: string): Promise<string> {
       messages: [
         {
           role: "system",
-          content: "Be as expansive as you can in your search. Focus on providing factual, up-to-date information and be real-time. Do not hallucinate."
+          content: "Be as expansive as you can in your search. Focus on providing factual, up-to-date information and be real-time. Do not hallucinate. Include sources, links and dates. Be sure to pass along the links for these sources. Makes sure the links are working."
         },
         {
           role: "user",
