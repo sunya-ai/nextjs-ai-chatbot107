@@ -779,8 +779,37 @@ export async function POST(request: Request) {
               },
             },
           },
-          onFinish: async ({ response }) => {
-            // ... same onFinish configuration as above
+         onFinish: async ({ response }) => {
+            if (session.user?.id) {
+              try {
+                const responseMessagesWithoutIncompleteToolCalls =
+                  sanitizeResponseMessages(response.messages);
+
+                await saveMessages({
+                  messages: responseMessagesWithoutIncompleteToolCalls.map(
+                    (message) => {
+                      const messageId = generateUUID();
+
+                      if (message.role === 'assistant') {
+                        dataStream.writeMessageAnnotation({
+                          messageIdFromServer: messageId,
+                        });
+                      }
+
+                      return {
+                        id: messageId,
+                        chatId: id,
+                        role: message.role,
+                        content: message.content,
+                        createdAt: new Date(),
+                      };
+                    },
+                  ),
+                });
+              } catch (error) {
+                console.error('❌ Failed to save chat:', error);
+              }
+            }
           },
           experimental_telemetry: {
             isEnabled: true,
