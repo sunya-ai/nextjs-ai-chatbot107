@@ -113,8 +113,16 @@ export async function POST(request: Request) {
 
       try {
         // Get enhanced context from the Assistant
-        console.log('🤖 Requesting enhancement from Assistant...');
-        const enhancedContext = await assistantEnhancer.enhance(userMessage.content);
+console.log('🤖 Requesting enhancement from Assistant...');
+const messageText = typeof userMessage.content === 'string' 
+  ? userMessage.content 
+  : Array.isArray(userMessage.content) 
+    ? userMessage.content.map(part => 
+        'text' in part ? part.text : ''
+      ).join(' ')
+    : '';
+console.log('📝 Processed message text:', messageText);
+const enhancedContext = await assistantEnhancer.enhance(messageText);
         console.log('✨ Received enhanced context:', enhancedContext.enhancedContext.substring(0, 100) + '...');
         console.log('📊 Enhancement metadata:', JSON.stringify(enhancedContext.metadata));
 
