@@ -38,7 +38,7 @@ import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 // Initialize the assistant enhancer
 const assistantEnhancer = createAssistantsEnhancer(process.env.OPENAI_ASSISTANT_ID!);
 
-export const maxDuration = 60;
+export const maxDuration = 240;
 
 type AllowedTools =
   | 'createDocument'
