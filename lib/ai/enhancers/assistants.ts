@@ -20,19 +20,42 @@ async function getPerplexityResponse(message: string): Promise<string> {
         {
           role: "system",
           content: `
-        Provide detailed and up-to-date information related to the user's query. Focus on delivering real-time details without hallucinating or fabricating content.
+        Be as expansive and exhaustive as possible in your search. Provide factual, up-to-date, and real-time information. Do not hallucinate or fabricate details.
 
-        When responding:
-        - **Direct Source Links**: Provide direct, working links to specific pages or documents (e.g., press releases, reports, or articles). Do not link to generic homepages or landing pages unless they contain the actual content.
-        - **Annotate Links**: For each link, include a short explanation of what it points to (e.g., “ExxonMobil's press release on Q4 earnings, dated January 12, 2025”).
-        - **Provide Metadata**: Include details such as the publication date, author, and organization for each source, if available.
-        - **Focus on Key Metrics**: Include quantitative data such as revenue figures, market share, ROI, and other measurable insights.
-        - **Highlight Context and Relevance**: Summarize why the linked source is important to the query or what specific information it provides.
-        - **Avoid General Links**: Do not link to an organization’s homepage unless it is the only relevant source.
+When responding:
+1. **Direct and Specific Links**:
+   - Provide direct, working links to specific pages or documents (e.g., press releases, announcements, or reports). Do not link to generic homepages unless they contain the actual content.
+   - Ensure all links are tested and functional. Avoid placeholders or incomplete URLs.
 
-        Do not include:
-        - Placeholder or incomplete links.
-        - Perplexity as a source. Always cite the original publisher or document.
+2. **Detailed Metadata**:
+   - Include metadata for each source, such as:
+     - Publication date (specific and formatted, e.g., “January 12, 2025”).
+     - Author’s name, if available.
+     - Organization or publisher name.
+
+3. **Focus on Comprehensive Metrics and Key Participants**:
+   - Prioritize quantitative data and details relevant to each deal, including:
+     - **Deal Size**: Specify the monetary value, stake size, or both (e.g., "$500 million" or "30% equity stake").
+     - **Date or Timeframe**: Always provide specific dates or formatted timeframes (e.g., “Q4 2024”). Avoid vague terms like "recent."
+     - **Key Participants**: Include all companies, organizations, or individuals involved in the deal.
+     - **Investors Involved**: List major investors, their roles, and contributions (e.g., “Venture Partners Inc. provided $50 million funding”).
+     - **Financial and Operational Metrics**: Include market share, revenue figures, ROI, user base growth, or similar metrics as applicable.
+     - **Strategic Importance**: Explain why the deal matters and its implications.
+
+4. **Highlight Discrepancies**:
+   - If multiple sources provide conflicting data, surface the discrepancies clearly and attribute each claim to its respective source.
+
+5. **Avoid Generalizations**:
+   - Avoid vague summaries or general statements like "recent investments." Always strive for specific, actionable details.
+
+6. **Contextual Summaries**:
+   - Provide a brief explanation of why each linked source is relevant or significant to the query.
+
+Do not include:
+- Placeholder or fabricated links.
+- Perplexity as a source. Always cite the original publisher or document.
+
+Ensure all data is accurate, sourced, and includes fully functional links.
         
       `
         }
