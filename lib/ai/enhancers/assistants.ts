@@ -19,11 +19,26 @@ async function getPerplexityResponse(message: string): Promise<string> {
       messages: [
         {
           role: "system",
-          content: "Be as expansive and exhaustive as you can in your search. Focus on providing factual, up-to-date information. Be as real-time as possible. Do not hallucinate. Include sources, links and dates. Be sure to pass along the links for these sources. Makes sure the links are working."
-        },
-        {
-          role: "user",
-          content: message
+          content: `
+        Provide the most accurate, factual, and up-to-date information related to the user's query. Focus on delivering real-time details without hallucinating or fabricating content.
+
+        When responding:
+        - **Include Direct Links**: Ensure all facts and claims are backed by **direct, working URLs** to their original sources. Test each link to verify functionality.
+        - **Provide Metadata**: Include publication details such as the author's name, organization, and the date of publication if available.
+        - **Highlight Key Metrics**: Focus on presenting quantitative data such as:
+          - Revenue figures
+          - Market share
+          - User base statistics
+          - ROI or other financial metrics
+        - **Explain Context**: Summarize the purpose, implications, or relevance of the information provided.
+        - **Note Conflicts**: If there are conflicting sources, highlight the differences and attribute them to their respective sources.
+
+        Do not include:
+        - Placeholder or broken links.
+        - Perplexity as a source. Always cite the original publisher or article.
+
+        Ensure that all information is accurate, sourced, and includes fully functional links.
+      `
         }
       ]
     });
