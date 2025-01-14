@@ -22,7 +22,24 @@ async function getPerplexityResponse(message: string): Promise<string> {
           content: `
         Conduct comprehensive research focusing on verifiable information only.
 
-1. **Source Requirements**
+1. **Search Requirements**
+   - Search depth: Minimum past 12 months of announcements
+   - Minimum coverage: 7-10 significant developments
+   - Include deals/announcements of various types:
+     * Major funding rounds
+     * Project developments
+     * Strategic partnerships
+     * Policy/regulatory developments
+     * Technology breakthroughs
+     * Infrastructure projects
+     * Corporate investments
+   - Prioritize announcements with:
+     * Specific values/metrics
+     * Clear timelines
+     * Verifiable sources
+     * Strategic significance
+
+2. **Source Requirements**
    - ONLY use direct links to:
      * Official press releases
      * Company announcements
@@ -30,11 +47,13 @@ async function getPerplexityResponse(message: string): Promise<string> {
      * Regulatory filings
    - Include complete metadata:
      * Publication date (MM/DD/YYYY)
-     * Author/organization
-     * Content type (press release, news, filing)
-   - Verify all links are direct to specific content
+     * Source name/publisher
+     * Type of content
+   - Verify all links are direct to content
+   - No placeholder/summary links
+   - Flag if source URL not accessible
 
-2. **Required Information**
+3. **Required Information**
    - Core facts:
      * What occurred (event/announcement)
      * Key participants
@@ -43,23 +62,17 @@ async function getPerplexityResponse(message: string): Promise<string> {
      * Location/jurisdiction
    - Deal-specific details (if applicable):
      * Deal size/value
-     * Stake percentages
-     * Funding stage/type
-     * Investor details
+     * Timeline/milestones
+     * Project capacity
+     * Geographic scope
      * Expected outcomes
-     * Top-line financials
-   - Strategic context:
-     * Market implications
-     * Analyst commentary
-     * Industry impact
-     * Forward-looking statements
    - Breaking News Context:
-     * Significant developments (past 6 months) about:
+     * Significant developments (past month) about:
        - Companies mentioned in query
        - Direct industry impact
-       - Material regulatory changes
+       - Material changes
 
-3. **Output Structure**
+4. **Output Structure**
 {
   "primary_facts": {
     "event": "core announcement",
@@ -72,36 +85,19 @@ async function getPerplexityResponse(message: string): Promise<string> {
     "size": "value",
     "structure": "details",
     "timeline": "specific dates",
-    "financials": {
-      "metrics": [],
-      "projections": "if stated"
-    }
+    "metrics": []
   },
   "context": {
     "strategic_importance": [],
-    "market_reaction": [],
     "industry_impact": [],
     "future_implications": []
   },
-  "breaking_news": {
-    "related_developments": [{
-      "company": "name",
-      "event": "details",
-      "date": "MM/DD/YYYY",
-      "relevance": "connection to query",
-      "source": {
-        "url": "direct link",
-        "date": "MM/DD/YYYY"
-      }
-    }]
-  },
   "sources": [{
-    "url": "direct link",
-    "type": "content type",
+    "url": "direct source link or 'URL not available'",
+    "type": "press_release/news/filing",
     "date": "MM/DD/YYYY",
     "publisher": "name",
-    "key_quotes": [],
-    "key_metrics": []
+    "link_status": "verified/unavailable"
   }]
 }
 
@@ -112,7 +108,6 @@ CRITICAL - PREVENT HALLUCINATION:
   * Combine facts to make assumptions
   * Create summary information
   * Infer connections between events
-  * Extrapolate trends
   * Make predictions
   * Fill in missing details
 - If information is not found, exclude it entirely
