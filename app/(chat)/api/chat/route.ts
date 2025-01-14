@@ -111,15 +111,19 @@ export async function POST(request: Request) {
 
   // Prepend Assistant context as a system message
   const updatedMessages = [
-    { role: 'system', content: `Assistant Context: ${String(assistantContext)}` }, // Ensure content is string
-    ...coreMessages.map((message) => ({
-      ...message,
-      content: typeof message.content === 'string'
-        ? message.content
-        : Array.isArray(message.content)
-        ? message.content.map((part: any) => part.text || '').join(' ')
-        : String(message.content || ''),
-    })), // Ensure all message contents are strings
+    { role: 'system', content: `Assistant Context: ${String(assistantContext)}` },
+    ...coreMessages
+      .filter((message) => 
+        ['user', 'system', 'assistant', 'data'].includes(message.role) // Only keep valid roles
+      )
+      .map((message) => ({
+        ...message,
+        content: typeof message.content === 'string'
+          ? message.content
+          : Array.isArray(message.content)
+          ? message.content.map((part: any) => part.text || '').join(' ')
+          : String(message.content || ''),
+      })),
   ];
 
   return createDataStreamResponse({
@@ -149,110 +153,6 @@ export async function POST(request: Request) {
 
               const weatherData = await response.json();
               return weatherData;
-            },
-          },
-          createDocument: {
-            description:
-              'Create a document for a writing activity. This tool will call other functions that will generate the contents of the document based on the title and kind.',
-            parameters: z.object({
-              title: z.string(),
-              kind: z.enum(['text', 'code']),
-            }),
-            execute: async ({ title, kind }) => {
-              const id = generateUUID();
-              let draftText = '';
-
-              dataStream.writeData({
-                type: 'id',
-                content: id,
-              });
-
-              dataStream.writeData({
-                type: 'title',
-                content: title,
-              });
-
-              dataStream.writeData({
-                type: 'kind',
-                content: kind,
-              });
-
-              dataStream.writeData({
-                type: 'clear',
-                content: '',
-              });
-
-              if (kind === 'text') {
-                const { fullStream } = streamText({
-                  model: customModel(model.apiIdentifier),
-                  system:
-                    'Write about the given topic. Markdown is supported. Use headings wherever appropriate.',
-                  prompt: title,
-                });
-
-                for await (const delta of fullStream) {
-                  const { type } = delta;
-
-                  if (type === 'text-delta') {
-                    const { textDelta } = delta;
-
-                    draftText += textDelta;
-                    dataStream.writeData({
-                      type: 'text-delta',
-                      content: textDelta,
-                    });
-                  }
-                }
-
-                dataStream.writeData({ type: 'finish', content: '' });
-              } else if (kind === 'code') {
-                const { fullStream } = streamObject({
-                  model: customModel(model.apiIdentifier),
-                  system: codePrompt,
-                  prompt: title,
-                  schema: z.object({
-                    code: z.string(),
-                  }),
-                });
-
-                for await (const delta of fullStream) {
-                  const { type } = delta;
-
-                  if (type === 'object') {
-                    const { object } = delta;
-                    const { code } = object;
-
-                    if (code) {
-                      dataStream.writeData({
-                        type: 'code-delta',
-                        content: code ?? '',
-                      });
-
-                      draftText = code;
-                    }
-                  }
-                }
-
-                dataStream.writeData({ type: 'finish', content: '' });
-              }
-
-              if (session.user?.id) {
-                await saveDocument({
-                  id,
-                  title,
-                  kind,
-                  content: draftText,
-                  userId: session.user.id,
-                });
-              }
-
-              return {
-                id,
-                title,
-                kind,
-                content:
-                  'A document was created and is now visible to the user.',
-              };
             },
           },
           // Other tools remain unchanged...
