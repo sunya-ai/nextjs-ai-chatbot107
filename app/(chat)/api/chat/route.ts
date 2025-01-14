@@ -113,16 +113,15 @@ export async function POST(request: Request) {
   const updatedMessages = [
     { role: 'system', content: `Assistant Context: ${String(assistantContext)}` },
     ...coreMessages
-      .filter((message) => 
-        ['user', 'system', 'assistant', 'data'].includes(message.role) // Only keep valid roles
-      )
+      .filter((message) => ['user', 'system', 'assistant', 'data'].includes(message.role)) // Only keep valid roles
       .map((message) => ({
         ...message,
         content: typeof message.content === 'string'
           ? message.content
           : Array.isArray(message.content)
           ? message.content.map((part: any) => part.text || '').join(' ')
-          : String(message.content || ''),
+          : String(message.content || ''), // Ensure content is a string
+        role: message.role as 'user' | 'system' | 'assistant' | 'data', // Explicitly cast valid roles
       })),
   ];
 
@@ -226,7 +225,7 @@ export async function DELETE(request: Request) {
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
     return new Response('An error occurred while processing your request', {
-      status: 500,
-    });
+      status: 500 },
+    );
   }
 }
