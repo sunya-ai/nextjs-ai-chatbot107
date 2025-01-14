@@ -718,9 +718,7 @@ export async function POST(request: Request) {
                   };
                 }
 
-                const suggestions: Array
-                  Omit<Suggestion, 'userId' | 'createdAt' | 'documentCreatedAt'>
-                > = [];
+               const suggestions: Array<Omit<Suggestion, 'userId' | 'createdAt' | 'documentCreatedAt'>> = [];
 
                 const { elementStream } = streamObject({
                   model: customModel(model.apiIdentifier),
