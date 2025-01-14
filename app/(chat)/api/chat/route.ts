@@ -109,19 +109,21 @@ export async function POST(request: Request) {
     console.error('Failed to fetch Assistant API context:', error);
   }
 
-  // Prepend Assistant context as a system message
-  const updatedMessages = [
+  // Construct updatedMessages array
+  const updatedMessages: Array<{ content: string; role: 'user' | 'system' | 'assistant' | 'data' }> = [
     { role: 'system', content: `Assistant Context: ${String(assistantContext)}` },
     ...coreMessages
-      .filter((message) => ['user', 'system', 'assistant', 'data'].includes(message.role)) // Only keep valid roles
+      .filter((message) =>
+        ['user', 'system', 'assistant', 'data'].includes(message.role as string)
+      )
       .map((message) => ({
         ...message,
         content: typeof message.content === 'string'
           ? message.content
           : Array.isArray(message.content)
           ? message.content.map((part: any) => part.text || '').join(' ')
-          : String(message.content || ''), // Ensure content is a string
-        role: message.role as 'user' | 'system' | 'assistant' | 'data', // Explicitly cast valid roles
+          : String(message.content || ''),
+        role: message.role as 'user' | 'system' | 'assistant' | 'data',
       })),
   ];
 
