@@ -1,71 +1,108 @@
 import OpenAI from 'openai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
+// Initialize OpenAI clients for both services
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const perplexity = new OpenAI({
+  apiKey: process.env.PERPLEXITY_API_KEY,
+  baseURL: 'https://api.perplexity.ai'
+});
+
+async function getPerplexityResponse(message: string): Promise<string> {
+  try {
+    console.log('🔍 Querying Perplexity...');
+    const response = await perplexity.chat.completions.create({
+      model: "llama-3.1-sonar-large-128k-online",
+      messages: [
+        {
+          role: "system",
+          content: "Be precise and concise. Focus on providing factual, up-to-date information."
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ]
+    });
+    
+    console.log('✨ Perplexity response received');
+    return response.choices[0].message.content || '';
+  } catch (error) {
+    console.error('❌ Perplexity error:', error);
+    return '';
+  }
+}
+
 export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer => {
   return {
-    name: 'openai-assistant',
+    name: 'combined-enhancer',
     enhance: async (message: string): Promise<EnhancerResponse> => {
       try {
-        console.log('🚀 Starting enhancement with Assistant:', assistantId);
-        console.log('📝 User message:', message);
+        // Run both API calls in parallel
+        const [assistantResponse, perplexityResponse] = await Promise.allSettled([
+          // Assistant API call
+          (async () => {
+            console.log('🤖 Starting Assistant API call...');
+            const thread = await openai.beta.threads.create();
+            await openai.beta.threads.messages.create(thread.id, {
+              role: 'user',
+              content: message
+            });
 
-        const thread = await openai.beta.threads.create();
-        console.log('🧵 Created thread:', thread.id);
-        
-        const threadMessage = await openai.beta.threads.messages.create(thread.id, {
-          role: 'user',
-          content: message
-        });
-        console.log('💬 Added message to thread:', threadMessage.id);
+            const run = await openai.beta.threads.runs.create(thread.id, {
+              assistant_id: assistantId
+            });
 
-        const run = await openai.beta.threads.runs.create(thread.id, {
-          assistant_id: assistantId
-        });
-        console.log('▶️ Started run:', run.id);
+            let completedRun = await openai.beta.threads.runs.retrieve(
+              thread.id,
+              run.id
+            );
 
-        let completedRun = await openai.beta.threads.runs.retrieve(
-          thread.id,
-          run.id
-        );
-
-        while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
-          console.log('⏳ Run status:', completedRun.status);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          completedRun = await openai.beta.threads.runs.retrieve(
-            thread.id,
-            run.id
-          );
-        }
-
-        console.log('✅ Run completed with status:', completedRun.status);
-
-        const messages = await openai.beta.threads.messages.list(thread.id);
-        console.log('📨 Retrieved messages');
-
-        const assistantResponse = messages.data[0].content[0];
-        
-        if ('text' in assistantResponse) {
-          console.log('💡 Assistant response received:', assistantResponse.text.value.substring(0, 100) + '...');
-          return {
-            enhancedContext: assistantResponse.text.value,
-            metadata: {
-              threadId: thread.id,
-              runId: run.id,
-              assistantId
+            while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              completedRun = await openai.beta.threads.runs.retrieve(
+                thread.id,
+                run.id
+              );
             }
-          };
-        }
-        
-        throw new Error('Unexpected response format');
+
+            const messages = await openai.beta.threads.messages.list(thread.id);
+            const assistantContent = messages.data[0].content[0];
+            
+            if ('text' in assistantContent) {
+              return assistantContent.text.value;
+            }
+            return '';
+          })(),
+          // Perplexity API call
+          getPerplexityResponse(message)
+        ]);
+
+        // Combine responses
+        const assistantText = assistantResponse.status === 'fulfilled' ? assistantResponse.value : '';
+        const perplexityText = perplexityResponse.status === 'fulfilled' ? perplexityResponse.value : '';
+
+        // Combine contexts with clear separation
+        const combinedContext = [
+          assistantText && `Assistant Context:\n${assistantText}`,
+          perplexityText && `Perplexity Context:\n${perplexityText}`
+        ].filter(Boolean).join('\n\n');
+
+        return {
+          enhancedContext: combinedContext,
+          metadata: {
+            assistantStatus: assistantResponse.status,
+            perplexityStatus: perplexityResponse.status
+          }
+        };
       } catch (error) {
-        console.error('❌ Assistant enhancer error:', error);
+        console.error('❌ Enhancement error:', error);
         return {
           enhancedContext: '',
-          metadata: { error: 'Failed to enhance with assistant', details: error }
+          metadata: { error: 'Failed to enhance with either service' }
         };
       }
     }
