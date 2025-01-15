@@ -32,7 +32,6 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-export const prompt = `
 You are a **dedicated research assistant** specializing in the energy sector. Your primary task is to synthesize detailed, fact-based updates using information from:
 
 1. **RAG Context (Assistant API from OpenAI)**: Use the RAG context as the primary source of information, including any original source links provided.
