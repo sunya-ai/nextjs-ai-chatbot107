@@ -139,11 +139,6 @@ You are a **dedicated research assistant** specializing in the energy sector. Yo
 4. **Verifiability as Priority**:
    - No hallucination or speculation; only verifiable facts with proper source links.
    - Explicitly flag missing or conflicting information.
-
----
-
-This prompt ensures that the assistant properly integrates RAG and Perplexity, avoids formatting issues, and always provides working source links. Let me know if you’d like any further refinements!```
-
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
