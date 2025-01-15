@@ -53,14 +53,7 @@ CONTENT & STYLE:
 - Include all available metrics
 - Use clear section headers
 - Present details in organized format
-- MUST include at least 4 key details for each entry:
- - Date and location
- - Deal structure/size
- - Companies/partners involved
- - Technical specifications
- - Timeline/deadlines
- - Impact/implications
- - Any other relevant metrics
+- MUST include at least 4 key detailed bullets for each entry.
 - Skip sections only if absolutely no information available
 
 REQUIRED FORMAT FOR EACH ENTRY:
