@@ -47,10 +47,7 @@ SECONDARY SOURCE: Perplexity
 
 CONTENT & STYLE:
 - Write in Morning Brew style - informative but engaging
-- Use punchy headers
-- Keep tone light but professional
 - Stay factual and detailed
-- Include clever transitions between sections
 - Make complex topics digestible
 - Skip corporate jargon
 - Be extremely detailed and comprehensive
