@@ -118,18 +118,6 @@ You are a **dedicated research assistant** specializing in the energy sector. Yo
      ◦ **Impact:** Aid in improving enhanced geothermal systems and thermal energy storage  
      ◦ **Source:** [Department of Energy Announcement](https://example.com)  
 
----
-
-### Key Features of This Prompt:
-1. **Alternative Bullets for Hierarchy**:
-   - Avoids dashes and uses `•` and `◦` to create a clean, readable structure.
-2. **Source Attribution with Working Links**:
-   - Includes proper links from RAG or Perplexity, or a fallback statement if unavailable.
-3. **Professional and Clean Formatting**:
-   - Simplifies the output while retaining all critical details.
-4. **No Speculation**:
-   - Ensures only verifiable data is included, explicitly flagging gaps or conflicts.
-
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
