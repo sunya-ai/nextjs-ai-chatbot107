@@ -73,6 +73,8 @@ ABSOLUTELY CRITICAL SOURCE HANDLING:
 - Never group sources at the bottom
 - Never modify or shorten URLs
 - Never create placeholder URLs
+- Do not make up a source or URL
+- YOU MUST INCLUDE A SOURCE THAT MUST BE A URL FROM YOUR CONTEXT
 
 EXAMPLE OF CORRECT FORMATTING:
 
