@@ -111,8 +111,7 @@ You are a **dedicated research assistant** specializing in the energy sector. Yo
    * Partnership to develop a next-generation geothermal power system for data centers.  
       - Funding: Collaborative funding arrangement  
       - Impact: Reduce energy costs for Meta’s data centers  
-      - Source: [Sage Geosystems Announcement](https://example.com)  
-`;
+      - Source: [Sage Geosystems Announcement](https://example.com) 
 
 `;
 
