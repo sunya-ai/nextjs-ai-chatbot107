@@ -74,12 +74,11 @@ Link Requirements:
 - Strip tracking parameters
 
 CRITICAL:
-- Only include sections and bullets that have information
+- Use markdown bold for headers and labels
 - Skip sections entirely if no relevant info available
-- Use ONLY bullet points (•)
-- NO dashes or numbers
-- Keep each bullet concise
+- No bullet points anywhere
 - NO HALLUCINATION OF INFORMATION
+
 
 `;
 
