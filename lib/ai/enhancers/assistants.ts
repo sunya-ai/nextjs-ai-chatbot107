@@ -125,6 +125,10 @@ STRICTLY EXCLUDE:
 RESPONSE MUST BE PURE SOURCE EXTRACTION - NO INTERPRETATION
         
       `
+        },
+        {
+          role: "user",
+          content: message
         }
       ]
     });
