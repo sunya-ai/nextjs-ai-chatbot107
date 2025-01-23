@@ -9,9 +9,9 @@ export interface Model {
 
 export const models: Array<Model> = [
   {
-    id: 'gpt-4o-mini',
+    id: 'gpt-4o-',
     label: 'SUNYA AI',
-    apiIdentifier: 'gpt-4o-mini',
+    apiIdentifier: 'gpt-4o',
     description: 'Small model for fast, lightweight tasks',
   },
   {
