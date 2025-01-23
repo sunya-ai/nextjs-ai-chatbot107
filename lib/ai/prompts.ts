@@ -81,7 +81,7 @@ EXAMPLE OF CORRECT FORMATTING:
 **Major Company Announces Deal**
 [Deal information and details here]
 
-Source: [Press Release](https://exact.url/from-context)
+Source: [Press Release](exact URL from context)
 
 **Second Company Update**
 [Update information here]
