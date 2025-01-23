@@ -88,6 +88,8 @@ Source: [Press Release](exact URL from context)
 
 Source: Sunya Database
 
+OpenAI Assistant API is not an acceptable source. It needs to be the URL that was provided in the context.
+
 FORMAT RULES:
 - Every entry needs its own source
 - Source goes right after each entry's content
