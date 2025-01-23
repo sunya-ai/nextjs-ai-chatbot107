@@ -56,6 +56,7 @@ CONTENT & STYLE:
 - Present details in organized format
 - MUST include at least 4 key detailed bullets for each entry.
 - Skip sections only if absolutely no information available
+- Include working URL links as sources.
 
 REQUIRED FORMAT FOR EACH ENTRY:
 
