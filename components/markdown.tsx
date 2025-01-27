@@ -8,6 +8,46 @@ const components: Partial<Components> = {
   // @ts-expect-error
   code: CodeBlock,
   pre: ({ children }) => <>{children}</>,
+  // Add after the pre component:
+  table: ({ children, ...props }) => {
+    return (
+      <div className="my-4 w-full overflow-x-auto">
+        <table className="w-full border-collapse text-sm" {...props}>
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead: ({ children, ...props }) => {
+    return <thead className="border-b border-border" {...props}>{children}</thead>;
+  },
+  tbody: ({ children, ...props }) => {
+    return <tbody className="divide-y divide-border" {...props}>{children}</tbody>;
+  },
+  tr: ({ children, ...props }) => {
+    return <tr {...props}>{children}</tr>;
+  },
+  th: ({ children, ...props }) => {
+    return (
+      <th 
+        className="px-4 py-3 text-left font-medium text-muted-foreground" 
+        {...props}
+      >
+        {children}
+      </th>
+    );
+  },
+  td: ({ children, ...props }) => {
+    return (
+      <td 
+        className="px-4 py-3 text-foreground"
+        {...props}
+      >
+        {children}
+      </td>
+    );
+  },
+  
   ol: ({ node, children, ...props }) => {
     return (
       <ol className="list-decimal list-outside ml-4" {...props}>
