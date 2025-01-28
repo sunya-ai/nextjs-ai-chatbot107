@@ -1,4 +1,10 @@
 // Define your models here.
+export interface Model {
+  id: string;
+  label: string;
+  apiIdentifier: string;
+  description: string;
+}
 
 export const models: Array<Model> = [
   {
