@@ -232,7 +232,7 @@ export const ThinkingMessage = () => {
     "Hold up, I’m not Google, but I’ll make this look good.",
     "Man, this is so tough, I’m thinking about faking a Wi-Fi outage.",
     "Thinking harder than a dude explaining crypto at Thanksgiving right now.",
-    "Wait, this is gonna take a minute—I’m not AI, I’m just an intern with a laptop in a coffee shop."
+    "Wait, this is gonna take a minute—I’m not AI, I’m just an intern with a laptop in a coffee shop.",
     "Give me a second. I’m not trying to embarrass myself in front of you."
   ];
 
