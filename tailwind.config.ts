@@ -9,7 +9,7 @@ const config: Config = {
   ],
   theme: {
     fontFamily: {
-      sans: ['geist'],
+      sans: ['neue-montreal'],
       mono: ['geist-mono'],
     },
     extend: {
