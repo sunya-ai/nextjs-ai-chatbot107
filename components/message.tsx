@@ -226,6 +226,19 @@ export const PreviewMessage = memo(
 export const ThinkingMessage = () => {
   const role = 'assistant';
 
+  // Add the array of messages
+  const messages = [
+    "Thinking... You really expect me to know this? Alright, let’s see.",
+    "Hold up, I’m not Google, but I’ll make this look good.",
+    "Man, this is so tough, I’m thinking about faking a Wi-Fi outage.",
+    "Thinking harder than a dude explaining crypto at Thanksgiving right now.",
+    "Wait, this is gonna take a minute—I’m not AI, I’m just an intern with a laptop in a coffee shop."
+    "Give me a second. I’m not trying to embarrass myself in front of you."
+  ];
+
+  // Add the logic to select a random message
+  const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+
   return (
     <motion.div
       className="w-full mx-auto max-w-3xl px-4 group/message "
@@ -247,10 +260,11 @@ export const ThinkingMessage = () => {
 
         <div className="flex flex-col gap-2 w-full">
           <div className="flex flex-col gap-4 text-muted-foreground">
-            Thinking... You really expect me to know this? Alright, let’s see.
+            {randomMessage} {/* Use the random message here */}
           </div>
         </div>
       </div>
     </motion.div>
   );
 };
+
