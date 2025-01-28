@@ -6,11 +6,19 @@ export const customModel = (apiIdentifier: string) => {
   const isDeepSeek = apiIdentifier.startsWith('deepseek-');
   
   if (isDeepSeek) {
+    // Create custom fetch for DeepSeek
+    const customFetch = (url: RequestInfo, init?: RequestInit) => {
+      return fetch('https://api.deepseek.com/v1/chat/completions', {
+        ...init,
+        headers: {
+          ...init?.headers,
+          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
+        }
+      });
+    };
+
     return wrapLanguageModel({
-      model: openai(apiIdentifier, {
-        baseURL: 'https://api.deepseek.com/v1',
-        apiKey: process.env.DEEPSEEK_API_KEY
-      }),
+      model: openai(apiIdentifier as any, { fetch: customFetch }),
       middleware: customMiddleware,
     });
   }
