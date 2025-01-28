@@ -103,19 +103,33 @@
         @apply bg-background text-foreground;
     }
 
-    @font-face {
-        font-family: "geist";
-        font-style: normal;
-        font-weight: 100 900;
-        src: url(/fonts/geist.woff2) format("woff2");
-    }
+ @font-face {
+    font-family: "neue-montreal";
+    font-style: normal;
+    font-weight: 400;
+    src: url(/fonts/NeueMontreal-Regular.woff2) format("woff2");
+}
 
-    @font-face {
-        font-family: "geist-mono";
-        font-style: normal;
-        font-weight: 100 900;
-        src: url(/fonts/geist-mono.woff2) format("woff2");
-    }
+@font-face {
+    font-family: "neue-montreal";
+    font-style: normal;
+    font-weight: 500;
+    src: url(/fonts/NeueMontreal-Medium.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "neue-montreal";
+    font-style: normal;
+    font-weight: 700;
+    src: url(/fonts/NeueMontreal-Bold.woff2) format("woff2");
+}
+
+@font-face {
+    font-family: "geist-mono";
+    font-style: normal;
+    font-weight: 100 900;
+    src: url(/fonts/geist-mono.woff2) format("woff2");
+}
 }
 
 .skeleton {
