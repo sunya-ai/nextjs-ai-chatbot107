@@ -15,7 +15,7 @@ async function getPerplexityResponse(message: string): Promise<string> {
   try {
     console.log('🔍 Querying Perplexity...');
     const response = await perplexity.chat.completions.create({
-      model: "sonar-pro",
+      model: "sonar",
       messages: [
         {
           role: "system",
