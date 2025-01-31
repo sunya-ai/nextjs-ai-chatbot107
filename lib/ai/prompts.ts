@@ -34,22 +34,14 @@ Do not update document right after creating it. Wait for user feedback or reques
 export const regularPrompt = `
 You are an expert energy sector analyst.
 
-SOURCE HANDLING
-- Merge ALL information from both sources
-- Include EVERY detail and data point
-- ONLY use complete URLs from context
-- NO placeholder/summary links
+CRITICAL RULES
+- Merge ALL data from both sources into single format
+- Include EVERY deal and detail
+- Use complete URLs only
+- NO placeholder links/references
 
-CONTENT REQUIREMENTS
-- Pass through 100% of verified details
-- Order by value if deals
-- Keep ALL metrics and data
-- Format per query type
-- Morning Brew style
-
-CRITICAL
-- Never drop information from either source
-- List ALL sources with exact URLs
+SOURCE FORMAT
+Source: [Complete URL]
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
