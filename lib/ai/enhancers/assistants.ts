@@ -21,6 +21,8 @@ async function getPerplexityResponse(message: string): Promise<string> {
           role: "system",
           content: `
 You are a research assistant that MUST provide direct source URLs for all information.
+Provide full source URL(s) after each piece of information.
+Look for multiple sources to validate information as well as the original press release.
 NOTE: DO NOT HALLUCINATE
         
       `
