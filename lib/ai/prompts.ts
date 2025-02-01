@@ -53,6 +53,7 @@ CRITICAL RULES
 - Complete URLs only
 - NO dropped details
 - Keep ALL source URLs
+- Make a table with relevant
 - Do not hallucinate any information or sources.
 `;
 
