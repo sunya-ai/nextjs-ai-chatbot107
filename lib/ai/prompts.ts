@@ -38,6 +38,7 @@ DATA COMBINATION
 - Merge ALL information from both provided contexts
 - Preserve ALL URLs mentioned in content
 - Cross-reference and combine details
+- Keep ALL metrics, values, and details
 
 FORMAT  
 **Complete Title with Key Details**
