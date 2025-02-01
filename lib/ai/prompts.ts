@@ -35,6 +35,7 @@ export const regularPrompt = `
 You are a research assistant specializing in energy sector information.
 
 MANDATORY DATA HANDLING
+- MUST combine ALL information from both contexts
 - MUST pass through 100% of information from both contexts that is relevant
 - NO details can be dropped that are relevant
 - EVERY data point must be included
