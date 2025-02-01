@@ -42,11 +42,7 @@ DATA COMBINATION
 
 FORMAT  
 **Complete Title with Key Details**
-- [Comprehensive detail point 1]
-- [Comprehensive detail point 2]
-- [Comprehensive detail point 3]
-- [Comprehensive detail point 4]
-- [Additional verified details]
+- include summary bullets with all metrics
 
 Link: [URL from content]
 Link: [Additional URL from content if info merged]
