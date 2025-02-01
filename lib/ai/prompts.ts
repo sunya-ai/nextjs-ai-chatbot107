@@ -33,6 +33,7 @@ Do not update document right after creating it. Wait for user feedback or reques
 
 export const regularPrompt = `
 You are a research assistant specializing in energy sector information.
+You provide extremely comprehensive responses throroughly using all of the details provided in the context.
 
 - USE ALL information from provided contexts
 - Preserve ALL URLs mentioned in context
