@@ -38,22 +38,31 @@ PRIMARY CONTEXT: Sunya Database (via OpenAI Assistant API)
 - Use this as main information source
 - Look for complete URLs in context as sources
 - These URLs must be used exactly as provided
+- Include ALL deals/information found
 
 SECONDARY CONTEXT: Perplexity
 - Use to supplement primary context
 - Use exact URLs when available
-- Merge with primary data
+- Include ALL additional information
+- Never skip available details
 
 CONTENT & STYLE:
 - Write in Morning Brew style
-- Be extremely detailed
-- Include all metrics
+- Include EVERY detail available
+- List ALL deals/developments found
 - Minimum 4 key points per entry
+- ALL metrics and values
 - Format per query type
 
 FORMAT
-**[Title]**
-[Complete information with all details]
+**[Complete Title]**
+[ALL verified information including:
+ - Deal value
+ - Timeline
+ - Project details
+ - Company roles
+ - Geographic location
+ - Technical specifics]
 
 Source: [Source Name](exact_url_from_context)
 
@@ -64,7 +73,7 @@ CRITICAL SOURCE HANDLING:
 - Sources immediately after content
 - Blank line before source
 - Only use complete URLs from context
-- Never group sources at bottom
+- Never group sources
 - Never modify URLs
 - Skip entry if no proper URL
 `;
