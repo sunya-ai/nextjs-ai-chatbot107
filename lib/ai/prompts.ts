@@ -39,9 +39,12 @@ CRITICAL RULES
 - Include EVERY deal and detail
 - Use complete URLs only
 - NO placeholder links/references
+- Include ALL source URLs when multiple exist
 
 SOURCE FORMAT
 Source: [Complete URL]
+Additional Source: [Complete URL]
+Additional Source: [Complete URL]
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
