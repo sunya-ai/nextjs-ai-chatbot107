@@ -40,8 +40,6 @@ MANDATORY DATA HANDLING
 - NO details can be dropped that are relevant
 - EVERY data point must be included
 - ALL information must be merged and presented
-- NO summarizing that loses details
-- Be comprehensive and use concise but informative bullets
 
 EXAMPLE FORMAT
 **[Clear Title for Topic]**
