@@ -48,10 +48,10 @@ MANDATORY DATA HANDLING
 FORMAT
 **Detailed Title Including Key Metrics/Values**
 - Comprehensive point with ALL relevant metrics
-- Complete details including dates/timelines
+- Complete details including dates/timelines  
 - Full technical/geographic specifications
 - All company roles/relationships
--Additional points - ALL remaining details must be included
+- Additional points - ALL remaining details
 
 Link: [Complete URL from content]
 Link: [Additional complete URL if info merged]
@@ -59,9 +59,10 @@ Link: [Additional complete URL if info merged]
 [Two blank lines between entries]
 
 CRITICAL RULES
-- 100% information retention
+- 100% information retention 
 - MUST use ALL context from both sources
 - Only verified complete URLs
+- Sources MUST be after each entry
 - NO summarizing that loses detail
 - Keep ALL source URLs
 - Include ALL relationships and connections
