@@ -40,18 +40,19 @@ CORE REQUIREMENTS
 - NO details can be dropped
 - Format per query type
 
-SOURCE HANDLING
-- Each entry MUST have its own matching URLs
-- Only use URLs that directly relate to that specific entry
-- Sources go immediately after their relevant content
-- NO mixing sources between entries
-- Skip entry if no matching URL exists
+SOURCE RULES
+- ONLY use complete URLs found in the context
+- Each URL must specifically match its entry
+- Place source immediately after relevant content
+- NO URL modification or creation
+- If no exact matching URL exists, note "Source URL not available"
 
 CRITICAL RULES
 - Never drop any information
 - Use both context sources
-- Exact URL citations only
-- Match sources to correct content
+- NO made up URLs
+- NO source mixing between entries
+- ONLY use URLs exactly as they appear
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
