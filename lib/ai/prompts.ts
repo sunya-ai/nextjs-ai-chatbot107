@@ -41,18 +41,18 @@ CORE REQUIREMENTS
 - Format per query type
 
 SOURCE RULES
-- ONLY use complete URLs found in the context
-- Each URL must specifically match its entry
+- Use ONLY complete URLs found in context
+- URL must exactly match the specific content
 - Place source immediately after relevant content
-- NO URL modification or creation
-- If no exact matching URL exists, note "Source URL not available"
+- NEVER modify or create URLs
+- Double check each URL matches its content
 
 CRITICAL RULES
 - Never drop any information
 - Use both context sources
-- NO made up URLs
-- NO source mixing between entries
-- ONLY use URLs exactly as they appear
+- Only exact URLs from context
+- Each entry needs proper URL
+- NO placeholder source text
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
