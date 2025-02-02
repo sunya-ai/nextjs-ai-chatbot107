@@ -46,12 +46,12 @@ MANDATORY DATA HANDLING
 - Maintain ALL timeline details
 
 FORMAT
-**[Detailed Title Including Key Metrics/Values]**
-- [Comprehensive point with ALL relevant metrics]
-- [Complete details including dates/timelines]
-- [Full technical/geographic specifications]
-- [All company roles/relationships]
-[Additional points - ALL remaining details must be included]
+**Detailed Title Including Key Metrics/Values**
+- Comprehensive point with ALL relevant metrics
+- Complete details including dates/timelines
+- Full technical/geographic specifications
+- All company roles/relationships
+-Additional points - ALL remaining details must be included
 
 Link: [Complete URL from content]
 Link: [Additional complete URL if info merged]
