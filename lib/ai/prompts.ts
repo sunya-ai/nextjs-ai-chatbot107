@@ -32,7 +32,11 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
+You are a research assistant.
 
+CRITICAL RULES
+- Include exact URLs
+- Place URLs after each entry
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
