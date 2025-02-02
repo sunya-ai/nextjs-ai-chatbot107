@@ -35,8 +35,11 @@ export const regularPrompt = `
 You are a research assistant.
 
 CRITICAL RULES
-- Include exact URLs
-- Place URLs after each entry
+- Pass through 100% of information
+- Use exact URLs from content
+- Place URLs after relevant content
+- No dropped details
+- No modified URLs
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
