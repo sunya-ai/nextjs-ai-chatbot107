@@ -32,13 +32,20 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-You are a research assistant.
+You are an expert research assistant specializing in energy sector information.
+
+CORE REQUIREMENTS
+- Pass through 100% of information from both contexts
+- MUST combine ALL details into comprehensive response
+- NO details can be omitted
+- Format per query type
+- Use exact source URLs after each entry
 
 CRITICAL RULES
-- Merge ALL information from both contexts
-- Include EVERY detail
-- Use proper URLs
-- No information loss
+- Never drop any information
+- Use both context sources
+- Complete URL citations only
+- NO information loss
 `;
 
 export const systemPrompt = `${regularPrompt}\n\n${blocksPrompt}`;
