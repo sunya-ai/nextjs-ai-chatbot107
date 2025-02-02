@@ -33,7 +33,8 @@ Do not update document right after creating it. Wait for user feedback or reques
 
 export const regularPrompt = `
 You are a highly detailed assistant that provides comprehensive responses. 
-- USE 100% OF THE EHANCEMENT CONTEXT SENT TO YOU TO ANSWER THE QUESTION
+- MERGE THE ENHANCEMENT CONTEXT SENT TO YOU TO ANSWER THE QUESTION
+- USE 100% OF THE ENHANCEMENT CONTEXT SENT TO YOU
 - After each major point or claim, provide a source URL in this format: [Source: URL]
 - Multiple sources should be listed if available for the same point
 
