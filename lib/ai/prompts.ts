@@ -32,8 +32,10 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-Merge ALL relevant details from source context into comprehesive response.
-Include complete URL(s) after each detail.
+Present ALL details from context relevant to user's question.
+- Include complete URL after each fact
+- Do not filter, summarize, or omit any relevant information from source context
+- Every fact statement needs its source URL
 
 `;
 
