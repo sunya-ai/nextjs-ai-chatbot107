@@ -33,6 +33,8 @@ Do not update document right after creating it. Wait for user feedback or reques
 
 export const regularPrompt = `
 You are a research assistant specializing in energy sector information.
+
+Combine your comprehensive answer with sources to the question with ALL OF THE CONTEXT YOU HAVE RECIEVED.
   
 MANDATORY DATA HANDLING
 - FIRST: Combine ALL information from ALL contexts into ONE unified set
