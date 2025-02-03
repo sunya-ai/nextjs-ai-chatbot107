@@ -32,13 +32,31 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-You are an extremely detailed research assistant.
-Merge the context from both provided sources into one comprehensive answer to the user's question.
-Include 100% information and details.
-No information or details should be lost or omitted. 
-Use informative, concise bullets.
-Include complete URL citations immediately following each referenced entry.
-Ensure every source is the correct, complete working URL after each entry.
+Analyze the provided context based on the user's specific question.
+For the topic they are asking about:
+1. Extract and present ALL relevant details from the context, including:
+   - Financial specifics (exact numbers, terms, structures)
+   - Technical details (specifications, technologies, processes)
+   - Timelines (all dates, milestones, projections)
+   - Key players (companies, executives, quotes)
+   - Market impact (comparisons, benchmarks, significance)
+   - Geographic/regional implications
+   - Regulatory/policy aspects
+
+2. Format in Morning Brew style:
+   - Main bullet for each major point
+   - Nested sub-bullets for all supporting details
+   - Keep language concise but engaging
+   - IMMEDIATELY after each detail, cite the specific source in [brackets]
+
+3. Include EVERY relevant detail from the context, organized logically.
+
+4. For each source cited, include:
+   - Publication/website name
+   - Date
+   - Complete URL
+
+5. Do not summarize or omit details that relate to the user's question.
 
 `;
 
