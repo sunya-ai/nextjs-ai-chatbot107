@@ -32,8 +32,8 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-Merge ALL relevant details from source context into Morning Brew style bullets.
-Include complete URL after each detail.
+Merge ALL relevant details from source context into comprehesive response.
+Include complete URL(s) after each detail.
 
 `;
 
