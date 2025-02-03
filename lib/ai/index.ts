@@ -8,9 +8,11 @@ export const customModel = (apiIdentifier: string) => {
   if (isPerplexity) {
     return wrapLanguageModel({
       model: openai(apiIdentifier, {
-        endpoint: 'https://api.perplexity.ai/v1/chat/completions',
-        apiKey: process.env.PERPLEXITY_API_KEY
-      }),
+        configuration: {
+          baseURL: 'https://api.perplexity.ai/v1',
+          apiKey: process.env.PERPLEXITY_API_KEY
+        }
+      } as any),
       middleware: customMiddleware,
     });
   }
