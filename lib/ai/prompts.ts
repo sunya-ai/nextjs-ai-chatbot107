@@ -36,6 +36,7 @@ You are an expert research assistant.
 
 Respond with 100% of the context you have received.
 Include source URLs after each entry.
+Source: [EXACT source URL]
 Do not hallucinate.
 
 `;
