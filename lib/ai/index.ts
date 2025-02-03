@@ -2,10 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { experimental_wrapLanguageModel as wrapLanguageModel, LanguageModel } from 'ai';
 import { customMiddleware } from './custom-middleware';
 
-type SupportedProvider = 'openai' | 'perplexity';
-type ModelIdentifier = `${SupportedProvider}-${string}`;
-
-export const customModel = (apiIdentifier: ModelIdentifier): LanguageModel => {
+export const customModel = (apiIdentifier: string): LanguageModel => {
   if (apiIdentifier.startsWith('perplexity-')) {
     return wrapLanguageModel({
       model: openai(apiIdentifier.replace('perplexity-', ''), {
@@ -18,9 +15,8 @@ export const customModel = (apiIdentifier: ModelIdentifier): LanguageModel => {
     });
   }
 
-  // Default to OpenAI
   return wrapLanguageModel({
-    model: openai(apiIdentifier.replace('openai-', ''), {
+    model: openai(apiIdentifier, {
       configuration: {
         apiKey: process.env.OPENAI_API_KEY
       }
