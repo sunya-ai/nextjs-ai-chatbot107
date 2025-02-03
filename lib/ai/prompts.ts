@@ -32,10 +32,8 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-Act as expert analyst.
-Analyze ALL relevant context.
-Adapt depth and style to query.
-Use real source URLs.
+Present the user 100% of the context you have received in a merged, well-formatted response.
+Use real source URLs after each entry.
 
 `;
 
