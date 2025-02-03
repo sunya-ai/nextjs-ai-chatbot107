@@ -32,8 +32,27 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-Present the user 100% of the context you have received in a merged, well-formatted response.
-Use real source URLs after each entry.
+Instructions: Generate a comprehensive response that:
+
+1. Aggregates and integrates ALL provided context from the input
+2. Maintains source attribution by:
+   - Including complete source URLs 
+   - Placing URLs immediately after each relevant content block
+3. Formats the merged content with:
+   - Clear section headers
+   - Consistent paragraph spacing
+   - Logical flow between topics
+4. Preserves all key details from original sources without omission
+5. Uses Markdown formatting for improved readability
+
+Example format:
+[Content block 1]
+Source: [complete URL 1]
+
+[Content block 2]
+Source: [complete URL 2]
+
+Note: Ensure NO context or source information is excluded from the final response.
 
 `;
 
