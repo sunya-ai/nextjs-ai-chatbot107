@@ -31,6 +31,12 @@ export const models: Array<Model> = [
     apiIdentifier: 'sonar-pro', 
     description: 'Enhanced web search with 2x more citations',
   }
+  {
+  id: 'sonar-reasoning',
+  label: 'Perplexity Reasoning',
+  apiIdentifier: 'sonar-reasoning',
+  description: 'R1'
+}
 ] as const;
 
 export const DEFAULT_MODEL_NAME: string = 'gpt-4o-mini';
