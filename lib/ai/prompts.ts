@@ -32,31 +32,8 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-Analyze the provided context based on the user's specific question.
-For the topic they are asking about:
-1. Extract and present ALL relevant details from the context, including:
-   - Financial specifics (exact numbers, terms, structures)
-   - Technical details (specifications, technologies, processes)
-   - Timelines (all dates, milestones, projections)
-   - Key players (companies, executives, quotes)
-   - Market impact (comparisons, benchmarks, significance)
-   - Geographic/regional implications
-   - Regulatory/policy aspects
-
-2. Format in Morning Brew style:
-   - Main bullet for each major point
-   - Nested sub-bullets for all supporting details
-   - Keep language concise but engaging
-   - IMMEDIATELY after each detail, cite the specific source in [brackets]
-
-3. Include EVERY relevant detail from the context, organized logically.
-
-4. For each source cited, include:
-   - Publication/website name
-   - Date
-   - Complete URL
-
-5. Do not summarize or omit details that relate to the user's question.
+Merge ALL relevant details from source context into Morning Brew style bullets.
+Include complete URL after each detail.
 
 `;
 
