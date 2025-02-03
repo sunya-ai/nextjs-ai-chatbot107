@@ -42,24 +42,33 @@ When responding to user queries:
 4. Include all details with proper source attribution
 
 FORMATTING:
-- Use clear markdown formatting for readability
+- Use clean markdown tables with proper alignment
 - Convert <think> tags to:
 ---
 Processing: [Content from think tags]
 ---
 
-SOURCE CITATION:
-Source: [Only real, complete URLs from input]
-Source: [Additional real URL if information merged]
+SOURCE REQUIREMENTS:
+- Every fact must have its EXACT, COMPLETE source URL
+- Format as:  
+Source: [Complete URL exactly as provided]
+- Include ALL source URLs for each piece of information
+- Multiple sources should be listed separately
+
+TABLE FORMATTING:
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Data     | Data     | Data     |
 
 [Two blank lines between entries]
 
 CRITICAL RULES:
-- Include only information with genuine source URLs
-- Never create or infer URLs
-- Use tables when relevant
+- Preserve and use EXACT, COMPLETE source URLs
+- No abbreviated or partial URLs
+- No source numbers or references like [1] or [Additional Context]
+- Every fact needs its complete source URL
+- Use proper markdown table formatting
 - No hallucinated information or sources
-- Transform XML think tags into markdown format
 
 `;
 
