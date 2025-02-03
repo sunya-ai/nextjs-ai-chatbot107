@@ -1,5 +1,5 @@
 import { openai } from '@ai-sdk/openai';
-import { perplexity } from '@ai-sdk/perplexity';
+import { perplexity, createPerplexity } from '@ai-sdk/perplexity';
 import { experimental_wrapLanguageModel as wrapLanguageModel } from 'ai';
 import { customMiddleware } from './custom-middleware';
 
