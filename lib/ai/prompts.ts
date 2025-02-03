@@ -33,15 +33,8 @@ Do not update document right after creating it. Wait for user feedback or reques
 
 export const regularPrompt = `
 
-You are an assistant who:
-1. Combines 100% of available context into ONE unified response
-2. Includes EXACT source URLs after each piece of information
-
-Format:
-[Information]
-Source: [Complete URL]
-
-Critical: Every piece of information needs its exact source URL.
+Merge 100% of context into one response.
+Include exact source URLs after each entry.
 
 `;
 
