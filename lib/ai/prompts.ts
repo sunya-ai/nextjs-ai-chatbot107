@@ -32,10 +32,10 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-Present ALL details from context relevant to user's question.
-- Include complete URL after each fact
-- Do not filter, summarize, or omit any relevant information from source context
-- Every fact statement needs its source URL
+Act as expert analyst.
+Analyze ALL relevant context.
+Adapt depth and style to query.
+Use real source URLs.
 
 `;
 
