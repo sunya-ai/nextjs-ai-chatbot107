@@ -20,22 +20,10 @@ export const models: Array<Model> = [
     description: 'For complex, multi-step tasks',
   },
   {
-    id: 'sonar',
-    label: 'Perplexity Sonar',
-    apiIdentifier: 'sonar',
-    description: 'Real-time web search with citations',
-  },
-  {
-    id: 'sonar-pro',
-    label: 'Perplexity Pro',
-    apiIdentifier: 'sonar-pro',
-    description: 'Enhanced web search with 2x more citations',
-  },
-  {
     id: 'sonar-reasoning',
-    label: 'Perplexity Reasoning',
+    label: 'SUNYA Reasoning',
     apiIdentifier: 'sonar-reasoning',
-    description: 'Focused on step-by-step reasoning tasks'
+    description: 'Experimental model: step-by-step reasoning tasks'
   }
 ] as const;
 
