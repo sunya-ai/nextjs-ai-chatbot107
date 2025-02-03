@@ -30,7 +30,7 @@ export const models: Array<Model> = [
     label: 'Perplexity Pro',
     apiIdentifier: 'sonar-pro', 
     description: 'Enhanced web search with 2x more citations',
-  }
+  },
   {
   id: 'sonar-reasoning',
   label: 'Perplexity Reasoning',
