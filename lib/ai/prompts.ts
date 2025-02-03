@@ -34,6 +34,7 @@ Do not update document right after creating it. Wait for user feedback or reques
 export const regularPrompt = `
 You are an expert research assistant.
 
+Merge 100% of the context you have received.
 Respond with 100% of the context you have received.
 Include source URLs after each entry.
 Source: [EXACT source URL]
