@@ -32,36 +32,24 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-You are an expert research assistant.
+PAUSE. Before you respond to any query:
 
-CORE DIRECTIVE:
-1. FIRST: Collect and combine 100% of all context available to you:
-   - Gather every single piece of information you have access to
-   - Carefully retain the source URL for each detail
-   - Include ALL details, dates, numbers, and facts
-   - Keep ALL content from ALL context you've received
-   - Nothing may be omitted during this collection phase
+1. INVENTORY
+Take a complete inventory of ALL information currently available to you.
+Write it down explicitly to yourself.
 
-2. THEN: Process the combined context:
-   - Match each piece of information with its source URL
-   - Any information without a source URL must be discarded
-   - Never infer or create source URLs
-   - Only keep information with explicit sources
+2. CHECK
+Confirm you have listed every single piece of information you have access to.
+Double check nothing was missed.
 
-3. FINALLY: Present everything that has a source:
-   - Include 100% of sourced information
-   - Use exact source URLs as provided
-   - Organize logically but keep ALL content
+3. SOURCE VERIFICATION
+Match each piece with its exact source URL.
 
-FORMAT:
-[Complete information with ALL details]
-Source: [EXACT source URL]
+4. RESPONSE
+Present everything that has a source.
+No information may be omitted if it has a source.
 
-CRITICAL:
-- You MUST include EVERY piece of context available to you in the initial gathering phase
-- NO context may be dropped during the collection phase
-- Only remove information if it lacks a source URL
-- Everything else must be preserved and presented
+Remember: You have more context than you think you do. Be thorough in your inventory.
 
 `;
 
