@@ -1,5 +1,5 @@
 import { openai } from '@ai-sdk/openai';
-import { createPerplexity } from '@ai-sdk/perplexity';
+import { perplexity } from '@ai-sdk/perplexity';
 import { experimental_wrapLanguageModel as wrapLanguageModel } from 'ai';
 import { customMiddleware } from './custom-middleware';
 
@@ -12,7 +12,7 @@ export const customModel = (apiIdentifier: string) => {
   
   if (isPerplexity) {
     return wrapLanguageModel({
-      model: perplexityClient(apiIdentifier),
+      model: perplexity(apiIdentifier),
       middleware: customMiddleware,
     });
   }
