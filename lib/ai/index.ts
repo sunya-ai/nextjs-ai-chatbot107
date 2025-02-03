@@ -6,10 +6,8 @@ export const customModel = (apiIdentifier: string): LanguageModel => {
   if (apiIdentifier.startsWith('perplexity-')) {
     return wrapLanguageModel({
       model: openai(apiIdentifier.replace('perplexity-', ''), {
-        configuration: {
-          baseURL: 'https://api.perplexity.ai',
-          apiKey: process.env.PERPLEXITY_API_KEY ?? ''
-        }
+        baseURL: 'https://api.perplexity.ai',
+        apiKey: process.env.PERPLEXITY_API_KEY ?? ''
       }),
       middleware: customMiddleware,
     });
@@ -17,9 +15,7 @@ export const customModel = (apiIdentifier: string): LanguageModel => {
 
   return wrapLanguageModel({
     model: openai(apiIdentifier, {
-      configuration: {
-        apiKey: process.env.OPENAI_API_KEY
-      }
+      apiKey: process.env.OPENAI_API_KEY
     }),
     middleware: customMiddleware,
   });
