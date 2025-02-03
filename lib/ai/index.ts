@@ -8,7 +8,7 @@ export const customModel = (apiIdentifier: string) => {
   
   if (isPerplexity) {
     return wrapLanguageModel({
-      model: perplexity(apiIdentifier),
+      model: perplexity(apiIdentifier) as any,
       middleware: customMiddleware,
     });
   }
