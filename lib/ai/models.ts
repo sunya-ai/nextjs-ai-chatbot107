@@ -30,6 +30,12 @@ export const models: Array<Model> = [
     label: 'SUNYA Search',
     apiIdentifier: 'gemini-2.0-pro-exp-02-05',
     description: 'Enhanced model with real-time search capabilities'
+  },
+  {
+    id: 'gemini-2.0-flash',
+    label: 'SUNYA Flash',
+    apiIdentifier: 'gemini-2.0-flash',
+    description: 'Fast, efficient model for quick responses'
   }
 ] as const;
 
