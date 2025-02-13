@@ -11,7 +11,7 @@ const googleAI = createGoogleGenerativeAI({
 
 export const customModel = (apiIdentifier: string) => {
   const isPerplexity = apiIdentifier === 'sonar' || apiIdentifier === 'sonar-pro' || apiIdentifier === 'sonar-reasoning';
-  const isGemini = apiIdentifier === 'gemini-2.0-pro-exp-02-05';
+  const isGemini = apiIdentifier === 'gemini-2.0-pro-exp-02-05' || apiIdentifier === 'gemini-2.0-flash';
   
   if (isPerplexity) {
     return wrapLanguageModel({
@@ -22,7 +22,7 @@ export const customModel = (apiIdentifier: string) => {
 
   if (isGemini) {
     return wrapLanguageModel({
-      model: googleAI('gemini-2.0-pro-exp-02-05', {
+      model: googleAI(apiIdentifier, {
         useSearchGrounding: true
       }) as any,
       middleware: customMiddleware,
