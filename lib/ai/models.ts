@@ -24,6 +24,12 @@ export const models: Array<Model> = [
     label: 'SUNYA Reasoning',
     apiIdentifier: 'sonar-reasoning',
     description: 'Experimental model: step-by-step reasoning tasks'
+  },
+  {
+    id: 'gemini-2.0-pro-exp-02-05',
+    label: 'SUNYA Search',
+    apiIdentifier: 'gemini-2.0-pro-exp-02-05',
+    description: 'Enhanced model with real-time search capabilities'
   }
 ] as const;
 
