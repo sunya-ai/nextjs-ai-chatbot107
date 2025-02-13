@@ -24,7 +24,7 @@ export const customModel = (apiIdentifier: string) => {
     return wrapLanguageModel({
       model: googleAI('gemini-2.0-pro-exp-02-05', {
         useSearchGrounding: true
-      }),
+      }) as any,
       middleware: customMiddleware,
     });
   }
