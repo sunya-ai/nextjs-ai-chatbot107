@@ -20,7 +20,7 @@ export const models: Array<Model> = [
     description: 'For complex, multi-step tasks',
   },
   {
-    id: 'sonar-reasoning',
+    id: 'sonar-reasoning-pro',
     label: 'SUNYA Reasoning',
     apiIdentifier: 'sonar-reasoning',
     description: 'Experimental model: step-by-step reasoning tasks'
