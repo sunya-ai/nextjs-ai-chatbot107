@@ -1,4 +1,3 @@
-// app/(chat)/api/files/upload/route.ts
 import { put } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -50,18 +49,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Convert File to ArrayBuffer for uploading
+    // Convert the File to an ArrayBuffer for uploading
     const fileBuffer = await file.arrayBuffer();
-    // We'll use the file's original name
+    // We'll use the File's original name from the client
     const filename = file.name;
 
     // Upload to Vercel Blob (or S3, etc.)
+    // The returned data typically has { url, size, uploaded }, no "name" property.
     const data = await put(filename, fileBuffer, { access: 'public' });
 
-    // data contains { url, name, size, uploaded, etc. }
     return NextResponse.json({
-      url: data.url,
-      pathname: data.name, // e.g. so you can store “filename.ext”
+      url: data.url,      // valid from put() result
+      pathname: filename, // use the original client file name
       contentType: file.type,
     });
   } catch (err) {
