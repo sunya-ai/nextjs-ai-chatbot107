@@ -31,7 +31,7 @@ import { google } from '@ai-sdk/google';
 import type { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google';
 
 // -- Your context enhancer from assistants.ts
-import { createAssistantsEnhancer } from '@/lib/ai/assistants';
+import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
 export const maxDuration = 60;
 
