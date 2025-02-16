@@ -4,6 +4,9 @@ import {
   smoothStream,
   streamText,
 } from 'ai';
+import { NextResponse } from 'next/server';
+
+import { z } from 'zod';
 
 import { auth } from '@/app/(auth)/auth';
 import { myProvider } from '@/lib/ai/models';
@@ -26,19 +29,17 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 
-// -- Gemini for the initial analysis
+// Gemini for the first pass
 import { google } from '@ai-sdk/google';
 import type { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google';
 
-// -- Your context enhancer from assistants.ts
+// Aggregator (assistantsEnhancer)
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
-export const maxDuration = 60;
-
 /**
- * ========================================================
- * 1) DUAL-WINDOW IN-MEMORY RATE LIMITING (2 hours + 12 hours)
- * ========================================================
+ * ================================
+ * In-Memory Rate Limit (2 + 12 hr)
+ * ================================
  */
 type RateLimitInfo = {
   shortTermCount: number;
@@ -49,19 +50,15 @@ type RateLimitInfo = {
 
 const requestsMap = new Map<string, RateLimitInfo>();
 
-// Short-term: 50 requests in 2 hours
 const SHORT_MAX_REQUESTS = 50;
-const SHORT_WINDOW_TIME = 2 * 60 * 60_000; // 2 hours in ms
-
-// Long-term: 100 requests in 12 hours
+const SHORT_WINDOW_TIME = 2 * 60 * 60_000; // 2 hours
 const LONG_MAX_REQUESTS = 100;
-const LONG_WINDOW_TIME = 12 * 60 * 60_000; // 12 hours in ms
+const LONG_WINDOW_TIME = 12 * 60 * 60_000; // 12 hours
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
   let userData = requestsMap.get(userId);
 
-  // If no record yet, initialize
   if (!userData) {
     userData = {
       shortTermCount: 0,
@@ -71,25 +68,22 @@ function rateLimiter(userId: string): boolean {
     };
   }
 
-  // Check short-term window
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
   }
   if (userData.shortTermCount >= SHORT_MAX_REQUESTS) {
-    return false; // Over short-term
+    return false;
   }
 
-  // Check long-term window
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
   }
   if (userData.longTermCount >= LONG_MAX_REQUESTS) {
-    return false; // Over long-term
+    return false;
   }
 
-  // Increment counters
   userData.shortTermCount++;
   userData.longTermCount++;
   requestsMap.set(userId, userData);
@@ -98,29 +92,53 @@ function rateLimiter(userId: string): boolean {
 }
 
 /**
- * =======================================================
- * 2) MULTI-PASS FLOW: GEMINI → ENHANCE → FINAL MODEL
- * =======================================================
+ * =====================
+ * 2-PASS MODELS
+ * =====================
  */
-// (a) Gemini model for the first pass
 const geminiAnalysisModel = google('models/gemini-2.0-flash', {
   useSearchGrounding: true,
 });
 
-// (b) Create your assistantsEnhancer from assistants.ts
-// Provide the "assistantId" used for the OpenAI Beta endpoints
 const assistantsEnhancer = createAssistantsEnhancer(
   process.env.MY_ASSISTANT_ID || 'default-assistant-id'
 );
 
 /**
- * First pass: processInitialQuery with Gemini
+ * If you want to allow docx, pdf, xlsx, csv, images up to 10 MB
  */
-async function processInitialQuery(messages: Array<Message>, files?: any[]) {
+const acceptedMimeTypes = [
+  'image/jpeg',
+  'image/png',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // .xlsx
+  'text/csv',
+];
+
+const FileSchema = z.object({
+  file: z
+    .instanceof(Blob)
+    .refine((file) => file.size <= 10 * 1024 * 1024, {
+      message: 'File size should be less than 10MB',
+    })
+    .refine((file) => acceptedMimeTypes.includes(file.type), {
+      message: `Unsupported file type. Allowed: ${acceptedMimeTypes.join(', ')}`,
+    }),
+});
+
+/**
+ * Step A: Gemini first pass
+ */
+async function processInitialQuery(
+  messages: Message[],
+  fileArrayBuffer?: ArrayBuffer,
+  fileMime?: string
+) {
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) return null;
 
-  // Convert user message to array form
+  // Construct the content for Gemini
   let messageContent: any[] = [];
   if (typeof userMessage.content === 'string') {
     messageContent.push({ type: 'text', text: userMessage.content });
@@ -128,23 +146,18 @@ async function processInitialQuery(messages: Array<Message>, files?: any[]) {
     messageContent = userMessage.content;
   }
 
-  // Optionally handle files if present
-  if (files?.length > 0) {
-    for (const file of files) {
-      if (file.data) {
-        messageContent.push({
-          type: 'file',
-          data: file.data,
-          mimeType: file.mimeType || 'application/octet-stream',
-        });
-      }
-    }
+  if (fileArrayBuffer) {
+    messageContent.push({
+      type: 'file',
+      data: fileArrayBuffer, // raw bytes
+      mimeType: fileMime || 'application/octet-stream',
+    });
   }
 
   try {
     const { text: initialAnalysis, providerMetadata } = await streamText({
       model: geminiAnalysisModel,
-      system: 'Analyze the user query and any provided files. Extract key concepts.',
+      system: 'Analyze the user’s text plus any uploaded file. Extract key concepts.',
       messages: [
         {
           role: 'user',
@@ -153,94 +166,126 @@ async function processInitialQuery(messages: Array<Message>, files?: any[]) {
       ],
     });
 
-    // Log grounding metadata if present
+    // Optional: log metadata
     const metadata = providerMetadata?.google as GoogleGenerativeAIProviderMetadata | undefined;
     if (metadata?.groundingMetadata) {
-      console.log('Search grounding metadata:', JSON.stringify(metadata.groundingMetadata, null, 2));
+      console.log('Gemini search grounding metadata:', JSON.stringify(metadata.groundingMetadata, null, 2));
     }
 
     return initialAnalysis;
-  } catch (error) {
-    console.error('Error in initial Gemini processing:', error);
-    throw error;
+  } catch (err) {
+    console.error('Error in Gemini pass:', err);
+    throw err;
   }
 }
 
 /**
- * Second pass: Enhance context using your aggregator (assistants.ts)
+ * Step B: contextEnhancement
  */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
     return enhancedContext;
-  } catch (error) {
-    console.error('Error in context enhancement:', error);
+  } catch (err) {
+    console.error('Error in context enhancement:', err);
     return initialAnalysis; // fallback
   }
 }
 
+export const maxDuration = 60;
+
 /**
- * ===================================================
- * 3) POST Handler: Rate Limit + Multi-Pass + Streaming
- * ===================================================
+ * =============================
+ * POST: MULTIPART + TWO-PASS AI
+ * =============================
  */
 export async function POST(request: Request) {
-  const {
-    id,
-    messages,
-    files, // optional, if you handle file attachments
-    selectedChatModel,
-  }: {
-    id: string;
-    messages: Array<Message>;
-    files?: any[];
-    selectedChatModel: string;
-  } = await request.json();
-
-  // 1. Auth check
+  // 1. Auth
   const session = await auth();
-  if (!session || !session.user || !session.user.id) {
+  if (!session?.user?.id) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // 2. Rate limit check
-  const userId = session.user.id || request.headers.get('x-forwarded-for') || 'anonymous';
+  // 2. Parse multipart form
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch (err) {
+    return new Response('Invalid form data', { status: 400 });
+  }
+
+  // 3. Rate limit
+  const userId = session.user.id || 'anonymous';
   if (!rateLimiter(userId)) {
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  // 3. Validate user message
+  // We expect hidden fields for "id", "messages", "selectedChatModel"
+  const id = formData.get('id')?.toString() || '';
+  const messagesStr = formData.get('messages')?.toString() || '';
+  const selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
+
+  if (!messagesStr) {
+    return new Response('No messages provided', { status: 400 });
+  }
+
+  let messages: Message[];
+  try {
+    messages = JSON.parse(messagesStr);
+  } catch (err) {
+    console.error('Invalid messages JSON:', err);
+    return new Response('Messages must be valid JSON', { status: 400 });
+  }
+
+  // Possibly get the file from formData
+  const uploadedFile = formData.get('file') as File | null;
+  let fileBuffer: ArrayBuffer | undefined;
+  let fileMime: string | undefined;
+
+  if (uploadedFile) {
+    // Validate with Zod
+    const validatedFile = FileSchema.safeParse({ file: uploadedFile });
+    if (!validatedFile.success) {
+      const errorMsg = validatedFile.error.errors.map((e) => e.message).join('; ');
+      return new Response(errorMsg, { status: 400 });
+    }
+
+    fileBuffer = await uploadedFile.arrayBuffer();
+    fileMime = uploadedFile.type;
+  }
+
+  // 4. Validate user message
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
-    return new Response('No user message found', { status: 400 });
+    return new Response('No user message found in messages', { status: 400 });
   }
 
-  // 4. Check or create chat
-  const chat = await getChatById({ id });
+  // 5. Check or create chat
+  let chat = await getChatById({ id });
   if (!chat) {
     const title = await generateTitleFromUserMessage({ message: userMessage });
-    await saveChat({ id, userId: session.user.id, title });
+    chat = await saveChat({ id, userId: session.user.id, title });
   }
 
-  // 5. Save the user's new message
+  // 6. Save user message
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // 6. Multi-pass logic, then streaming response
+  // 7. Return streaming response (two-pass + final)
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
-        // --- STEP A: Initial Gemini pass ---
-        const initialAnalysis = await processInitialQuery(messages, files);
+        // STEP A: Gemini
+        const initialAnalysis = await processInitialQuery(messages, fileBuffer, fileMime);
         if (!initialAnalysis) {
-          throw new Error('Failed to process initial query');
+          throw new Error('Gemini pass returned null/undefined');
         }
 
-        // --- STEP B: Enhance context ---
+        // STEP B: Enhancer
         const enhancedContext = await enhanceContext(initialAnalysis);
 
-        // --- STEP C: Final pass with selected model ---
+        // STEP C: final model
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         const result = streamText({
@@ -248,16 +293,10 @@ export async function POST(request: Request) {
           system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
           messages,
           maxSteps: 5,
-          // Tools from your template
           experimental_activeTools:
             selectedChatModel === 'chat-model-reasoning'
               ? []
-              : [
-                  'getWeather',
-                  'createDocument',
-                  'updateDocument',
-                  'requestSuggestions',
-                ],
+              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           tools: {
@@ -269,10 +308,12 @@ export async function POST(request: Request) {
               dataStream,
             }),
           },
-          // Once the response is fully streamed, save it
           onFinish: async ({ response, reasoning }) => {
             try {
-              const sanitized = sanitizeResponseMessages({ messages: response.messages, reasoning });
+              const sanitized = sanitizeResponseMessages({
+                messages: response.messages,
+                reasoning,
+              });
               await saveMessages({
                 messages: sanitized.map((m) => ({
                   id: m.id,
@@ -282,24 +323,18 @@ export async function POST(request: Request) {
                   createdAt: new Date(),
                 })),
               });
-            } catch (err) {
-              console.error('Failed to save chat:', err);
+            } catch (error) {
+              console.error('Failed to save AI messages:', error);
             }
-          },
-          experimental_telemetry: {
-            isEnabled: true,
-            functionId: 'stream-text',
           },
         });
 
-        // Stream partial responses back to the client in real time
         result.mergeIntoDataStream(dataStream, {
           sendReasoning: true,
         });
       } catch (error) {
-        console.error('Error in multi-pass processing:', error);
-
-        // Fallback if something in the multi-step fails
+        console.error('Error in multi-pass flow:', error);
+        // Fallback
         const fallbackModel = myProvider.languageModel(selectedChatModel);
         const fallbackResult = streamText({
           model: fallbackModel,
@@ -308,8 +343,9 @@ export async function POST(request: Request) {
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
         });
-
-        fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+        fallbackResult.mergeIntoDataStream(dataStream, {
+          sendReasoning: true,
+        });
       }
     },
     onError: () => {
@@ -319,9 +355,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * =====================================
- * 4) DELETE Handler (unchanged)
- * =====================================
+ * DELETE unchanged...
  */
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -332,7 +366,6 @@ export async function DELETE(request: Request) {
   }
 
   const session = await auth();
-
   if (!session || !session.user) {
     return new Response('Unauthorized', { status: 401 });
   }
@@ -344,6 +377,7 @@ export async function DELETE(request: Request) {
     }
 
     await deleteChatById({ id });
+
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
     return new Response('An error occurred while processing your request', {
