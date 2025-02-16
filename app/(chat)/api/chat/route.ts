@@ -146,7 +146,7 @@ async function processInitialQuery(
   }
 
   try {
-    // We only destructure "text" from the result to avoid compile errors
+    // We only destructure "text" from the result
     const { text: initialAnalysis } = await streamText({
       model: geminiAnalysisModel,
       system: 'Analyze the user’s text plus any uploaded file. Extract key concepts.',
