@@ -73,7 +73,7 @@ function rateLimiter(userId: string): boolean {
     };
   }
 
-  // Check short-term
+  // Check short-term window
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
@@ -82,7 +82,7 @@ function rateLimiter(userId: string): boolean {
     return false; // Over short-term limit
   }
 
-  // Check long-term
+  // Check long-term window
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
@@ -158,8 +158,6 @@ async function processInitialQuery(
       ],
     });
 
-    // (Optional) no references to providerMetadata or meta
-
     return initialAnalysis;
   } catch (err) {
     console.error('Gemini first pass error:', err);
@@ -226,7 +224,7 @@ export async function POST(request: Request) {
   if (file) {
     fileBuffer = await file.arrayBuffer();
     fileMime = file.type;
-    // If you wanted to do a docx/pdf check or extraction, you'd do it here
+    // If you wanted docx/pdf extraction, you'd do it here
   }
 
   // 6. Validate user message
@@ -235,19 +233,20 @@ export async function POST(request: Request) {
     return new Response('No user message found', { status: 400 });
   }
 
-  // 7. Check/create chat
-  let chat = await getChatById({ id });
+  // 7. Check if chat exists; if not, create
+  const chat = await getChatById({ id });
   if (!chat) {
+    // LIKE THE TEMPLATE: just call saveChat, no assignment
     const title = await generateTitleFromUserMessage({ message: userMessage });
-    chat = await saveChat({ id, userId: session.user.id, title });
+    await saveChat({ id, userId: session.user.id, title });
   }
 
-  // Save the user’s new message
+  // 8. Save the user’s new message
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // 8. Return streaming response with multi-pass
+  // 9. Return streaming response with multi-pass
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
@@ -265,7 +264,7 @@ export async function POST(request: Request) {
 
         const result = streamText({
           model: finalModel,
-          system: ` ${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
           messages,
           maxSteps: 5,
           experimental_activeTools:
@@ -304,9 +303,7 @@ export async function POST(request: Request) {
           },
         });
 
-        result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true,
-        });
+        result.mergeIntoDataStream(dataStream, { sendReasoning: true });
       } catch (err) {
         console.error('Multi-pass error:', err);
 
