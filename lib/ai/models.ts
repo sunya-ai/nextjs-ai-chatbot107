@@ -1,42 +1,50 @@
-// Define your models here.
-export interface Model {
+import { openai } from '@ai-sdk/openai';
+import { fireworks } from '@ai-sdk/fireworks';
+import {
+  customProvider,
+  extractReasoningMiddleware,
+  wrapLanguageModel,
+} from 'ai';
+
+export const DEFAULT_CHAT_MODEL: string = 'chat-model-small';
+
+export const myProvider = customProvider({
+  languageModels: {
+    'chat-model-small': openai('gpt-4o-mini'),
+    'chat-model-large': openai('gpt-4o'),
+    'chat-model-reasoning': wrapLanguageModel({
+      model: fireworks('accounts/fireworks/models/deepseek-r1'),
+      middleware: extractReasoningMiddleware({ tagName: 'think' }),
+    }),
+    'title-model': openai('gpt-4-turbo'),
+    'artifact-model': openai('gpt-4o-mini'),
+  },
+  imageModels: {
+    'small-model': openai.image('dall-e-2'),
+    'large-model': openai.image('dall-e-3'),
+  },
+});
+
+interface ChatModel {
   id: string;
-  label: string;
-  apiIdentifier: string;
+  name: string;
   description: string;
 }
 
-export const models: Array<Model> = [
+export const chatModels: Array<ChatModel> = [
   {
-    id: 'gpt-4o-mini',
-    label: 'SUNYA AI',
-    apiIdentifier: 'gpt-4o-mini',
+    id: 'chat-model-small',
+    name: 'Small model',
     description: 'Small model for fast, lightweight tasks',
   },
   {
-    id: 'gpt-4o',
-    label: 'SUNYA AI Advanced',
-    apiIdentifier: 'gpt-4o',
-    description: 'For complex, multi-step tasks',
+    id: 'chat-model-large',
+    name: 'Large model',
+    description: 'Large model for complex, multi-step tasks',
   },
   {
-    id: 'sonar-reasoning-pro',
-    label: 'SUNYA Reasoning',
-    apiIdentifier: 'sonar-reasoning',
-    description: 'Experimental model: step-by-step reasoning tasks'
+    id: 'chat-model-reasoning',
+    name: 'Reasoning model',
+    description: 'Uses advanced reasoning',
   },
-  {
-    id: 'gemini-2.0-pro-exp-02-05',
-    label: 'SUNYA Search',
-    apiIdentifier: 'gemini-2.0-pro-exp-02-05',
-    description: 'Enhanced model with real-time search capabilities'
-  },
-  {
-    id: 'gemini-2.0-flash',
-    label: 'SUNYA Flash',
-    apiIdentifier: 'gemini-2.0-flash',
-    description: 'Fast, efficient model for quick responses'
-  }
-] as const;
-
-export const DEFAULT_MODEL_NAME: string = 'gpt-4o-mini';
+];

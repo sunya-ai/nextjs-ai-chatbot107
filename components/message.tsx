@@ -8,7 +8,12 @@ import { memo, useMemo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
 
 import { DocumentToolCall, DocumentToolResult } from './document';
-import { PencilEditIcon, SparklesIcon } from './icons';
+import {
+  ChevronDownIcon,
+  LoaderIcon,
+  PencilEditIcon,
+  SparklesIcon,
+} from './icons';
 import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
@@ -19,6 +24,7 @@ import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
+import { MessageReasoning } from './message-reasoning';
 
 const PurePreviewMessage = ({
   chatId,
@@ -68,7 +74,7 @@ const PurePreviewMessage = ({
             </div>
           )}
 
-          <div className="flex flex-col gap-2 w-full">
+          <div className="flex flex-col gap-4 w-full">
             {message.experimental_attachments && (
               <div className="flex flex-row justify-end gap-2">
                 {message.experimental_attachments.map((attachment) => (
@@ -80,7 +86,14 @@ const PurePreviewMessage = ({
               </div>
             )}
 
-            {message.content && mode === 'view' && (
+            {message.reasoning && (
+              <MessageReasoning
+                isLoading={isLoading}
+                reasoning={message.reasoning}
+              />
+            )}
+
+            {(message.content || message.reasoning) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
                 {message.role === 'user' && !isReadonly && (
                   <Tooltip>
@@ -209,6 +222,8 @@ export const PreviewMessage = memo(
   PurePreviewMessage,
   (prevProps, nextProps) => {
     if (prevProps.isLoading !== nextProps.isLoading) return false;
+    if (prevProps.message.reasoning !== nextProps.message.reasoning)
+      return false;
     if (prevProps.message.content !== nextProps.message.content) return false;
     if (
       !equal(
@@ -225,19 +240,6 @@ export const PreviewMessage = memo(
 
 export const ThinkingMessage = () => {
   const role = 'assistant';
-
-  // Add the array of messages
-  const messages = [
-    "Thinking... You really expect me to know this? Alright, let’s see.",
-    "Hold up, I’m not Google, but I’ll make this look good.",
-    "Man, this is so tough, I’m thinking about faking a Wi-Fi outage.",
-    "Thinking harder than a dude explaining crypto at Thanksgiving right now.",
-    "Wait, this is gonna take a minute—I’m not AI, I’m just an intern with a laptop in a coffee shop.",
-    "Give me a second. I’m not trying to embarrass myself in front of you."
-  ];
-
-  // Add the logic to select a random message
-  const randomMessage = messages[Math.floor(Math.random() * messages.length)];
 
   return (
     <motion.div
@@ -260,11 +262,10 @@ export const ThinkingMessage = () => {
 
         <div className="flex flex-col gap-2 w-full">
           <div className="flex flex-col gap-4 text-muted-foreground">
-            {randomMessage} {/* Use the random message here */}
+            Thinking...
           </div>
         </div>
       </div>
     </motion.div>
   );
 };
-
