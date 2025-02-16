@@ -4,17 +4,33 @@ import { z } from 'zod';
 
 import { auth } from '@/app/(auth)/auth';
 
-// Allowed MIME types (jpeg, png, pdf, docx, xlsx, csv)
+// Import the AI SDK
+import { streamText } from 'ai';
+import { google } from '@ai-sdk/google';
+import type { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google';
+
+// 1. Create your Gemini model for analysis
+const geminiAnalysisModel = google('models/gemini-2.0-flash', {
+  useSearchGrounding: true,
+});
+
+/**
+ * Allowed MIME types for docx, xlsx, csv, pdf, plus images
+ */
 const acceptedMimeTypes = [
   'image/jpeg',
   'image/png',
   'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // .xlsx
-  'text/csv',                                                                // .csv
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // xlsx
+  'text/csv',                                                                // csv
 ];
 
-// File schema: up to 10 MB, must be one of the accepted types
+/**
+ * Zod validation:
+ * - Max 10 MB
+ * - Must be in acceptedMimeTypes
+ */
 const FileSchema = z.object({
   file: z
     .instanceof(Blob)
@@ -27,11 +43,13 @@ const FileSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // 1. Auth check
   const session = await auth();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // 2. Must be multipart/form-data
   if (request.body === null) {
     return new Response('Request body is empty', { status: 400 });
   }
@@ -44,7 +62,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    // Validate using Zod
+    // 3. Validate file
     const validatedFile = FileSchema.safeParse({ file });
     if (!validatedFile.success) {
       const errorMessage = validatedFile.error.errors
@@ -53,29 +71,75 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    // Grab filename from form data (since Blob doesn't have a .name property)
+    // 4. Convert Blob to Buffer/ArrayBuffer for storing and AI processing
     const filename = (formData.get('file') as File).name;
     const fileBuffer = await file.arrayBuffer();
 
-    try {
-      // Upload to Vercel Blob with public access
-      const data = await put(filename, fileBuffer, {
-        access: 'public',
-      });
+    // 5. Store the file in Vercel Blob
+    const data = await put(filename, fileBuffer, {
+      access: 'public',
+    });
+    // e.g. data has { url, name, size, uploaded, etc. }
 
-      // Return what the front end expects: url, pathname, contentType, etc.
-      return NextResponse.json({
-        ...data,
-        pathname: data.name,
-        contentType: file.type,
-      });
-    } catch (error) {
-      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
-    }
+    // 6. (Optional) Pass the raw file data to Gemini for analysis
+    //    This "analysis" might not be very meaningful unless you parse text from PDF/docx etc.
+    //    But let's show how you'd pass the file buffer:
+
+    const geminiResponse = await runGeminiAnalysis(fileBuffer, file.type);
+
+    // 7. Return the result as JSON
+    return NextResponse.json({
+      ...data, // { url, name, size, etc. from the blob put() call }
+      pathname: data.name,
+      contentType: file.type,
+      geminiAnalysis: geminiResponse, // The text from Gemini
+    });
   } catch (error) {
+    console.error('Upload/Gemini error:', error);
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * Calls the Gemini model with the raw file data if you want to attempt analysis.
+ * In practice, for docx/pdfs, you'd want to parse or convert them to text first.
+ */
+async function runGeminiAnalysis(fileBuffer: ArrayBuffer, mimeType: string) {
+  try {
+    // Prepare "messageContent" with a "file" part
+    // You might have some text-based user query too, but here's a minimal example:
+    const messageContent = [
+      {
+        type: 'file',
+        data: fileBuffer,   // raw bytes
+        mimeType: mimeType, // e.g. 'application/pdf', 'image/png'
+      },
+    ];
+
+    // We'll do a minimal system instruction. Modify as needed.
+    const { text, providerMetadata } = await streamText({
+      model: geminiAnalysisModel,
+      system: 'Analyze this uploaded file content. Return any recognized text or summary if possible.',
+      messages: [
+        {
+          role: 'user',
+          content: messageContent,
+        },
+      ],
+    });
+
+    // Log search grounding metadata (if any)
+    const meta = providerMetadata?.google as GoogleGenerativeAIProviderMetadata | undefined;
+    if (meta?.groundingMetadata) {
+      console.log('Gemini grounding:', JSON.stringify(meta.groundingMetadata, null, 2));
+    }
+
+    return text; // This is Gemini's "analysis" text
+  } catch (error) {
+    console.error('Gemini file analysis failed:', error);
+    return '(Analysis failed or not supported)';
   }
 }
