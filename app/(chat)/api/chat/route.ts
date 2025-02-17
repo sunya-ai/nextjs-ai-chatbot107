@@ -298,9 +298,11 @@ export async function POST(request: Request) {
         }
         console.log('[EXECUTE] initialAnalysis (first 100 chars)=', initialAnalysis.slice(0, 100), '...');
 
-        console.log('[EXECUTE] Step B => enhanceContext');
+        // ADDED LOG #1:
+        console.log('[EXECUTE] Done with processInitialQuery => now calling enhanceContext');
         const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log('[EXECUTE] enhancedContext (first 100 chars)=', enhancedContext.slice(0, 100), '...');
+        // ADDED LOG #2:
+        console.log('[EXECUTE] aggregator => returned. enhancedContext (first 100 chars)=', enhancedContext.slice(0, 100), '...');
 
         console.log('[EXECUTE] Step C => final model => streamText');
         const finalModel = myProvider.languageModel(selectedChatModel);
