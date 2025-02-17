@@ -174,10 +174,11 @@ export const systemPrompt = ({
 }: {
   selectedChatModel: string;
 }) => {
+  // Lines 182-186: minimal expression to avoid syntax error
   if (selectedChatModel === 'chat-model-reasoning') {
     return regularPrompt;
   } else {
-    // Combine the regular prompt with the artifacts prompt
+    // Combine the regularPrompt with artifactsPrompt
     return `${regularPrompt}\n\n${artifactsPrompt}`;
   }
 };
@@ -295,20 +296,17 @@ export const updateDocumentPrompt = (
   type: ArtifactKind,
 ) => {
   if (type === 'text') {
-    return `\
-Improve the following contents of the document based on the given prompt:
+    return `Improve the following contents of the document based on the given prompt:
 
 ${currentContent}
 `;
   } else if (type === 'code') {
-    return `\
-Improve the following code snippet based on the given prompt:
+    return `Improve the following code snippet based on the given prompt:
 
 ${currentContent}
 `;
   } else if (type === 'sheet') {
-    return `\
-Improve the following spreadsheet based on the given prompt:
+    return `Improve the following spreadsheet based on the given prompt:
 
 ${currentContent}
 `;
