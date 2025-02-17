@@ -196,10 +196,10 @@ export const PreviewMessage = memo(PurePreviewMessage, (prevProps, nextProps) =>
 
 interface ThinkingMessageProps {
   currentMessage?: string
-  files?: WorkflowFile[]
+  files?: WorkflowFile[] // Keep for backwards compatibility but don't use it
 }
 
-export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage, files }) => {
+export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage }) => {
   const role = "assistant"
 
   return (
@@ -222,7 +222,7 @@ export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <WorkflowStatus isLoading={true} currentMessage={currentMessage} files={files} />
+          <WorkflowStatus isLoading={true} currentMessage={currentMessage} />
         </div>
       </div>
     </motion.div>
