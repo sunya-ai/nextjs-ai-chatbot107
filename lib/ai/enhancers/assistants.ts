@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
-// Tavily and Exa response interfaces
+// API Response Interfaces
 interface TavilyResult {
   url: string;
   title: string;
@@ -23,7 +23,7 @@ interface ExaResponse {
   documents?: ExaDocument[];
 }
 
-// Instantiate OpenAI and Perplexity clients
+// Initialize API Clients
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -34,7 +34,7 @@ const perplexity = new OpenAI({
 });
 
 /**
- * withTimeout => wraps a promise in a race with a timeout
+ * withTimeout => Wraps a promise with a timeout
  */
 const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName: string) => {
   console.log(`[withTimeout] Start => ${serviceName}, timeout = ${timeoutMs}ms`);
@@ -60,78 +60,73 @@ const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName
 };
 
 /**
- * getPerplexityResponse => queries Perplexity via openai.chat.completions
+ * getPerplexityResponse => Queries Perplexity 
  */
 async function getPerplexityResponse(message: string): Promise<string> {
   try {
-    console.log('[getPerplexityResponse] Querying Perplexity...');
+    console.log('[getPerplexityResponse] Starting Perplexity search...');
     const response = await perplexity.chat.completions.create({
-      model: 'sonar',
+      model: 'sonar-medium-online',
       messages: [
         {
           role: 'system',
-          content: `
-You are a research assistant specializing in energy sector data.
-
-SEARCH REQUIREMENTS
-- Find ALL relevant deals/information
-- Look for multiple confirming sources
-- MUST include direct source URLs
-- Minimum 10 verified results
-- NO hallucination
-
-SOURCE PRIORITY
-1. Original press releases
-2. Company investor relations
-3. Company websites
-4. Regulatory filings
-5. Verified news sources
-
-SOURCE HANDLING
-- Include ALL source URLs for each item
-- Cross-reference between sources
-- Validate information across sources
-- Include complete URLs only
-
-CRITICAL RULES
-- Every piece of information needs source URL
-- Include ALL deal details available
+          content: `You are a research assistant. Find relevant, factual information with source URLs.
+Key requirements:
+- Include source URLs for all information
 - Use multiple sources when possible
-- NO information without URL
-- NO summarizing original sources
-          `
+- Validate across sources
+- No information without URL sources`
         },
-        {
-          role: 'user',
-          content: message
-        }
+        { role: 'user', content: message }
       ]
     });
     console.log('[getPerplexityResponse] Perplexity response received');
     return response.choices[0].message.content || '';
   } catch (error) {
     console.error('[getPerplexityResponse] Perplexity error:', error);
-    return '';
+    return `[Perplexity Search Failed: ${error instanceof Error ? error.message : String(error)}]`;
   }
 }
 
 /**
- * Minimal Tavily call => { "query": message }
+ * getTavilyResponse => Tavily search API implementation
  */
 async function getTavilyResponse(message: string): Promise<string> {
   try {
-    console.log('[getTavilyResponse] Starting Tavily search...');
+    if (!message.trim()) {
+      console.error('[getTavilyResponse] Empty query string provided');
+      return '[No query provided for Tavily search]';
+    }
+
+    console.log('[getTavilyResponse] Starting Tavily search with query:', message.slice(0, 100));
+    
+    const requestBody = {
+      query: message,
+      search_depth: "advanced",
+      include_answer: true,
+      max_results: 5
+    };
+
+    console.log('[getTavilyResponse] Request body:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ query: message })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
-      throw new Error(`Tavily API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('[getTavilyResponse] Response not OK:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      throw new Error(`Tavily API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json() as TavilyResponse;
@@ -141,67 +136,92 @@ async function getTavilyResponse(message: string): Promise<string> {
       return data.answer ?? '[No Tavily results returned]';
     }
 
-    // Format them
     const formatted = data.results
-      .map((r) => `Source: ${r.url}\nTitle: ${r.title}\nContent: ${r.content}`)
-      .join('\n\n');
+      .map((r, i) => `[Source ${i + 1}]\nURL: ${r.url}\nTitle: ${r.title}\n\n${r.content}`)
+      .join('\n\n---\n\n');
 
     return data.answer 
-      ? `Answer: ${data.answer}\n\n${formatted}`
+      ? `Tavily Summary: ${data.answer}\n\nDetailed Sources:\n${formatted}`
       : formatted;
   } catch (error) {
-    console.error('[getTavilyResponse] Tavily error:', error);
-    return '';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[getTavilyResponse] Detailed error:', {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      tavilyKey: process.env.TAVILY_API_KEY ? 'Present' : 'Missing'
+    });
+    return `[Tavily Search Failed: ${errorMessage}]`;
   }
 }
 
 /**
- * Exa => guard for data.documents
+ * getExaResponse => Exa search API implementation
  */
 async function getExaResponse(message: string): Promise<string> {
   try {
-    console.log('[getExaResponse] Starting Exa search...');
+    if (!message.trim()) {
+      console.error('[getExaResponse] Empty query string provided');
+      return '[No query provided for Exa search]';
+    }
+
+    console.log('[getExaResponse] Starting Exa search with query:', message.slice(0, 100));
+    
+    const requestBody = {
+      query: message,
+      contents: {
+        text: { maxCharacters: 1000 }
+      }
+    };
+
+    console.log('[getExaResponse] Request body:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch('https://api.exa.ai/search', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'x-api-key': process.env.EXA_API_KEY!
       },
-      body: JSON.stringify({
-        query: message,
-        contents: {
-          text: { maxCharacters: 1000 }
-        }
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
-      throw new Error(`Exa API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('[getExaResponse] Response not OK:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      throw new Error(`Exa API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json() as ExaResponse;
     console.log('[getExaResponse] Exa raw data =>', JSON.stringify(data, null, 2));
 
     if (!data.documents || data.documents.length === 0) {
-      console.warn('[getExaResponse] No documents returned => empty');
-      return '';
+      console.warn('[getExaResponse] No documents returned');
+      return '[No Exa results returned]';
     }
 
     const formatted = data.documents
-      .map((doc) => `Source: ${doc.url}\nTitle: ${doc.title}\nContent: ${doc.text}`)
-      .join('\n\n');
+      .map((doc, i) => `[Source ${i + 1}]\nURL: ${doc.url}\nTitle: ${doc.title}\n\n${doc.text}`)
+      .join('\n\n---\n\n');
 
     console.log('[getExaResponse] Exa search complete => returning results');
     return formatted;
   } catch (error) {
-    console.error('[getExaResponse] Exa error:', error);
-    return '';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[getExaResponse] Detailed error:', {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      exaKey: process.env.EXA_API_KEY ? 'Present' : 'Missing'
+    });
+    return `[Exa Search Failed: ${errorMessage}]`;
   }
 }
 
 /**
- * createAssistantsEnhancer => aggregator
- *   Expects "assistantId" => calls openai Beta with that ID
+ * createAssistantsEnhancer => Main enhancer factory function
  */
 export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer => {
   return {
@@ -215,6 +235,14 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           tavily: 30000,
           exa: 30000
         };
+
+        // Check API keys before starting
+        if (!process.env.TAVILY_API_KEY) {
+          console.warn('[enhance] ⚠️ Tavily API key not found - skipping Tavily search');
+        }
+        if (!process.env.EXA_API_KEY) {
+          console.warn('[enhance] ⚠️ Exa API key not found - skipping Exa search');
+        }
 
         console.log('[enhance] Starting parallel calls => assistant, perplexity, tavily, exa');
 
@@ -253,15 +281,15 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           // Perplexity
           withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
 
-          // Tavily
+          // Tavily (with API key check)
           process.env.TAVILY_API_KEY
             ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
-            : Promise.resolve(''),
+            : Promise.resolve('[Tavily API key not configured]'),
 
-          // Exa
+          // Exa (with API key check)
           process.env.EXA_API_KEY
             ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
-            : Promise.resolve('')
+            : Promise.resolve('[Exa API key not configured]')
         ]);
 
         console.log('[enhance] Parallel calls completed => assembling results');
@@ -274,13 +302,13 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           exa: exaResponse.status === 'fulfilled' ? exaResponse.value : ''
         };
 
-        // Join them into a single context
+        // Join them into a single context with markdown formatting
         const combinedContext = Object.entries(results)
           .filter(([_, val]) => val)
-          .map(([service, val]) => `${service.charAt(0).toUpperCase() + service.slice(1)} Context:\n${val}`)
+          .map(([service, val]) => `### ${service.charAt(0).toUpperCase() + service.slice(1)} Results\n${val}`)
           .join('\n\n');
 
-        // Build status
+        // Build detailed status
         const status = {
           assistant: {
             status: assistantResponse.status,
