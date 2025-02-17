@@ -29,7 +29,7 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 
-// Gemini for the initial pass
+// Gemini for the initial pass (non-streaming)
 import { google } from '@ai-sdk/google';
 import type { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google';
 
@@ -107,8 +107,8 @@ function rateLimiter(userId: string): boolean {
  * =========================================
  */
 
-// (A) Gemini model with search grounding ON
-const geminiAnalysisModel = google('models/gemini-2.0-flash', {
+// (A) Gemini model with search grounding ON, but no streaming
+const geminiModel = google('models/gemini-2.0-flash', {
   useSearchGrounding: true,
 });
 
@@ -117,65 +117,47 @@ const assistantsEnhancer = createAssistantsEnhancer(
   process.env.MY_ASSISTANT_ID || 'default-assistant-id'
 );
 
-/** 
- * Step A: processInitialQuery with Gemini, optionally reading file bytes 
+/**
+ * Non-streaming Gemini approach => getInitialAnalysis
  */
-async function processInitialQuery(
+async function getInitialAnalysis(
   messages: Message[],
-  fileArrayBuffer?: ArrayBuffer,
+  fileBuffer?: ArrayBuffer,
   fileMime?: string
-) {
-  console.log('[processInitialQuery] Start');
+): Promise<string> {
+  console.log('[getInitialAnalysis] Start');
 
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
-    console.log('[processInitialQuery] No user message found => returning null');
-    return null;
+    console.log('[getInitialAnalysis] No user message => returning empty');
+    return '';
   }
 
-  // Build the user "messageContent"
-  let messageContent: any[] = [];
-
-  // The user text
-  if (typeof userMessage.content === 'string') {
-    messageContent.push({ type: 'text', text: userMessage.content });
-  } else if (Array.isArray(userMessage.content)) {
-    messageContent = userMessage.content;
-  }
-
-  // If there's a file, attach it
-  if (fileArrayBuffer) {
-    console.log('[processInitialQuery] We have a file buffer, attaching it');
-    messageContent.push({
-      type: 'file',
-      data: fileArrayBuffer, // raw bytes
-      mimeType: fileMime || 'application/octet-stream',
-    });
+  // Combine user text with optional file mention
+  let content = userMessage.content;
+  if (fileBuffer) {
+    console.log('[getInitialAnalysis] We have a file => appending note to content');
+    content += `\n\n[File attached: ${fileMime ?? 'unknown type'}]`;
   }
 
   try {
-    console.log('[processInitialQuery] Calling geminiAnalysisModel with streamText');
-    const { text: initialAnalysis } = await streamText({
-      model: geminiAnalysisModel,
-      system: 'Analyze the user\'s text plus any uploaded file. Extract key concepts.',
+    console.log('[getInitialAnalysis] Using geminiModel.generateText (non-streaming)');
+    // Hypothetical .generateText method => adjust name if needed
+    const response = await geminiModel.generateText({
+      system: "Analyze the user's text plus any uploaded file. Extract key concepts.",
       messages: [
-        {
-          role: 'user',
-          content: messageContent,
-        },
-      ],
+        { role: 'user', content }
+      ]
     });
-    console.log('[processInitialQuery] Gemini call success => got initialAnalysis');
-    return initialAnalysis;
+    console.log('[getInitialAnalysis] Gemini success => text length:', response.text.length);
+    return response.text;
   } catch (err) {
-    console.error('[processInitialQuery] Gemini first pass error:', err);
+    console.error('[getInitialAnalysis] Gemini error =>', err);
     throw err;
   }
 }
 
-/** 
- * Step B: contextEnhancement 
- */
+/** aggregator => aggregator.enhance(...) */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
   try {
@@ -255,15 +237,6 @@ export async function POST(request: Request) {
     }
   }
 
-  // Process file if present
-  let fileBuffer: ArrayBuffer | undefined;
-  let fileMime: string | undefined;
-  if (file) {
-    console.log('[POST] file found => converting to arrayBuffer');
-    fileBuffer = await file.arrayBuffer();
-    fileMime = file.type;
-  }
-
   // 4. Validate user message
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
@@ -286,25 +259,29 @@ export async function POST(request: Request) {
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
+  // Possibly get file bytes
+  let fileBuffer: ArrayBuffer | undefined;
+  let fileMime: string | undefined;
+  if (file) {
+    console.log('[POST] file found => converting to arrayBuffer');
+    fileBuffer = await file.arrayBuffer();
+    fileMime = file.type;
+  }
+
   console.log('[POST] About to return createDataStreamResponse => multi-pass logic');
 
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
-        console.log('[EXECUTE] Step A => processInitialQuery');
-        const initialAnalysis = await processInitialQuery(messages, fileBuffer, fileMime);
-        if (!initialAnalysis) {
-          throw new Error('Gemini returned null');
-        }
-        console.log('[EXECUTE] initialAnalysis (first 100 chars)=', initialAnalysis.slice(0, 100), '...');
+        console.log('[EXECUTE] Step A => getInitialAnalysis (non-streaming gemini)');
+        const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
+        console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
-        // ADDED LOG #1:
-        console.log('[EXECUTE] Done with processInitialQuery => now calling enhanceContext');
+        console.log('[EXECUTE] Step B => aggregator => enhanceContext');
         const enhancedContext = await enhanceContext(initialAnalysis);
-        // ADDED LOG #2:
-        console.log('[EXECUTE] aggregator => returned. enhancedContext (first 100 chars)=', enhancedContext.slice(0, 100), '...');
+        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
-        console.log('[EXECUTE] Step C => final model => streamText');
+        console.log('[EXECUTE] Step C => final model => streaming pass');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         const result = streamText({
@@ -350,7 +327,7 @@ export async function POST(request: Request) {
           },
         });
 
-        console.log('[EXECUTE] Merging partial results => result.mergeIntoDataStream');
+        console.log('[EXECUTE] Merging partial results => final model');
         result.mergeIntoDataStream(dataStream, { sendReasoning: true });
       } catch (err) {
         console.error('[EXECUTE] Multi-pass error =>', err);
