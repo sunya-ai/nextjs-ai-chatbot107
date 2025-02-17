@@ -7,7 +7,7 @@ import type {
   Message,
 } from 'ai';
 import cx from 'classnames';
-import React from 'react';
+import type React from 'react';
 import {
   useRef,
   useEffect,
@@ -30,12 +30,6 @@ import { Textarea } from './ui/textarea';
 import { SuggestedActions } from './suggested-actions';
 import equal from 'fast-deep-equal';
 
-/**
- * Two-step code: 
- * (1) For each file, call `/api/files/upload`.
- * (2) Store { url, name, contentType } in `attachments`.
- * (3) On "Send," call `handleSubmit` with experimental_attachments.
- */
 function PureMultimodalInput({
   chatId,
   input,
@@ -64,14 +58,15 @@ function PureMultimodalInput({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
-    event?: { preventDefault?: () => void },
+    event?: {
+      preventDefault?: () => void;
+    },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
   className?: string;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
-  const [localStorageInput, setLocalStorageInput] = useLocalStorage('input', '');
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -93,14 +88,20 @@ function PureMultimodalInput({
     }
   };
 
+  const [localStorageInput, setLocalStorageInput] = useLocalStorage(
+    'input',
+    '',
+  );
+
   useEffect(() => {
     if (textareaRef.current) {
       const domValue = textareaRef.current.value;
+      // Prefer DOM value over localStorage to handle hydration
       const finalValue = domValue || localStorageInput || '';
       setInput(finalValue);
       adjustHeight();
     }
-    // only once after hydration
+    // Only run once after hydration
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -108,52 +109,20 @@ function PureMultimodalInput({
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
 
-  const handleInput = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInput(event.target.value);
-      adjustHeight();
-    },
-    [setInput],
-  );
+  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(event.target.value);
+    adjustHeight();
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
   const submitForm = useCallback(() => {
-    console.log('Submitting with:', {
-      chatId,
-      input,
-      attachments,
-      messages,
-    });
-
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
-    // If we have attachments, prepare the file
-    if (attachments.length > 0) {
-      const attachment = attachments[0];
-      fetch(attachment.url)
-        .then(r => r.blob())
-        .then(blob => {
-          // Create new file with correct name
-          const file = new File([blob], attachment.name, {
-            type: attachment.contentType
-          });
-          
-          handleSubmit?.(undefined, {
-            experimental_attachments: [{
-              ...attachment,
-              file
-            }],
-          });
-        })
-        .catch(err => {
-          console.error('Error fetching attachment:', err);
-          toast.error('Error processing attachment');
-        });
-    } else {
-      // If no attachments, submit directly
-      handleSubmit?.(undefined, {
-        experimental_attachments: attachments,
-      });
-    }
+    handleSubmit(undefined, {
+      experimental_attachments: attachments,
+    });
 
     setAttachments([]);
     setLocalStorageInput('');
@@ -164,13 +133,11 @@ function PureMultimodalInput({
     }
   }, [
     attachments,
-    chatId,
     handleSubmit,
-    input,
-    messages,
     setAttachments,
     setLocalStorageInput,
     width,
+    chatId,
   ]);
 
   const uploadFile = async (file: File) => {
@@ -183,42 +150,42 @@ function PureMultimodalInput({
         body: formData,
       });
 
-      const data = await response.json();
+      if (response.ok) {
+        const data = await response.json();
+        const { url, pathname, contentType } = data;
 
-      if (!response.ok) {
-        toast.error(data.error || 'Failed to upload file');
-        return;
+        return {
+          url,
+          name: pathname,
+          contentType: contentType,
+        };
       }
-
-      return {
-        url: data.url,
-        name: data.pathname,
-        contentType: data.contentType,
-      };
+      const { error } = await response.json();
+      toast.error(error);
     } catch (error) {
-      console.error('File upload error:', error);
       toast.error('Failed to upload file, please try again!');
     }
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
-
   const handleFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || []);
-      if (files.length === 0) return;
 
       setUploadQueue(files.map((file) => file.name));
 
       try {
         const uploadPromises = files.map((file) => uploadFile(file));
         const uploadedAttachments = await Promise.all(uploadPromises);
-        const successful = uploadedAttachments.filter(Boolean) as Attachment[];
+        const successfullyUploadedAttachments = uploadedAttachments.filter(
+          (attachment) => attachment !== undefined,
+        );
 
-        setAttachments((current) => [...current, ...successful]);
-      } catch (err) {
-        console.error('Error uploading files:', err);
+        setAttachments((currentAttachments) => [
+          ...currentAttachments,
+          ...successfullyUploadedAttachments,
+        ]);
+      } catch (error) {
+        console.error('Error uploading files!', error);
       } finally {
         setUploadQueue([]);
       }
@@ -228,9 +195,11 @@ function PureMultimodalInput({
 
   return (
     <div className="relative w-full flex flex-col gap-4">
-      {messages.length === 0 && attachments.length === 0 && uploadQueue.length === 0 && (
-        <SuggestedActions append={append} chatId={chatId} />
-      )}
+      {messages.length === 0 &&
+        attachments.length === 0 &&
+        uploadQueue.length === 0 && (
+          <SuggestedActions append={append} chatId={chatId} />
+        )}
 
       <input
         type="file"
@@ -243,8 +212,8 @@ function PureMultimodalInput({
 
       {(attachments.length > 0 || uploadQueue.length > 0) && (
         <div className="flex flex-row gap-2 overflow-x-scroll items-end">
-          {attachments.map((att) => (
-            <PreviewAttachment key={att.url} attachment={att} />
+          {attachments.map((attachment) => (
+            <PreviewAttachment key={attachment.url} attachment={attachment} />
           ))}
 
           {uploadQueue.map((filename) => (
@@ -268,13 +237,14 @@ function PureMultimodalInput({
         onChange={handleInput}
         className={cx(
           'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base bg-muted pb-10 dark:border-zinc-700',
-          className
+          className,
         )}
         rows={2}
         autoFocus
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+
             if (isLoading) {
               toast.error('Please wait for the model to finish its response!');
             } else {
@@ -309,6 +279,7 @@ export const MultimodalInput = memo(
     if (prevProps.input !== nextProps.input) return false;
     if (prevProps.isLoading !== nextProps.isLoading) return false;
     if (!equal(prevProps.attachments, nextProps.attachments)) return false;
+
     return true;
   },
 );
@@ -334,6 +305,7 @@ function PureAttachmentsButton({
     </Button>
   );
 }
+
 const AttachmentsButton = memo(PureAttachmentsButton);
 
 function PureStopButton({
@@ -349,13 +321,14 @@ function PureStopButton({
       onClick={(event) => {
         event.preventDefault();
         stop();
-        setMessages((msgs) => sanitizeUIMessages(msgs));
+        setMessages((messages) => sanitizeUIMessages(messages));
       }}
     >
       <StopIcon size={14} />
     </Button>
   );
 }
+
 const StopButton = memo(PureStopButton);
 
 function PureSendButton({
@@ -380,8 +353,10 @@ function PureSendButton({
     </Button>
   );
 }
+
 const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
-  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length) return false;
+  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length)
+    return false;
   if (prevProps.input !== nextProps.input) return false;
   return true;
 });
