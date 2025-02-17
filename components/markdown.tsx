@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion } from 'framer-motion';
@@ -14,8 +14,23 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Separate Code component that follows React naming conventions
-function Code({ className, children }: { className?: string; children: React.ReactNode }) {
+// Separate Code component with copy functionality
+const Code: React.FC<{ className?: string; children: React.ReactNode }> = ({ 
+  className, 
+  children 
+}) => {
+  const [copied, setCopied] = useState(false);
+  const language = className?.replace('language-', '') || 'text';
+  
+  const copyToClipboard = () => {
+    if (typeof children === 'string') {
+      navigator.clipboard.writeText(children).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  };
+
   if (!/language-/.test(className || '')) {
     return (
       <code className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm text-foreground">
@@ -30,16 +45,27 @@ function Code({ className, children }: { className?: string; children: React.Rea
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs font-medium text-muted-foreground">
-            {className.replace('language-', '').toUpperCase()}
+            {language.toUpperCase()}
           </span>
         </div>
+        <button
+          onClick={copyToClipboard}
+          className="p-2 hover:bg-muted rounded-md transition-colors"
+          title={copied ? 'Copied!' : 'Copy code'}
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-green-500" />
+          ) : (
+            <Copy className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
       </div>
       <pre className="overflow-x-auto p-4">
         <code className={className}>{children}</code>
       </pre>
     </div>
   );
-}
+};
 
 const components: Partial<Components> = {
   code: Code,
@@ -58,7 +84,6 @@ const components: Partial<Components> = {
     </motion.a>
   ),
 
-  // Enhanced blockquotes
   blockquote: ({ children }) => (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -74,7 +99,6 @@ const components: Partial<Components> = {
     </motion.div>
   ),
 
-  // Basic elements with proper contrast
   p: ({ children }) => (
     <p className="leading-7 text-foreground [&:not(:first-child)]:mt-6">
       {children}
@@ -99,7 +123,6 @@ const components: Partial<Components> = {
     </ol>
   ),
 
-  // Tables
   table: ({ children }) => (
     <div className="my-6 w-full overflow-hidden rounded-lg border">
       <motion.div 
