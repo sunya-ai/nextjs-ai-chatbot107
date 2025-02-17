@@ -142,7 +142,7 @@ async function getInitialAnalysis(
   // "Take user query, improve the prompt and answer as an energy research assistant..."
   const customSystemPrompt = `
 Take user query, improve the prompt and answer as an energy research assistant.
-Provide the original user's query and improved prompt as output with your answer.
+Provide the original user's query and improved prompt as output with your answer. Respond with text.
 `;
 
   try {
