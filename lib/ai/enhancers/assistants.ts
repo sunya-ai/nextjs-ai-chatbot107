@@ -10,7 +10,7 @@ interface TavilyResult {
 
 interface TavilyResponse {
   answer?: string;
-  results: TavilyResult[];
+  results?: TavilyResult[];
 }
 
 interface ExaDocument {
@@ -20,10 +20,10 @@ interface ExaDocument {
 }
 
 interface ExaResponse {
-  documents: ExaDocument[];
+  documents?: ExaDocument[];
 }
 
-// Initialize OpenAI clients for both services
+// Initialize OpenAI clients
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -33,7 +33,9 @@ const perplexity = new OpenAI({
   baseURL: 'https://api.perplexity.ai'
 });
 
-// Timeout wrapper function
+/**
+ * withTimeout => wraps a promise in a race with a timeout rejection
+ */
 const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName: string) => {
   console.log(`[withTimeout] Start => ${serviceName}, timeout = ${timeoutMs}ms`);
   let timeoutId: NodeJS.Timeout;
@@ -57,14 +59,17 @@ const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName
   }
 };
 
+/**
+ * Perplexity => calls .chat.completions.create with a custom system prompt
+ */
 async function getPerplexityResponse(message: string): Promise<string> {
   try {
     console.log('[getPerplexityResponse] Querying Perplexity...');
     const response = await perplexity.chat.completions.create({
-      model: "sonar",
+      model: 'sonar',
       messages: [
         {
-          role: "system",
+          role: 'system',
           content: `
 You are a research assistant specializing in energy sector data.
 
@@ -97,12 +102,11 @@ CRITICAL RULES
         `
         },
         {
-          role: "user",
+          role: 'user',
           content: message
         }
       ]
     });
-    
     console.log('[getPerplexityResponse] Perplexity response received');
     return response.choices[0].message.content || '';
   } catch (error) {
@@ -111,6 +115,15 @@ CRITICAL RULES
   }
 }
 
+/**
+ * Minimal Tavily body => { query: message }
+ * to match the official cURL example:
+ * 
+ * curl -X POST https://api.tavily.com/search \
+ *   -H "Content-Type: application/json" \
+ *   -H "Authorization: Bearer <API_KEY>" \
+ *   -d '{"query": "<your text>"}'
+ */
 async function getTavilyResponse(message: string): Promise<string> {
   try {
     console.log('[getTavilyResponse] Starting Tavily search...');
@@ -121,11 +134,7 @@ async function getTavilyResponse(message: string): Promise<string> {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        query: message,
-        search_depth: "basic",
-        max_results: 10,
-        include_answer: true,
-        include_raw_content: false
+        query: message
       })
     });
 
@@ -134,26 +143,32 @@ async function getTavilyResponse(message: string): Promise<string> {
     }
 
     const data = await response.json() as TavilyResponse;
-    let formattedResponse = '';
-    
-    if (data.answer) {
-      formattedResponse += `Answer: ${data.answer}\n\nSources:\n`;
+    console.log('[getTavilyResponse] Tavily search complete =>', JSON.stringify(data, null, 2));
+
+    // For debugging, let's just return a stringified version or parse results
+    if (!data.results) {
+      // if no "results" field, return the entire data or data.answer
+      return data.answer || '[No results field returned]';
     }
 
-    formattedResponse += data.results
-      .map((result: TavilyResult) => 
-        `Source: ${result.url}\nTitle: ${result.title}\nContent: ${result.content}`
-      )
+    // Or format them if you want
+    const formattedResponse = data.results
+      .map((result) => `Source: ${result.url}\nTitle: ${result.title}\nContent: ${result.content}`)
       .join('\n\n');
 
-    console.log('[getTavilyResponse] Tavily search complete');
-    return formattedResponse;
+    return data.answer 
+      ? `Answer: ${data.answer}\n\n${formattedResponse}`
+      : formattedResponse;
   } catch (error) {
     console.error('[getTavilyResponse] Tavily error:', error);
     return '';
   }
 }
 
+/**
+ * Exa => you said there's a type error if data.documents is undefined
+ * So let's guard it:
+ */
 async function getExaResponse(message: string): Promise<string> {
   try {
     console.log('[getExaResponse] Starting Exa search...');
@@ -176,13 +191,20 @@ async function getExaResponse(message: string): Promise<string> {
     }
 
     const data = await response.json() as ExaResponse;
+    console.log('[getExaResponse] Exa raw data =>', JSON.stringify(data, null, 2));
+
+    if (!data.documents) {
+      console.warn('[getExaResponse] No "documents" field => returning empty');
+      return '';
+    }
+
     const formattedResults = data.documents
-      .map((doc: ExaDocument) => 
+      .map((doc) => 
         `Source: ${doc.url}\nTitle: ${doc.title}\nContent: ${doc.text}`
       )
       .join('\n\n');
 
-    console.log('[getExaResponse] Exa search complete');
+    console.log('[getExaResponse] Exa search complete => returning results');
     return formattedResults;
   } catch (error) {
     console.error('[getExaResponse] Exa error:', error);
@@ -190,28 +212,33 @@ async function getExaResponse(message: string): Promise<string> {
   }
 }
 
-export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer => {
+/**
+ * createAssistantsEnhancer => aggregator
+ *   - references process.env.OPENAI_ASSISTANT_ID
+ *   - calls each service in parallel with timeouts
+ */
+export const createAssistantsEnhancer = (/* we can pass anything if needed */): ContextEnhancer => {
+  // use the correct ID => no more "default-assistant-id"
+  const assistantId = process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id';
+
   return {
     name: 'combined-enhancer',
     enhance: async (message: string): Promise<EnhancerResponse> => {
-      // ADDED LOG #1: 
       console.log('[enhance] aggregator => called with message (first 100 chars):', message.slice(0, 100));
-
       try {
-        // Set timeouts
+        // timeouts
         const TIMEOUTS = {
-          assistant: 60000,    // 60 seconds
-          perplexity: 30000,   // 30 seconds
-          tavily: 30000,       // 30 seconds
-          exa: 30000           // 30 seconds
+          assistant: 60000,    // 60s
+          perplexity: 30000,   // 30s
+          tavily: 30000,       // 30s
+          exa: 30000           // 30s
         };
 
-        // ADDED LOG #2:
         console.log('[enhance] Starting parallel calls => assistant, perplexity, tavily, exa');
 
         const [assistantResponse, perplexityResponse, tavilyResponse, exaResponse] = 
           await Promise.allSettled([
-            // Assistant API call
+            // Assistant => withTimeout
             withTimeout((async () => {
               console.log('[enhance] => 🤖 Starting Assistant API call...');
               const thread = await openai.beta.threads.create();
@@ -224,47 +251,41 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
                 assistant_id: assistantId
               });
 
-              let completedRun = await openai.beta.threads.runs.retrieve(
-                thread.id,
-                run.id
-              );
+              let completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
 
               while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
                 console.log('[enhance] => assistant is in_progress/queued, waiting 1s');
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                completedRun = await openai.beta.threads.runs.retrieve(
-                  thread.id,
-                  run.id
-                );
+                completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
               }
 
               const messages = await openai.beta.threads.messages.list(thread.id);
-              const assistantContent = messages.data[0].content[0];
+              const assistantContent = messages.data[0]?.content[0];
               
-              console.log('[enhance] => assistant completed, content length:', messages.data[0].content?.length ?? 0);
-              if ('text' in assistantContent) {
+              console.log('[enhance] => assistant completed, content length:', messages.data[0]?.content?.length ?? 0);
+              if (assistantContent && 'text' in assistantContent) {
                 return assistantContent.text.value;
               }
               return '';
             })(), TIMEOUTS.assistant, 'Assistant'),
 
-            // Perplexity
+            // Perplexity => withTimeout
             withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
 
-            // Tavily
-            process.env.TAVILY_API_KEY ? 
-              withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily') : 
-              Promise.resolve(''),
+            // Tavily => if key provided
+            process.env.TAVILY_API_KEY
+              ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
+              : Promise.resolve(''),
 
-            // Exa
-            process.env.EXA_API_KEY ? 
-              withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa') : 
-              Promise.resolve('')
+            // Exa => if key provided
+            process.env.EXA_API_KEY
+              ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
+              : Promise.resolve('')
           ]);
 
         console.log('[enhance] Parallel calls completed => assembling results');
 
-        // Combine all responses
+        // combine results
         const results = {
           assistant: assistantResponse.status === 'fulfilled' ? assistantResponse.value : '',
           perplexity: perplexityResponse.status === 'fulfilled' ? perplexityResponse.value : '',
@@ -272,13 +293,13 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           exa: exaResponse.status === 'fulfilled' ? exaResponse.value : ''
         };
 
-        // Combine contexts
+        // build final context
         const combinedContext = Object.entries(results)
-          .filter(([_, value]) => value)
-          .map(([service, value]) => `${service.charAt(0).toUpperCase() + service.slice(1)} Context:\n${value}`)
+          .filter(([_, val]) => val)
+          .map(([service, val]) => `${service.charAt(0).toUpperCase() + service.slice(1)} Context:\n${val}`)
           .join('\n\n');
 
-        // Build metadata
+        // create status info
         const status = {
           assistant: {
             status: assistantResponse.status,
