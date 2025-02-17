@@ -3,6 +3,13 @@ import React, { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './code-block';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { ExternalLink } from 'lucide-react';
 
 const components: Partial<Components> = {
   // @ts-expect-error
@@ -38,15 +45,25 @@ const components: Partial<Components> = {
   },
   a: ({ node, children, href, ...props }) => {
     return (
-      <Link
-        href={href ?? '#'}
-        className="font-mono text-[13px] px-1.5 py-0.5 rounded-sm border border-zinc-200 bg-zinc-50/50 hover:bg-zinc-100/80 transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:bg-zinc-900"
-        target="_blank"
-        rel="noreferrer"
-        {...props}
-      >
-        {children}
-      </Link>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={href ?? '#'}
+              className="font-mono text-[13px] px-1.5 py-0.5 rounded-sm border border-zinc-200 bg-zinc-50/50 hover:bg-zinc-100/80 transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 inline-flex items-center gap-1.5"
+              target="_blank"
+              rel="noreferrer"
+              {...props}
+            >
+              <ExternalLink className="w-3 h-3" />
+              {children}
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="text-xs">{href}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   },
   h1: ({ node, children, ...props }) => {
@@ -137,17 +154,7 @@ const components: Partial<Components> = {
         {children}
       </th>
     );
-  },
-  blockquote: ({ node, children, ...props }) => {
-    return (
-      <blockquote 
-        className="border-l-4 border-zinc-200 dark:border-zinc-800 pl-4 py-2 my-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-r-lg" 
-        {...props}
-      >
-        {children}
-      </blockquote>
-    );
-  },
+  }
 };
 
 const remarkPlugins = [remarkGfm];
