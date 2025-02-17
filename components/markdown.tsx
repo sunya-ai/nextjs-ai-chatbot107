@@ -12,8 +12,8 @@ const components: Partial<Components> = {
   // @ts-expect-error - because react-markdown Components types can be broad
   code: CodeBlock,
 
-  // We don’t need a custom <pre> if CodeBlock handles syntax highlighting,
-  // but we'll keep it for consistency:
+  // If CodeBlock handles syntax highlighting, we usually don't need a custom <pre>.
+  // But here we keep it just for completeness:
   pre: ({ children }) => <>{children}</>,
 
   //
@@ -124,7 +124,7 @@ const components: Partial<Components> = {
   },
 
   //
-  // Tables
+  // Tables (GFM)
   //
   table: ({ node, children, ...props }) => {
     return (
@@ -134,13 +134,21 @@ const components: Partial<Components> = {
     );
   },
   thead: ({ node, children, ...props }) => {
-    return <thead className="bg-gray-100" {...props}>{children}</thead>;
+    return (
+      <thead className="bg-gray-100" {...props}>
+        {children}
+      </thead>
+    );
   },
   tbody: ({ node, children, ...props }) => {
     return <tbody {...props}>{children}</tbody>;
   },
   tr: ({ node, children, ...props }) => {
-    return <tr className="border border-gray-300" {...props}>{children}</tr>;
+    return (
+      <tr className="border border-gray-300" {...props}>
+        {children}
+      </tr>
+    );
   },
   th: ({ node, children, ...props }) => {
     return (
