@@ -11,9 +11,10 @@ export interface WorkflowFile {
 
 interface WorkflowStatusProps {
   currentMessage?: string
+  isLoading?: boolean
 }
 
-export function WorkflowStatus({ currentMessage }: WorkflowStatusProps) {
+export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowStatusProps) {
   const [stage, setStage] = useState(0)
 
   useEffect(() => {
@@ -43,8 +44,14 @@ export function WorkflowStatus({ currentMessage }: WorkflowStatusProps) {
     <div className="bg-black/40 backdrop-blur-sm text-zinc-100 rounded-lg border border-white/10 shadow-lg shadow-[#454b1b]/5 w-full max-w-sm overflow-hidden">
       <div className="p-2 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <Loader2 className="h-3 w-3 animate-spin text-zinc-400" />
-          <span className="text-xs font-medium text-zinc-400">AI is thinking...</span>
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin text-zinc-400" />
+          ) : (
+            <Circle className="h-3 w-3 text-zinc-400" />
+          )}
+          <span className="text-xs font-medium text-zinc-400">
+            {isLoading ? "AI is thinking..." : "AI has responded"}
+          </span>
         </div>
       </div>
 
