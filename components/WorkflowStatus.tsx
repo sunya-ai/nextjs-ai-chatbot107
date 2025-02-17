@@ -1,7 +1,7 @@
 import { Loader2, FileCode, Circle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 
-interface WorkflowFile {
+export interface WorkflowFile {
   path: string
   status: "planning" | "generating" | "editing" | "complete"
 }
