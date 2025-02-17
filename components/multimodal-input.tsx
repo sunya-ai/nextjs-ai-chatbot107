@@ -1,19 +1,25 @@
 'use client';
 
-import type { Message } from 'ai';
-import React, {
-  memo,
+import type {
+  Attachment,
+  ChatRequestOptions,
+  CreateMessage,
+  Message,
+} from 'ai';
+import cx from 'classnames';
+import React from 'react';
+import {
   useRef,
   useEffect,
   useState,
   useCallback,
-  type ChangeEvent,
   type Dispatch,
-  type SetStateAction
+  type SetStateAction,
+  type ChangeEvent,
+  memo,
 } from 'react';
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
-import cx from 'classnames';
 
 import { sanitizeUIMessages } from '@/lib/utils';
 
@@ -25,66 +31,63 @@ import { SuggestedActions } from './suggested-actions';
 import equal from 'fast-deep-equal';
 
 /**
- * "Attachment" is the same type your old code used,
- * but if your old code stored { url: string }, you must store { file: File } instead for single-step.
- */
-type Attachment = {
-  file: File;
-  name: string;
-  type: string;
-};
-
-/**
- * This version preserves the old external prop signature:
- *   - input, setInput, handleSubmit, attachments, setAttachments, ...
- * but *internally*, it does a single-step approach (one call to /api/chat).
+ * 
+ * Two-step code: 
+ * (1) For each file, call `/api/files/upload`.
+ * (2) Store { url, name, contentType } in `attachments`.
+ * (3) On "Send," call `handleSubmit` with { experimental_attachments: attachments }.
  */
 function PureMultimodalInput({
-  // old external props
   chatId,
   input,
   setInput,
-  handleSubmit, // (we can still call it inside or ignore it)
-  attachments,
-  setAttachments,
-
-  messages,
-  setMessages,
-
   isLoading,
   stop,
+  attachments,
+  setAttachments,
+  messages,
+  setMessages,
+  append,
+  handleSubmit,
   className,
 }: {
   chatId: string;
   input: string;
-  setInput: (val: string) => void;
-  handleSubmit: (
-    event?: { preventDefault?: () => void },
-    chatRequestOptions?: { experimental_attachments: any[] }
-  ) => void;
-  attachments: Attachment[];
-  setAttachments: Dispatch<SetStateAction<Attachment[]>>;
-
-  messages: Message[];
-  setMessages: Dispatch<SetStateAction<Message[]>>;
-
+  setInput: (value: string) => void;
   isLoading: boolean;
   stop: () => void;
+  attachments: Array<Attachment>; // shape { url: string; name: string; contentType: string; }
+  setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
+  messages: Array<Message>;
+  setMessages: Dispatch<SetStateAction<Array<Message>>>;
+  append: (
+    message: Message | CreateMessage,
+    chatRequestOptions?: ChatRequestOptions,
+  ) => Promise<string | null | undefined>;
+  handleSubmit: (
+    event?: { preventDefault?: () => void },
+    chatRequestOptions?: ChatRequestOptions,
+  ) => void;
   className?: string;
 }) {
-  const { width } = useWindowSize();
+  // Keep local text in localStorage + state
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // We'll store text in local state + localStorage just like old code
+  const { width } = useWindowSize();
   const [localStorageInput, setLocalStorageInput] = useLocalStorage('input', '');
 
-  // auto-resize logic
+  useEffect(() => {
+    if (textareaRef.current) {
+      adjustHeight();
+    }
+  }, []);
+
   const adjustHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight + 2}px`;
     }
   };
+
   const resetHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -92,6 +95,7 @@ function PureMultimodalInput({
     }
   };
 
+  // On mount, sync localStorage => input
   useEffect(() => {
     if (textareaRef.current) {
       const domValue = textareaRef.current.value;
@@ -99,143 +103,143 @@ function PureMultimodalInput({
       setInput(finalValue);
       adjustHeight();
     }
-    // run once
+    // only once after hydration
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep localStorage updated
   useEffect(() => {
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
 
   const handleInput = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInput(e.target.value);
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInput(event.target.value);
       adjustHeight();
     },
-    [setInput]
+    [setInput],
   );
 
-  // Instead of immediate uploading to /api/files/upload, we store raw files in "attachments"
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // The final "Send" calls old `handleSubmit`,
+  // passing these attachments as "experimental_attachments"
+  const submitForm = useCallback(() => {
+    window.history.replaceState({}, '', `/chat/${chatId}`);
 
-  const handleFileChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-
-      // For each selected file, store it as { file, name, type } 
-      const newAttachments = files.map((file) => ({
-        file,
-        name: file.name,
-        type: file.type,
-      }));
-
-      // Merge into attachments
-      setAttachments((prev) => [...prev, ...newAttachments]);
-    },
-    [setAttachments]
-  );
-
-  /**
-   * The single-step approach behind "submitForm":
-   * 1) Build a FormData with (id, messages + user input, model)
-   * 2) Add each file in attachments
-   * 3) fetch('/api/chat', ...) 
-   * 4) Optionally call old handleSubmit for backward compat
-   */
-  const singleStepSubmit = useCallback(() => {
-    if (isLoading) {
-      toast.error('Please wait until the current response finishes!');
-      return;
-    }
-
-    if (!input.trim() && attachments.length === 0) {
-      toast.error('Please enter text or select files first.');
-      return;
-    }
-
-    // Build the form
-    const formData = new FormData();
-    formData.append('id', chatId);
-
-    // Combine existing messages + new user message
-    const newMessages = [...messages, { role: 'user', content: input }];
-    formData.append('messages', JSON.stringify(newMessages));
-    formData.append('selectedChatModel', 'default-model'); // or your custom model
-
-    // Add each file
-    attachments.forEach((att) => {
-      formData.append('file', att.file);
+    handleSubmit?.(undefined, {
+      experimental_attachments: attachments, // pass the references we have
     });
 
-    // do the single-step fetch
-    fetch('/api/chat', { method: 'POST', body: formData })
-      .then(() => {
-        // success? do any UI updates
-      })
-      .catch((err) => {
-        console.error('Single-step chat error:', err);
-        toast.error('Chat submission failed, please retry.');
-      });
-
-    // Clear local data
+    // then clear local attachments and input
     setAttachments([]);
-    setInput('');
     setLocalStorageInput('');
     resetHeight();
+
     if (width && width > 768) {
       textareaRef.current?.focus();
     }
-    window.history.replaceState({}, '', `/chat/${chatId}`);
-
-    // call the old "handleSubmit" if you want to preserve that logic
-    // handleSubmit(undefined, { experimental_attachments: attachments });
   }, [
-    isLoading,
-    input,
     attachments,
-    chatId,
-    messages,
-    setInput,
+    handleSubmit,
     setAttachments,
     setLocalStorageInput,
-    resetHeight,
     width,
-    textareaRef,
-    handleSubmit, // optional
+    chatId,
   ]);
 
-  // If your old code calls "submitForm()" on Enter or Send button, we do singleStepSubmit now
-  const submitForm = useCallback(() => {
-    singleStepSubmit();
-  }, [singleStepSubmit]);
+  // 1) Upload each file to /api/files/upload => get { url, name, contentType }
+  // 2) Store them in "attachments"
+  const uploadFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const { error } = await response.json();
+        toast.error(error || 'Failed to upload file');
+        return;
+      }
+
+      // shape { url, pathname, contentType }
+      const data = await response.json();
+      return {
+        url: data.url,
+        name: data.pathname, // or data.name if your route returns it
+        contentType: data.contentType,
+      };
+    } catch (error) {
+      console.error('File upload error:', error);
+      toast.error('Failed to upload file, please try again!');
+    }
+  };
+
+  // When user selects file(s), immediately upload them => store references
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
+
+  const handleFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) return;
+
+      // show them as uploading
+      setUploadQueue(files.map((file) => file.name));
+
+      try {
+        const uploadPromises = files.map((file) => uploadFile(file));
+        const uploadedAttachments = await Promise.all(uploadPromises);
+
+        // filter out any that failed
+        const successful = uploadedAttachments.filter(Boolean) as Attachment[];
+
+        // push them to attachments
+        setAttachments((current) => [...current, ...successful]);
+      } catch (err) {
+        console.error('Error uploading files:', err);
+      } finally {
+        setUploadQueue([]);
+      }
+    },
+    [setAttachments],
+  );
 
   return (
     <div className="relative w-full flex flex-col gap-4">
-      {messages.length === 0 && attachments.length === 0 && (
-        <SuggestedActions chatId={chatId} />
+      {/* If no messages or attachments, show quick suggestions */}
+      {messages.length === 0 && attachments.length === 0 && uploadQueue.length === 0 && (
+        <SuggestedActions append={append} chatId={chatId} />
       )}
 
-      {/* hidden file input => single-step now, no /api/files/upload */}
+      {/* Hidden file input, 2-step approach => /api/files/upload */}
       <input
         type="file"
+        className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
         ref={fileInputRef}
-        className="hidden"
         multiple
         onChange={handleFileChange}
+        tabIndex={-1}
       />
 
-      {/* Preview attachments locally */}
-      {attachments.length > 0 && (
+      {/* Show attachments + uploading placeholders */}
+      {(attachments.length > 0 || uploadQueue.length > 0) && (
         <div className="flex flex-row gap-2 overflow-x-scroll items-end">
-          {attachments.map((att, idx) => (
+          {attachments.map((att) => (
+            <PreviewAttachment key={att.url} attachment={att} />
+          ))}
+
+          {uploadQueue.map((filename) => (
             <PreviewAttachment
-              key={`${att.name}-${idx}`}
+              key={filename}
               attachment={{
-                url: '', // we don't have a URL, it's not uploaded
-                name: att.name,
-                contentType: att.type
+                url: '',
+                name: filename,
+                contentType: '',
               }}
+              isUploading={true}
             />
           ))}
         </div>
@@ -256,66 +260,118 @@ function PureMultimodalInput({
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            submitForm();
+            if (isLoading) {
+              toast.error('Please wait for the model to finish its response!');
+            } else {
+              submitForm();
+            }
           }
         }}
       />
 
-      {/* bottom left => attach button */}
+      {/* bottom-left => attach button */}
       <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start">
-        {!isLoading && (
-          <Button
-            className="rounded-md p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200"
-            onClick={(e) => {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }}
-            disabled={isLoading}
-            variant="ghost"
-          >
-            <PaperclipIcon size={14} />
-          </Button>
-        )}
+        <AttachmentsButton fileInputRef={fileInputRef} isLoading={isLoading} />
       </div>
 
-      {/* bottom right => stop or send */}
-      <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row gap-2 justify-end">
+      {/* bottom-right => stop or send */}
+      <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
         {isLoading ? (
-          <Button
-            className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
-            onClick={(e) => {
-              e.preventDefault();
-              stop();
-              // sanitize
-              setMessages((msgs) => sanitizeUIMessages(msgs));
-            }}
-          >
-            <StopIcon size={14} />
-          </Button>
+          <StopButton stop={stop} setMessages={setMessages} />
         ) : (
-          <Button
-            className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
-            onClick={(e) => {
-              e.preventDefault();
-              submitForm();
-            }}
-            disabled={!input.trim() && attachments.length === 0}
-          >
-            <ArrowUpIcon size={14} />
-          </Button>
+          <SendButton
+            input={input}
+            submitForm={submitForm}
+            uploadQueue={uploadQueue}
+          />
         )}
       </div>
     </div>
   );
 }
 
-// Keep the same name + memo check
 export const MultimodalInput = memo(
   PureMultimodalInput,
-  (prev, next) => {
-    if (prev.input !== next.input) return false;
-    if (prev.isLoading !== next.isLoading) return false;
-    if (!equal(prev.attachments, next.attachments)) return false;
+  (prevProps, nextProps) => {
+    if (prevProps.input !== nextProps.input) return false;
+    if (prevProps.isLoading !== nextProps.isLoading) return false;
+    if (!equal(prevProps.attachments, nextProps.attachments)) return false;
     return true;
   },
 );
+
+/** The attach button */
+function PureAttachmentsButton({
+  fileInputRef,
+  isLoading,
+}: {
+  fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
+  isLoading: boolean;
+}) {
+  return (
+    <Button
+      className="rounded-md rounded-bl-lg p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200"
+      onClick={(event) => {
+        event.preventDefault();
+        fileInputRef.current?.click();
+      }}
+      disabled={isLoading}
+      variant="ghost"
+    >
+      <PaperclipIcon size={14} />
+    </Button>
+  );
+}
+const AttachmentsButton = memo(PureAttachmentsButton);
+
+/** The stop button */
+function PureStopButton({
+  stop,
+  setMessages,
+}: {
+  stop: () => void;
+  setMessages: Dispatch<SetStateAction<Array<Message>>>;
+}) {
+  return (
+    <Button
+      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
+      onClick={(event) => {
+        event.preventDefault();
+        stop();
+        setMessages((msgs) => sanitizeUIMessages(msgs));
+      }}
+    >
+      <StopIcon size={14} />
+    </Button>
+  );
+}
+const StopButton = memo(PureStopButton);
+
+/** The send button */
+function PureSendButton({
+  submitForm,
+  input,
+  uploadQueue,
+}: {
+  submitForm: () => void;
+  input: string;
+  uploadQueue: Array<string>;
+}) {
+  return (
+    <Button
+      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
+      onClick={(event) => {
+        event.preventDefault();
+        submitForm();
+      }}
+      disabled={input.length === 0 || uploadQueue.length > 0}
+    >
+      <ArrowUpIcon size={14} />
+    </Button>
+  );
+}
+const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
+  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length) return false;
+  if (prevProps.input !== nextProps.input) return false;
+  return true;
+});
