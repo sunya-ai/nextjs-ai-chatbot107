@@ -149,7 +149,7 @@ async function processInitialQuery(
     // We only destructure "text" from the result
     const { text: initialAnalysis } = await streamText({
       model: geminiAnalysisModel,
-      system: 'Analyze the user’s text plus any uploaded file. Extract key concepts.',
+      system: 'Analyze the user's text plus any uploaded file. Extract key concepts.',
       messages: [
         {
           role: 'user',
@@ -178,11 +178,6 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   }
 }
 
-/**
- * ================================
- * 3) POST: MULTIPART + 2-PASS AI
- * ================================
- */
 export async function POST(request: Request) {
   // 1. Auth
   const session = await auth();
@@ -190,76 +185,87 @@ export async function POST(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // 2. Parse "multipart/form-data"
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch (err) {
-    return new Response('Invalid form data', { status: 400 });
-  }
-
-  // 3. Rate limit
+  // 2. Rate limit
   const userId = session.user.id;
   if (!rateLimiter(userId)) {
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  // 4. Extract "id", "messages", "selectedChatModel"
-  const id = formData.get('id')?.toString() || '';
-  const messagesStr = formData.get('messages')?.toString() || '';
-  const selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
-
-  // parse messages from JSON
+  // 3. Parse either FormData or JSON
+  let id = '';
   let messages: Message[] = [];
-  try {
-    messages = JSON.parse(messagesStr);
-  } catch (err) {
-    return new Response('Invalid messages JSON', { status: 400 });
+  let selectedChatModel = 'default-model';
+  let file: File | null = null;
+
+  // First try to parse as JSON
+  if (request.headers.get('content-type')?.includes('application/json')) {
+    try {
+      const json = await request.json();
+      id = json.id;
+      messages = json.messages;
+      selectedChatModel = json.selectedChatModel || 'default-model';
+    } catch (err) {
+      return new Response('Invalid JSON', { status: 400 });
+    }
+  } else {
+    // Fall back to FormData
+    try {
+      const formData = await request.formData();
+      id = formData.get('id')?.toString() || '';
+      const messagesStr = formData.get('messages')?.toString() || '';
+      selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
+      file = formData.get('file') as File | null;
+
+      try {
+        messages = JSON.parse(messagesStr);
+      } catch (err) {
+        return new Response('Invalid messages JSON', { status: 400 });
+      }
+    } catch (err) {
+      return new Response('Invalid form data', { status: 400 });
+    }
   }
 
-  // 5. Possibly get the file
-  const file = formData.get('file') as File | null;
+  // Process file if present
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
     fileBuffer = await file.arrayBuffer();
     fileMime = file.type;
-    // If you wanted docx/pdf extraction, you'd do it here
   }
 
-  // 6. Validate user message
+  // 4. Validate user message
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
     return new Response('No user message found', { status: 400 });
   }
 
-  // 7. Check if chat exists; if not, create
+  // 5. Check if chat exists; if not, create
   const chat = await getChatById({ id });
   if (!chat) {
-    // LIKE THE TEMPLATE: just call saveChat, no assignment
     const title = await generateTitleFromUserMessage({ message: userMessage });
     await saveChat({ id, userId: session.user.id, title });
   }
 
-  // 8. Save the user’s new message
+  // 6. Save the user's new message
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // 9. Return streaming response with multi-pass
+  // 7. Return streaming response with multi-pass
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
-        // Step A: Gemini
+        // Step A: Gemini - Process initial query with optional file
         const initialAnalysis = await processInitialQuery(messages, fileBuffer, fileMime);
         if (!initialAnalysis) {
           throw new Error('Gemini returned null');
         }
 
-        // Step B: aggregator
+        // Step B: Context Enhancement
         const enhancedContext = await enhanceContext(initialAnalysis);
 
-        // Step C: final pass
+        // Step C: Final Model Response
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         const result = streamText({
@@ -323,9 +329,6 @@ export async function POST(request: Request) {
   });
 }
 
-/**
- * DELETE Handler (unchanged)
- */
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
