@@ -41,7 +41,7 @@ const components: Partial<Components> = {
               </span>
             </div>
           </div>
-          {/* Use `overflow-auto` + optional `max-h-96` to prevent text from getting cut off */}
+          {/* Use `overflow-auto` + `max-h-96` to prevent text from being cut off */}
           <pre className="overflow-auto p-4 max-h-96">
             <code className={className}>{children}</code>
           </pre>
@@ -60,7 +60,7 @@ const components: Partial<Components> = {
   // Example horizontal rule
   hr: () => <Separator.Root className="my-8 h-[1px] bg-border" />,
 
-  // ... Add any other custom overrides (blockquote, p, etc.) here ...
+  // ... (other overrides such as blockquote, p, etc., if needed)
 };
 
 const remarkPlugins = [remarkGfm];
@@ -72,17 +72,8 @@ interface MarkdownProps {
 
 const NonMemoizedMarkdown: FC<MarkdownProps> = ({ children, className = '' }) => {
   return (
-    <div
-      className={cn(
-        'prose prose-stone dark:prose-invert max-w-none',
-        'prose-headings:text-foreground',
-        'prose-p:text-foreground',
-        'prose-strong:text-foreground',
-        'prose-ul:text-foreground',
-        'prose-ol:text-foreground',
-        className
-      )}
-    >
+    // Removed the "prose" classes so user messages aren’t faded
+    <div className={cn(className)}>
       <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
         {children}
       </ReactMarkdown>
@@ -93,7 +84,8 @@ const NonMemoizedMarkdown: FC<MarkdownProps> = ({ children, className = '' }) =>
 export const Markdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) =>
-    prevProps.children === nextProps.children && prevProps.className === nextProps.className
+    prevProps.children === nextProps.children &&
+    prevProps.className === nextProps.className
 );
 
 Markdown.displayName = 'Markdown';
