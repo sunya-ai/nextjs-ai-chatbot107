@@ -20,7 +20,7 @@ export const Overview = () => {
         <p className="text-md">
           Heads up:{' '}
           <span className="font-medium">
-            It might be slow and off-target sometimes, but it's still a solid first pass.
+            It might be slow and off-target sometimes, but it&apos;s still a solid first pass.
           </span>
         </p>
       </div>
