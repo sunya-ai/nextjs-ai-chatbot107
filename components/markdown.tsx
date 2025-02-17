@@ -1,10 +1,9 @@
-import React, { memo, useState } from 'react';
-import type { HTMLAttributes, ReactNode } from 'react';
-import ReactMarkdown, { Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { motion } from 'framer-motion';
-import * as Separator from '@radix-ui/react-separator';
-import * as Tooltip from '@radix-ui/react-tooltip';
+import React, { memo, useState } from 'react'
+import type { FC } from 'react'
+import ReactMarkdown, { Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { motion } from 'framer-motion'
+import * as Separator from '@radix-ui/react-separator'
 import {
   ArrowUpRight,
   FileText,
@@ -12,46 +11,63 @@ import {
   Check,
   AlertCircle,
   ExternalLink,
-} from 'lucide-react';
+} from 'lucide-react'
 
-// If you have a utility function `cn` in "@/lib/utils", import it.
-// Otherwise, you can replace `cn(...)` calls with a direct className string.
-import { cn } from '@/lib/utils';
+// If you have a `cn` utility, import it. Otherwise, replace `cn(...)` calls
+// with your own string joins or remove them as needed.
+import { cn } from '@/lib/utils'
 
-/** Extend HTMLAttributes so `Code` accepts standard HTML props + children. */
-interface CodeProps extends HTMLAttributes<HTMLElement> {
-  className?: string;
-  children?: ReactNode; // optional so it matches ReactMarkdown’s expectations
-}
+// 1) Define a Code component matching React Markdown’s expected signature:
+const Code: Components['code'] = ({
+  node,
+  inline,
+  className,
+  children,
+  ...props
+}) => {
+  /**
+   * According to React Markdown’s types:
+   * - `children` is a string (or array of strings),
+   * - `inline` indicates inline vs. block code,
+   * - `className` may include "language-xxx",
+   * - `node` is the parsed syntax tree node (unused here, so we can ignore it).
+   */
 
-const Code: React.FC<CodeProps> = ({ className, children, ...props }) => {
-  const [copied, setCopied] = useState(false);
-  // Language is everything after "language-", or default to "text"
-  const language = className?.replace('language-', '') || 'text';
+  const [copied, setCopied] = useState(false)
 
+  // Safely turn `children` into a single string.
+  // In practice, React Markdown usually passes a single string here,
+  // but if it’s an array, we join them.
+  const codeString = Array.isArray(children)
+    ? children.join('')
+    : (children as string)
+
+  // Extract the language name (e.g. "javascript" from "language-javascript")
+  const language = className?.replace('language-', '') || 'text'
+
+  // Copy function (only copies if codeString is defined)
   const copyToClipboard = () => {
-    // Only copy if children is a string
-    if (typeof children === 'string') {
-      navigator.clipboard.writeText(children).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
+    if (codeString) {
+      navigator.clipboard.writeText(codeString).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
     }
-  };
+  }
 
-  // If there's no "language-" in the className, render inline code
-  if (!/language-/.test(className || '')) {
+  // If inline code: just a simple <code> element
+  if (inline) {
     return (
       <code
         {...props}
         className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm text-foreground"
       >
-        {children}
+        {codeString}
       </code>
-    );
+    )
   }
 
-  // Otherwise, render a code block with copy functionality
+  // Otherwise, render a block code snippet with copy functionality
   return (
     <div {...props} className="my-6 rounded-lg border bg-muted/50 overflow-hidden">
       <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/70">
@@ -74,16 +90,13 @@ const Code: React.FC<CodeProps> = ({ className, children, ...props }) => {
         </button>
       </div>
       <pre className="overflow-x-auto p-4">
-        <code className={className}>{children}</code>
+        <code className={className}>{codeString}</code>
       </pre>
     </div>
-  );
-};
+  )
+}
 
-/**
- * Custom component mapping for ReactMarkdown.
- * These components override how certain markdown elements are rendered.
- */
+// 2) Define custom components for other markdown elements
 const components: Partial<Components> = {
   code: Code,
 
@@ -91,13 +104,13 @@ const components: Partial<Components> = {
     <motion.a
       href={href || '#'}
       whileHover={{ scale: 1.02 }}
-      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/90 
+      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/90
                  border border-primary/20 hover:border-primary/40 px-2 py-0.5 rounded-md 
                  transition-colors"
       target="_blank"
       rel="noreferrer"
     >
-      <span>{children}</span>
+      {children}
       <ExternalLink className="h-3 w-3" />
     </motion.a>
   ),
@@ -156,21 +169,15 @@ const components: Partial<Components> = {
   ),
 
   thead: ({ children }) => (
-    <thead className="border-b bg-muted/50">
-      {children}
-    </thead>
+    <thead className="border-b bg-muted/50">{children}</thead>
   ),
 
   tbody: ({ children }) => (
-    <tbody className="divide-y divide-border">
-      {children}
-    </tbody>
+    <tbody className="divide-y divide-border">{children}</tbody>
   ),
 
   tr: ({ children }) => (
-    <tr className="transition-colors hover:bg-muted/50">
-      {children}
-    </tr>
+    <tr className="transition-colors hover:bg-muted/50">{children}</tr>
   ),
 
   th: ({ children }) => (
@@ -180,47 +187,48 @@ const components: Partial<Components> = {
   ),
 
   td: ({ children }) => (
-    <td className="px-4 py-3 text-sm text-foreground">
-      {children}
-    </td>
+    <td className="px-4 py-3 text-sm text-foreground">{children}</td>
   ),
 
-  hr: () => (
-    <Separator.Root className="my-8 h-[1px] bg-border" />
-  ),
-};
-
-// Props for your Markdown wrapper
-interface MarkdownProps {
-  children: string;
-  className?: string;
+  hr: () => <Separator.Root className="my-8 h-[1px] bg-border" />,
 }
 
-const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({ children, className = '' }) => {
+// 3) Wrap the markdown usage in a component
+interface MarkdownProps {
+  children: string
+  className?: string
+}
+
+const NonMemoizedMarkdown: FC<MarkdownProps> = ({ children, className = '' }) => {
   return (
     <div
       className={cn(
-        "prose prose-stone dark:prose-invert max-w-none",
-        "prose-headings:text-foreground",
-        "prose-p:text-foreground",
-        "prose-strong:text-foreground",
-        "prose-ul:text-foreground",
-        "prose-ol:text-foreground",
+        'prose prose-stone dark:prose-invert max-w-none',
+        'prose-headings:text-foreground',
+        'prose-p:text-foreground',
+        'prose-strong:text-foreground',
+        'prose-ul:text-foreground',
+        'prose-ol:text-foreground',
         className
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        // Add remark plugins or rehype plugins as you like
+        remarkPlugins={[remarkGfm]}
+        components={components}
+      >
         {children}
       </ReactMarkdown>
     </div>
-  );
-};
+  )
+}
 
+// 4) Export a memoized version of this Markdown component
 export const Markdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
     prevProps.className === nextProps.className
-);
+)
 
-Markdown.displayName = 'Markdown';
+Markdown.displayName = 'Markdown'
