@@ -5,7 +5,6 @@ import { Overview } from "./overview"
 import { memo } from "react"
 import type { Vote } from "@/lib/db/schema"
 import equal from "fast-deep-equal"
-import type { WorkflowFile } from "./WorkflowStatus"
 
 interface MessagesProps {
   chatId: string
@@ -20,14 +19,6 @@ interface MessagesProps {
 
 function PureMessages({ chatId, isLoading, votes, messages, setMessages, reload, isReadonly }: MessagesProps) {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>()
-
-  // Example workflow files - in a real implementation, you'd derive these
-  // from the actual processing state of your application
-  const workflowFiles: WorkflowFile[] = [
-    { path: "components/Messages.tsx", status: "complete" },
-    { path: "components/ThinkingMessage.tsx", status: "generating" },
-    { path: "hooks/use-messages.ts", status: "planning" },
-  ]
 
   return (
     <div ref={messagesContainerRef} className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4">
@@ -47,7 +38,10 @@ function PureMessages({ chatId, isLoading, votes, messages, setMessages, reload,
       ))}
 
       {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
-        <ThinkingMessage currentMessage={messages[messages.length - 1].content} files={workflowFiles} />
+        <ThinkingMessage
+          currentMessage={messages[messages.length - 1].content}
+          files={undefined} // We no longer need to pass files prop
+        />
       )}
 
       <div ref={messagesEndRef} className="shrink-0 min-w-[24px] min-h-[24px]" />
