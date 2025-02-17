@@ -194,7 +194,9 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
   return {
     name: 'combined-enhancer',
     enhance: async (message: string): Promise<EnhancerResponse> => {
-      console.log('[enhance] aggregator => starting calls in parallel...');
+      // ADDED LOG #1: 
+      console.log('[enhance] aggregator => called with message (first 100 chars):', message.slice(0, 100));
+
       try {
         // Set timeouts
         const TIMEOUTS = {
@@ -204,7 +206,9 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           exa: 30000           // 30 seconds
         };
 
+        // ADDED LOG #2:
         console.log('[enhance] Starting parallel calls => assistant, perplexity, tavily, exa');
+
         const [assistantResponse, perplexityResponse, tavilyResponse, exaResponse] = 
           await Promise.allSettled([
             // Assistant API call
@@ -244,15 +248,15 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
               return '';
             })(), TIMEOUTS.assistant, 'Assistant'),
 
-            // Perplexity API call
+            // Perplexity
             withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
 
-            // Tavily API call (if API key exists)
+            // Tavily
             process.env.TAVILY_API_KEY ? 
               withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily') : 
               Promise.resolve(''),
 
-            // Exa API call (if API key exists)
+            // Exa
             process.env.EXA_API_KEY ? 
               withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa') : 
               Promise.resolve('')
@@ -268,13 +272,13 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           exa: exaResponse.status === 'fulfilled' ? exaResponse.value : ''
         };
 
-        // Combine contexts with clear separation
+        // Combine contexts
         const combinedContext = Object.entries(results)
           .filter(([_, value]) => value)
           .map(([service, value]) => `${service.charAt(0).toUpperCase() + service.slice(1)} Context:\n${value}`)
           .join('\n\n');
 
-        // Record detailed status
+        // Build metadata
         const status = {
           assistant: {
             status: assistantResponse.status,
