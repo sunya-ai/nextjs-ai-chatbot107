@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 
-export const SunyaOverview = () => {
+export const Overview = () => {
   return (
     <motion.div
-      key="sunya-overview"
+      key="overview"
       className="max-w-3xl mx-auto md:mt-20"
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
