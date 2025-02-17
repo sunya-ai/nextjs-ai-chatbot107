@@ -117,6 +117,12 @@ function PureMultimodalInput({
   );
 
   const submitForm = useCallback(() => {
+    console.log('Submitting with:', {
+      chatId,
+      input,
+      attachments,
+    });
+
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
     handleSubmit?.(undefined, {
@@ -134,6 +140,7 @@ function PureMultimodalInput({
     attachments,
     chatId,
     handleSubmit,
+    input,
     setAttachments,
     setLocalStorageInput,
     width,
