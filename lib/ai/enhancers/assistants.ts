@@ -1,6 +1,28 @@
 import OpenAI from 'openai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
+// API Response Interfaces
+interface TavilyResult {
+  url: string;
+  title: string;
+  content: string;
+}
+
+interface TavilyResponse {
+  answer?: string;
+  results: TavilyResult[];
+}
+
+interface ExaDocument {
+  url: string;
+  title: string;
+  text: string;
+}
+
+interface ExaResponse {
+  documents: ExaDocument[];
+}
+
 // Initialize OpenAI clients for both services
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -108,7 +130,7 @@ async function getTavilyResponse(message: string): Promise<string> {
       throw new Error(`Tavily API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as TavilyResponse;
     let formattedResponse = '';
     
     if (data.answer) {
@@ -116,7 +138,9 @@ async function getTavilyResponse(message: string): Promise<string> {
     }
 
     formattedResponse += data.results
-      .map(result => `Source: ${result.url}\nTitle: ${result.title}\nContent: ${result.content}`)
+      .map((result: TavilyResult) => 
+        `Source: ${result.url}\nTitle: ${result.title}\nContent: ${result.content}`
+      )
       .join('\n\n');
 
     console.log('✨ Tavily search complete');
@@ -149,9 +173,11 @@ async function getExaResponse(message: string): Promise<string> {
       throw new Error(`Exa API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as ExaResponse;
     const formattedResults = data.documents
-      .map(doc => `Source: ${doc.url}\nTitle: ${doc.title}\nContent: ${doc.text}`)
+      .map((doc: ExaDocument) => 
+        `Source: ${doc.url}\nTitle: ${doc.title}\nContent: ${doc.text}`
+      )
       .join('\n\n');
 
     console.log('✨ Exa search complete');
@@ -279,7 +305,7 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           enhancedContext: '',
           metadata: { 
             error: 'Failed to enhance with services',
-            errorDetails: error.message
+            errorDetails: error instanceof Error ? error.message : String(error)
           }
         };
       }
