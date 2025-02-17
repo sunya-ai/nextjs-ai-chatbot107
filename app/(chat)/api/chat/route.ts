@@ -34,6 +34,7 @@ import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
 
 // Aggregator (context enhancement)
+// Use process.env.OPENAI_ASSISTANT_ID as the parameter for createAssistantsEnhancer:
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
 export const maxDuration = 180;
@@ -57,8 +58,8 @@ const SHORT_MAX_REQUESTS = 50;
 const SHORT_WINDOW_TIME = 2 * 60 * 60_000; // ms
 
 // 100 requests in 12 hours
-const LONG_MAX_REQUESTS = 100;
 const LONG_WINDOW_TIME = 12 * 60 * 60_000; // ms
+const LONG_MAX_REQUESTS = 100;
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
@@ -106,9 +107,9 @@ function rateLimiter(userId: string): boolean {
  * =========================================
  */
 
-// aggregator
+// aggregator: pass the environment variable used by your updated assistants.ts
 const assistantsEnhancer = createAssistantsEnhancer(
-  process.env.MY_ASSISTANT_ID || 'default-assistant-id'
+  process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
 );
 
 /** 
