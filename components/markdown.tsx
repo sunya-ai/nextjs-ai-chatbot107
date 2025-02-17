@@ -3,9 +3,18 @@ import React, { memo } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { 
+  FileText, 
+  Calendar,
+  ArrowUpRight,
+  CheckCircle2
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const components: Partial<Components> = {
-  // Simpler inline code handling
+  // Code handling
   code: ({ className, children }) => {
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
@@ -14,6 +23,12 @@ const components: Partial<Components> = {
       return (
         <Card className="my-4">
           <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
+              <span className="flex items-center gap-2">
+                <FileText size={16} />
+                {language.toUpperCase()}
+              </span>
+            </div>
             <pre className="overflow-x-auto">
               <code className={className}>{children}</code>
             </pre>
@@ -29,56 +44,80 @@ const components: Partial<Components> = {
     );
   },
   
-  // Lists
+  // Lists with improved spacing and icons
   ol: ({ children, ...props }) => (
-    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2" {...props}>
+    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2 space-y-1" {...props}>
       {children}
     </ol>
   ),
 
   ul: ({ children, ...props }) => (
-    <ul className="my-6 ml-6 list-disc [&>li]:mt-2" {...props}>
+    <ul className="my-6 ml-6 space-y-2" {...props}>
       {children}
     </ul>
   ),
 
-  // Text formatting
+  li: ({ children, ...props }) => (
+    <li className="flex gap-2 items-start" {...props}>
+      <CheckCircle2 className="h-5 w-5 mt-1 flex-shrink-0 text-primary/60" />
+      <span>{children}</span>
+    </li>
+  ),
+
+  // Enhanced text formatting
   strong: ({ children, ...props }) => (
     <span className="font-semibold text-foreground" {...props}>
       {children}
     </span>
   ),
 
-  // Links
+  em: ({ children, ...props }) => (
+    <span className="italic text-muted-foreground" {...props}>
+      {children}
+    </span>
+  ),
+
+  // Modern link styling
   a: ({ children, href, ...props }) => (
     <Link
       href={href || '#'}
-      className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+      className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80"
       target="_blank"
       rel="noreferrer"
       {...props}
     >
       {children}
+      <ArrowUpRight className="h-3 w-3" />
     </Link>
   ),
 
-  // Headings
+  // Enhanced heading hierarchy
   h1: ({ children, ...props }) => (
-    <h1 
-      className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl mb-8"
-      {...props}
-    >
-      {children}
-    </h1>
+    <div className="mb-8">
+      <h1 
+        className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl"
+        {...props}
+      >
+        {children}
+      </h1>
+      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+        <Calendar className="h-4 w-4" />
+        <span>Updated January 2025</span>
+      </div>
+    </div>
   ),
+
   h2: ({ children, ...props }) => (
-    <h2 
-      className="scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0 mt-10 mb-4"
-      {...props}
-    >
-      {children}
-    </h2>
+    <>
+      <h2 
+        className="scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0 mt-10 mb-4"
+        {...props}
+      >
+        {children}
+      </h2>
+    </>
   ),
+
   h3: ({ children, ...props }) => (
     <h3 
       className="scroll-m-20 text-2xl font-semibold tracking-tight mt-8 mb-4"
@@ -88,10 +127,13 @@ const components: Partial<Components> = {
     </h3>
   ),
 
-  // Tables
+  // Modern table styling
   table: ({ children, ...props }) => (
     <div className="my-6 w-full overflow-auto">
-      <table className="w-full border-collapse text-sm" {...props}>
+      <table 
+        className="w-full border-collapse text-sm" 
+        {...props}
+      >
         {children}
       </table>
     </div>
@@ -136,7 +178,7 @@ const components: Partial<Components> = {
     </td>
   ),
 
-  // Paragraphs
+  // Enhanced paragraph styling
   p: ({ children, ...props }) => (
     <p 
       className="leading-7 [&:not(:first-child)]:mt-6"
@@ -146,12 +188,12 @@ const components: Partial<Components> = {
     </p>
   ),
 
-  // Blockquotes
+  // Modern blockquote styling with card
   blockquote: ({ children, ...props }) => (
-    <Card className="my-6">
+    <Card className="my-6 bg-primary/5">
       <CardContent className="p-6">
         <blockquote 
-          className="border-l-2 border-primary pl-6 italic text-muted-foreground"
+          className="border-l-2 border-primary pl-6 italic text-primary-foreground"
           {...props}
         >
           {children}
@@ -159,6 +201,9 @@ const components: Partial<Components> = {
       </CardContent>
     </Card>
   ),
+
+  // Horizontal rule with separator
+  hr: () => <Separator className="my-8" />,
 };
 
 const remarkPlugins = [remarkGfm];
@@ -173,7 +218,12 @@ const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({
   className = ''
 }) => {
   return (
-    <div className={`prose prose-stone dark:prose-invert max-w-none ${className}`}>
+    <div className={cn(
+      "prose prose-stone dark:prose-invert max-w-none",
+      "prose-headings:font-heading prose-h1:text-4xl",
+      "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
+      className
+    )}>
       <ReactMarkdown 
         remarkPlugins={remarkPlugins} 
         components={components}
