@@ -31,7 +31,6 @@ import { SuggestedActions } from './suggested-actions';
 import equal from 'fast-deep-equal';
 
 /**
- * 
  * Two-step code: 
  * (1) For each file, call `/api/files/upload`.
  * (2) Store { url, name, contentType } in `attachments`.
@@ -56,7 +55,7 @@ function PureMultimodalInput({
   setInput: (value: string) => void;
   isLoading: boolean;
   stop: () => void;
-  attachments: Array<Attachment>; // shape { url: string; name: string; contentType: string; }
+  attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<Message>;
   setMessages: Dispatch<SetStateAction<Array<Message>>>;
@@ -70,7 +69,6 @@ function PureMultimodalInput({
   ) => void;
   className?: string;
 }) {
-  // Keep local text in localStorage + state
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
   const [localStorageInput, setLocalStorageInput] = useLocalStorage('input', '');
@@ -95,7 +93,6 @@ function PureMultimodalInput({
     }
   };
 
-  // On mount, sync localStorage => input
   useEffect(() => {
     if (textareaRef.current) {
       const domValue = textareaRef.current.value;
@@ -107,7 +104,6 @@ function PureMultimodalInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep localStorage updated
   useEffect(() => {
     setLocalStorageInput(input);
   }, [input, setLocalStorageInput]);
@@ -120,16 +116,13 @@ function PureMultimodalInput({
     [setInput],
   );
 
-  // The final "Send" calls old `handleSubmit`,
-  // passing these attachments as "experimental_attachments"
   const submitForm = useCallback(() => {
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
     handleSubmit?.(undefined, {
-      experimental_attachments: attachments, // pass the references we have
+      experimental_attachments: attachments,
     });
 
-    // then clear local attachments and input
     setAttachments([]);
     setLocalStorageInput('');
     resetHeight();
@@ -146,8 +139,6 @@ function PureMultimodalInput({
     chatId,
   ]);
 
-  // 1) Upload each file to /api/files/upload => get { url, name, contentType }
-  // 2) Store them in "attachments"
   const uploadFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -158,17 +149,16 @@ function PureMultimodalInput({
         body: formData,
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const { error } = await response.json();
-        toast.error(error || 'Failed to upload file');
+        toast.error(data.error || 'Failed to upload file');
         return;
       }
 
-      // shape { url, pathname, contentType }
-      const data = await response.json();
       return {
         url: data.url,
-        name: data.pathname, // or data.name if your route returns it
+        name: data.pathname,
         contentType: data.contentType,
       };
     } catch (error) {
@@ -177,7 +167,6 @@ function PureMultimodalInput({
     }
   };
 
-  // When user selects file(s), immediately upload them => store references
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
 
@@ -186,17 +175,14 @@ function PureMultimodalInput({
       const files = Array.from(event.target.files || []);
       if (files.length === 0) return;
 
-      // show them as uploading
       setUploadQueue(files.map((file) => file.name));
 
       try {
         const uploadPromises = files.map((file) => uploadFile(file));
         const uploadedAttachments = await Promise.all(uploadPromises);
 
-        // filter out any that failed
         const successful = uploadedAttachments.filter(Boolean) as Attachment[];
 
-        // push them to attachments
         setAttachments((current) => [...current, ...successful]);
       } catch (err) {
         console.error('Error uploading files:', err);
@@ -209,12 +195,10 @@ function PureMultimodalInput({
 
   return (
     <div className="relative w-full flex flex-col gap-4">
-      {/* If no messages or attachments, show quick suggestions */}
       {messages.length === 0 && attachments.length === 0 && uploadQueue.length === 0 && (
         <SuggestedActions append={append} chatId={chatId} />
       )}
 
-      {/* Hidden file input, 2-step approach => /api/files/upload */}
       <input
         type="file"
         className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
@@ -224,7 +208,6 @@ function PureMultimodalInput({
         tabIndex={-1}
       />
 
-      {/* Show attachments + uploading placeholders */}
       {(attachments.length > 0 || uploadQueue.length > 0) && (
         <div className="flex flex-row gap-2 overflow-x-scroll items-end">
           {attachments.map((att) => (
@@ -245,7 +228,6 @@ function PureMultimodalInput({
         </div>
       )}
 
-      {/* The text area */}
       <Textarea
         ref={textareaRef}
         placeholder="Send a message..."
@@ -269,12 +251,10 @@ function PureMultimodalInput({
         }}
       />
 
-      {/* bottom-left => attach button */}
       <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start">
         <AttachmentsButton fileInputRef={fileInputRef} isLoading={isLoading} />
       </div>
 
-      {/* bottom-right => stop or send */}
       <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
         {isLoading ? (
           <StopButton stop={stop} setMessages={setMessages} />
@@ -300,7 +280,6 @@ export const MultimodalInput = memo(
   },
 );
 
-/** The attach button */
 function PureAttachmentsButton({
   fileInputRef,
   isLoading,
@@ -324,7 +303,6 @@ function PureAttachmentsButton({
 }
 const AttachmentsButton = memo(PureAttachmentsButton);
 
-/** The stop button */
 function PureStopButton({
   stop,
   setMessages,
@@ -347,7 +325,6 @@ function PureStopButton({
 }
 const StopButton = memo(PureStopButton);
 
-/** The send button */
 function PureSendButton({
   submitForm,
   input,
