@@ -2,208 +2,146 @@ import Link from 'next/link';
 import React, { memo } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { 
-  FileText, 
-  Calendar,
-  ArrowUpRight,
-  CheckCircle2
-} from 'lucide-react';
+import * as Separator from '@radix-ui/react-separator';
+import { Calendar, ArrowUpRight, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const components: Partial<Components> = {
-  // Code handling
+  // Code blocks
   code: ({ className, children }) => {
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
     
     if (language) {
       return (
-        <Card className="my-4">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <FileText size={16} />
+        <div className="my-6 rounded-lg border bg-muted/50">
+          <div className="flex items-center justify-between border-b px-4 py-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">
                 {language.toUpperCase()}
               </span>
             </div>
-            <pre className="overflow-x-auto">
-              <code className={className}>{children}</code>
-            </pre>
-          </CardContent>
-        </Card>
+          </div>
+          <pre className="overflow-x-auto p-4">
+            <code className={className}>{children}</code>
+          </pre>
+        </div>
       );
     }
 
     return (
-      <code className="bg-muted px-1.5 py-0.5 rounded-md text-sm font-mono">
+      <code className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
         {children}
       </code>
     );
   },
-  
-  // Lists with improved spacing and icons
-  ol: ({ children, ...props }) => (
-    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2 space-y-1" {...props}>
+
+  // Main heading with date
+  h1: ({ children }) => (
+    <div className="mb-8">
+      <h1 className="scroll-m-20 text-4xl font-bold tracking-tight lg:text-5xl">
+        {children}
+      </h1>
+      <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+        <Calendar className="h-4 w-4" />
+        <span>Updated January 2025</span>
+      </div>
+      <Separator.Root className="my-4 h-[1px] bg-border" />
+    </div>
+  ),
+
+  // Section headings
+  h2: ({ children }) => (
+    <h2 className="mt-12 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight first:mt-0">
       {children}
-    </ol>
+    </h2>
   ),
 
-  ul: ({ children, ...props }) => (
-    <ul className="my-6 ml-6 space-y-2" {...props}>
+  h3: ({ children }) => (
+    <h3 className="mt-8 scroll-m-20 text-xl font-semibold tracking-tight">
       {children}
-    </ul>
+    </h3>
   ),
 
-  li: ({ children, ...props }) => (
-    <li className="flex gap-2 items-start" {...props}>
-      <CheckCircle2 className="h-5 w-5 mt-1 flex-shrink-0 text-primary/60" />
-      <span>{children}</span>
-    </li>
+  // Enhanced table
+  table: ({ children }) => (
+    <div className="my-6 w-full overflow-auto rounded-lg border">
+      <table className="w-full border-collapse text-sm">
+        {children}
+      </table>
+    </div>
   ),
 
-  // Enhanced text formatting
-  strong: ({ children, ...props }) => (
-    <span className="font-semibold text-foreground" {...props}>
+  thead: ({ children }) => (
+    <thead className="border-b bg-muted/50">
       {children}
-    </span>
+    </thead>
   ),
 
-  em: ({ children, ...props }) => (
-    <span className="italic text-muted-foreground" {...props}>
+  tbody: ({ children }) => (
+    <tbody className="divide-y divide-border">
       {children}
-    </span>
+    </tbody>
   ),
 
-  // Modern link styling
-  a: ({ children, href, ...props }) => (
+  tr: ({ children }) => (
+    <tr className="transition-colors hover:bg-muted/50">
+      {children}
+    </tr>
+  ),
+
+  th: ({ children }) => (
+    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+      {children}
+    </th>
+  ),
+
+  td: ({ children }) => (
+    <td className="px-4 py-3 text-sm">
+      {children}
+    </td>
+  ),
+
+  // Links with icon
+  a: ({ children, href }) => (
     <Link
       href={href || '#'}
-      className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+      className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
       target="_blank"
       rel="noreferrer"
-      {...props}
     >
       {children}
       <ArrowUpRight className="h-3 w-3" />
     </Link>
   ),
 
-  // Enhanced heading hierarchy
-  h1: ({ children, ...props }) => (
-    <div className="mb-8">
-      <h1 
-        className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl"
-        {...props}
-      >
-        {children}
-      </h1>
-      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-        <Calendar className="h-4 w-4" />
-        <span>Updated January 2025</span>
-      </div>
+  // Lists
+  ul: ({ children }) => (
+    <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
+      {children}
+    </ul>
+  ),
+
+  ol: ({ children }) => (
+    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2">
+      {children}
+    </ol>
+  ),
+
+  // Blockquotes
+  blockquote: ({ children }) => (
+    <div className="my-6 rounded-lg border-l-4 border-primary bg-muted/50 px-6 py-4 italic text-muted-foreground">
+      {children}
     </div>
   ),
 
-  h2: ({ children, ...props }) => (
-    <>
-      <h2 
-        className="scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0 mt-10 mb-4"
-        {...props}
-      >
-        {children}
-      </h2>
-    </>
-  ),
-
-  h3: ({ children, ...props }) => (
-    <h3 
-      className="scroll-m-20 text-2xl font-semibold tracking-tight mt-8 mb-4"
-      {...props}
-    >
-      {children}
-    </h3>
-  ),
-
-  // Modern table styling
-  table: ({ children, ...props }) => (
-    <div className="my-6 w-full overflow-auto">
-      <table 
-        className="w-full border-collapse text-sm" 
-        {...props}
-      >
-        {children}
-      </table>
-    </div>
-  ),
-
-  thead: ({ children, ...props }) => (
-    <thead className="border-b bg-muted/50" {...props}>
-      {children}
-    </thead>
-  ),
-
-  tbody: ({ children, ...props }) => (
-    <tbody className="[&>tr:last-child]:border-0" {...props}>
-      {children}
-    </tbody>
-  ),
-
-  tr: ({ children, ...props }) => (
-    <tr 
-      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
-      {...props}
-    >
-      {children}
-    </tr>
-  ),
-
-  th: ({ children, ...props }) => (
-    <th 
-      className="h-10 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0"
-      {...props}
-    >
-      {children}
-    </th>
-  ),
-
-  td: ({ children, ...props }) => (
-    <td 
-      className="p-4 align-middle [&:has([role=checkbox])]:pr-0"
-      {...props}
-    >
-      {children}
-    </td>
-  ),
-
-  // Enhanced paragraph styling
-  p: ({ children, ...props }) => (
-    <p 
-      className="leading-7 [&:not(:first-child)]:mt-6"
-      {...props}
-    >
+  // Paragraphs
+  p: ({ children }) => (
+    <p className="leading-7 [&:not(:first-child)]:mt-6">
       {children}
     </p>
   ),
-
-  // Modern blockquote styling with card
-  blockquote: ({ children, ...props }) => (
-    <Card className="my-6 bg-primary/5">
-      <CardContent className="p-6">
-        <blockquote 
-          className="border-l-2 border-primary pl-6 italic text-primary-foreground"
-          {...props}
-        >
-          {children}
-        </blockquote>
-      </CardContent>
-    </Card>
-  ),
-
-  // Horizontal rule with separator
-  hr: () => <Separator className="my-8" />,
 };
 
 const remarkPlugins = [remarkGfm];
@@ -220,7 +158,7 @@ const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({
   return (
     <div className={cn(
       "prose prose-stone dark:prose-invert max-w-none",
-      "prose-headings:font-heading prose-h1:text-4xl",
+      "prose-headings:font-sans prose-headings:font-bold",
       "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
       className
     )}>
