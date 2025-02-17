@@ -4,30 +4,30 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card, CardContent } from "@/components/ui/card";
 
-// Simple code component
-const CodeComponent: React.FC<{
-  className?: string;
-  children?: React.ReactNode;
-}> = ({ className, children }) => {
-  const language = className?.replace('language-', '');
-  
-  if (language) {
-    return (
-      <Card className="my-4">
-        <CardContent className="p-4">
-          <pre className={`${className} overflow-x-auto`}>
-            <code className={className}>{children}</code>
-          </pre>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return <code className="bg-muted px-1.5 py-0.5 rounded-md text-sm">{children}</code>;
-};
-
 const components: Partial<Components> = {
-  code: CodeComponent,
+  // Simpler inline code handling
+  code: ({ className, children }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const language = match ? match[1] : '';
+    
+    if (language) {
+      return (
+        <Card className="my-4">
+          <CardContent className="p-4">
+            <pre className="overflow-x-auto">
+              <code className={className}>{children}</code>
+            </pre>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <code className="bg-muted px-1.5 py-0.5 rounded-md text-sm font-mono">
+        {children}
+      </code>
+    );
+  },
   
   // Lists
   ol: ({ children, ...props }) => (
@@ -50,8 +50,9 @@ const components: Partial<Components> = {
   ),
 
   // Links
-  a: ({ children, ...props }) => (
+  a: ({ children, href, ...props }) => (
     <Link
+      href={href || '#'}
       className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
       target="_blank"
       rel="noreferrer"
