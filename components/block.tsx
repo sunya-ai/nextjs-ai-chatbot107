@@ -476,7 +476,6 @@ function PureBlock({
                 })}
               >
                 {isDocumentsFetching && !block.content ? (
-                  <DocumentSkeleton />
                 <DocumentSkeleton artifactKind={block.kind as 'text' | 'code' | 'image' | 'sheet'} />
                 ) : block.kind === 'code' ? (
                   <CodeEditor
