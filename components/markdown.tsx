@@ -51,21 +51,21 @@ const components: Partial<Components> = {
   },
   h1: ({ node, children, ...props }) => {
     return (
-      <h1 className="text-3xl font-semibold mt-6 mb-2" {...props}>
+      <h1 className="text-3xl font-semibold mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
         {children}
       </h1>
     );
   },
   h2: ({ node, children, ...props }) => {
     return (
-      <h2 className="text-2xl font-bold mt-8 mb-6" {...props}>
+      <h2 className="text-2xl font-bold mt-8 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
         {children}
       </h2>
     );
   },
   h3: ({ node, children, ...props }) => {
     return (
-      <h3 className="text-xl font-semibold mt-6 mb-2" {...props}>
+      <h3 className="text-xl font-semibold mt-6 mb-3" {...props}>
         {children}
       </h3>
     );
@@ -89,6 +89,63 @@ const components: Partial<Components> = {
       <h6 className="text-sm font-semibold mt-6 mb-2" {...props}>
         {children}
       </h6>
+    );
+  },
+  table: ({ node, children, ...props }) => {
+    return (
+      <div className="my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <table className="w-full border-collapse" {...props}>
+          {children}
+        </table>
+      </div>
+    );
+  },
+  thead: ({ node, children, ...props }) => {
+    return (
+      <thead className="bg-zinc-50 dark:bg-zinc-900/50" {...props}>
+        {children}
+      </thead>
+    );
+  },
+  tbody: ({ node, children, ...props }) => {
+    return (
+      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800" {...props}>
+        {children}
+      </tbody>
+    );
+  },
+  tr: ({ node, children, ...props }) => {
+    return (
+      <tr 
+        className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors" 
+        {...props}
+      >
+        {children}
+      </tr>
+    );
+  },
+  td: ({ node, children, ...props }) => {
+    return (
+      <td className="px-4 py-3" {...props}>
+        {children}
+      </td>
+    );
+  },
+  th: ({ node, children, ...props }) => {
+    return (
+      <th className="px-4 py-3 text-left font-semibold" {...props}>
+        {children}
+      </th>
+    );
+  },
+  blockquote: ({ node, children, ...props }) => {
+    return (
+      <blockquote 
+        className="border-l-4 border-zinc-200 dark:border-zinc-800 pl-4 py-2 my-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-r-lg" 
+        {...props}
+      >
+        {children}
+      </blockquote>
     );
   },
 };
