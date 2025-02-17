@@ -83,8 +83,8 @@ export const Overview = () => {
         </motion.p>
 
         <motion.p className="text-xs text-white/70" variants={contentVariants} custom={3}>
-          <span className="font-medium">Heads up:</span> It might be slow and off-target sometimes, but it's still a
-          solid first pass.
+          <span className="font-medium">Heads up:</span> It might be slow and off-target sometimes, but it&apos;s still
+          a solid first pass.
         </motion.p>
       </div>
     </motion.div>
