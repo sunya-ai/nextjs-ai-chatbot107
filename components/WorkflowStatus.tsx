@@ -14,12 +14,29 @@ interface WorkflowStatusProps {
   isLoading?: boolean
 }
 
+const thinkingMessages = [
+  "Give me a sec… this response needs seasoning.",
+  "I'm not AI - I'm just the intern stirring the coffee pot.",
+  "Hang on, I'm overthinking this answer.",
+  "Wait a moment—I'm still trying to sound clever.",
+  "Give me a second—I'm working on a comeback.",
+  "Wait a sec—I'm not as smart as you think.",
+  "Give me a minute—I want to impress you, not stress you.",
+  "Hold on, I'm trying hard not to disappoint you.",
+  "Wait a sec, I'm trying not to screw this up for you.",
+  "I'm not AI—just an intern at a coffee shop",
+  "Give me a moment—I'm not trying to let you down.",
+  "Hang tight—I'm rebooting my brain for you.",
+]
+
 export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowStatusProps) {
   const [stage, setStage] = useState(0)
+  const [thinkingMessage, setThinkingMessage] = useState(thinkingMessages[0])
 
   useEffect(() => {
     const timer = setInterval(() => {
       setStage((prev) => (prev + 1) % 3)
+      setThinkingMessage(thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)])
     }, 2000)
 
     return () => clearInterval(timer)
@@ -50,7 +67,7 @@ export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowSta
             <Circle className="h-3 w-3 text-gray-500 dark:text-zinc-400" />
           )}
           <span className="text-xs font-medium text-gray-500 dark:text-zinc-400">
-            {isLoading ? "AI is thinking..." : "AI has responded"}
+            {isLoading ? thinkingMessage : "AI has responded"}
           </span>
         </div>
       </div>
