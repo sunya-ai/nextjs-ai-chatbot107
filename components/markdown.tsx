@@ -3,9 +3,8 @@ import React, { memo } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Define a simpler code component that works with ReactMarkdown's types
+// Simple code component
 const CodeComponent: React.FC<{
   className?: string;
   children?: React.ReactNode;
@@ -28,10 +27,9 @@ const CodeComponent: React.FC<{
 };
 
 const components: Partial<Components> = {
-  // Code blocks with shadcn styling
   code: CodeComponent,
   
-  // Lists with better spacing
+  // Lists
   ol: ({ children, ...props }) => (
     <ol className="my-6 ml-6 list-decimal [&>li]:mt-2" {...props}>
       {children}
@@ -44,14 +42,14 @@ const components: Partial<Components> = {
     </ul>
   ),
 
-  // Enhanced text elements
+  // Text formatting
   strong: ({ children, ...props }) => (
     <span className="font-semibold text-foreground" {...props}>
       {children}
     </span>
   ),
 
-  // Modern link styling
+  // Links
   a: ({ children, ...props }) => (
     <Link
       className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
@@ -63,7 +61,7 @@ const components: Partial<Components> = {
     </Link>
   ),
 
-  // Modern heading hierarchy
+  // Headings
   h1: ({ children, ...props }) => (
     <h1 
       className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl mb-8"
@@ -89,16 +87,12 @@ const components: Partial<Components> = {
     </h3>
   ),
 
-  // Modern table styling
+  // Tables
   table: ({ children, ...props }) => (
-    <div className="my-6 w-full">
-      <Card>
-        <ScrollArea className="rounded-lg border">
-          <table className="w-full caption-bottom text-sm" {...props}>
-            {children}
-          </table>
-        </ScrollArea>
-      </Card>
+    <div className="my-6 w-full overflow-auto">
+      <table className="w-full border-collapse text-sm" {...props}>
+        {children}
+      </table>
     </div>
   ),
 
@@ -141,7 +135,7 @@ const components: Partial<Components> = {
     </td>
   ),
 
-  // Enhanced paragraph styling
+  // Paragraphs
   p: ({ children, ...props }) => (
     <p 
       className="leading-7 [&:not(:first-child)]:mt-6"
@@ -151,7 +145,7 @@ const components: Partial<Components> = {
     </p>
   ),
 
-  // Modern blockquote styling
+  // Blockquotes
   blockquote: ({ children, ...props }) => (
     <Card className="my-6">
       <CardContent className="p-6">
