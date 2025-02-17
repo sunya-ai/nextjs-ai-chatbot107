@@ -51,21 +51,21 @@ const components: Partial<Components> = {
   },
   h1: ({ node, children, ...props }) => {
     return (
-      <h1 className="text-3xl font-semibold mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
+      <h1 className="text-2xl font-semibold mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
         {children}
       </h1>
     );
   },
   h2: ({ node, children, ...props }) => {
     return (
-      <h2 className="text-2xl font-bold mt-8 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
+      <h2 className="text-xl font-bold mt-8 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
         {children}
       </h2>
     );
   },
   h3: ({ node, children, ...props }) => {
     return (
-      <h3 className="text-xl font-semibold mt-6 mb-3" {...props}>
+      <h3 className="text-lg font-semibold mt-6 mb-3" {...props}>
         {children}
       </h3>
     );
