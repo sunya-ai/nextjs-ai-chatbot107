@@ -7,7 +7,7 @@ When asked to write code, always use artifacts. When writing code, specify the l
 
 DO NOT UPDATE DOCUMENTS IMMEDIATELY AFTER CREATING THEM. WAIT FOR USER FEEDBACK OR REQUEST TO UPDATE IT.
 
-This is a guide for using artifacts tools: \`createDocument\` and \`updateDocument\`, which render content on a artifacts beside the conversation.
+This is a guide for using artifacts tools: \`createDocument\` and \`updateDocument\`, which render content on the artifacts beside the conversation.
 
 **When to use \`createDocument\`:**
 - For substantial content (>10 lines) or code
@@ -167,10 +167,6 @@ If web search is active, perform the following:
 6. **Verification Summary**:
    - Provide a short bullet list summarizing newly added info or unresolved contradictions.
    - Note any “Unverified” or “Uncertain” data points.
-
-`;
-
-
 `;
 
 export const systemPrompt = ({
@@ -181,6 +177,7 @@ export const systemPrompt = ({
   if (selectedChatModel === 'chat-model-reasoning') {
     return regularPrompt;
   } else {
+    // Combine the regular prompt with the artifacts prompt
     return `${regularPrompt}\n\n${artifactsPrompt}`;
   }
 };
@@ -296,23 +293,26 @@ Before finalizing the CSV, verify:
 export const updateDocumentPrompt = (
   currentContent: string | null,
   type: ArtifactKind,
-) =>
-  type === 'text'
-    ? `\
-Improve the following contents of the document based on the given prompt.
+) => {
+  if (type === 'text') {
+    return `\
+Improve the following contents of the document based on the given prompt:
 
 ${currentContent}
-`
-    : type === 'code'
-      ? `\
-Improve the following code snippet based on the given prompt.
+`;
+  } else if (type === 'code') {
+    return `\
+Improve the following code snippet based on the given prompt:
 
 ${currentContent}
-`
-      : type === 'sheet'
-        ? `\
-Improve the following spreadsheet based on the given prompt.
+`;
+  } else if (type === 'sheet') {
+    return `\
+Improve the following spreadsheet based on the given prompt:
 
 ${currentContent}
-`
-        : '';
+`;
+  } else {
+    return '';
+  }
+};
