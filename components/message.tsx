@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import type { ChatRequestOptions, Message } from "ai"
 import cx from "classnames"
 import { AnimatePresence, motion } from "framer-motion"
@@ -20,7 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
 import { MessageEditor } from "./message-editor"
 import { DocumentPreview } from "./document-preview"
 import { MessageReasoning } from "./message-reasoning"
-import { WorkflowStatus } from "./WorkflowStatus"
+import { WorkflowStatus, type WorkflowFile } from "./WorkflowStatus"
 
 const PurePreviewMessage = ({
   chatId,
@@ -192,7 +194,12 @@ export const PreviewMessage = memo(PurePreviewMessage, (prevProps, nextProps) =>
   return true
 })
 
-export const ThinkingMessage = ({ currentMessage, files }) => {
+interface ThinkingMessageProps {
+  currentMessage?: string
+  files?: WorkflowFile[]
+}
+
+export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage, files }) => {
   const role = "assistant"
 
   return (
