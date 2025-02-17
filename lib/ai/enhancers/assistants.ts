@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { OpenAI } from 'openai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
 // API Response Interfaces
