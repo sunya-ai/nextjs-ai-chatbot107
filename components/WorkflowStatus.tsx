@@ -31,16 +31,21 @@ const thinkingMessages = [
 
 export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowStatusProps) {
   const [stage, setStage] = useState(0)
-  const [thinkingMessage, setThinkingMessage] = useState(thinkingMessages[0])
+  const [thinkingMessage, setThinkingMessage] = useState("")
 
   useEffect(() => {
     const timer = setInterval(() => {
       setStage((prev) => (prev + 1) % 3)
-      setThinkingMessage(thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)])
     }, 2000)
 
     return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (isLoading) {
+      setThinkingMessage(thinkingMessages[Math.floor(Math.random() * thinkingMessages.length)])
+    }
+  }, [isLoading])
 
   const files: WorkflowFile[] = [
     {
