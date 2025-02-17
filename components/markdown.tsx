@@ -2,35 +2,51 @@ import Link from 'next/link';
 import React, { memo } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { CodeBlock } from './code-block';
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+// Define a simpler code component that works with ReactMarkdown's types
+const CodeComponent: React.FC<{
+  className?: string;
+  children?: React.ReactNode;
+}> = ({ className, children }) => {
+  const language = className?.replace('language-', '');
+  
+  if (language) {
+    return (
+      <Card className="my-4">
+        <CardContent className="p-4">
+          <pre className={`${className} overflow-x-auto`}>
+            <code className={className}>{children}</code>
+          </pre>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <code className="bg-muted px-1.5 py-0.5 rounded-md text-sm">{children}</code>;
+};
 
 const components: Partial<Components> = {
-  // Code blocks with improved styling
-  code: CodeBlock,
-  pre: ({ children }) => <div className="rounded-lg overflow-hidden my-4">{children}</div>,
-
-  // Lists with improved spacing and styling
+  // Code blocks with shadcn styling
+  code: CodeComponent,
+  
+  // Lists with better spacing
   ol: ({ children, ...props }) => (
-    <ol className="list-decimal list-outside pl-8 space-y-2 my-4" {...props}>
+    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2" {...props}>
       {children}
     </ol>
   ),
 
   ul: ({ children, ...props }) => (
-    <ul className="list-disc list-outside pl-8 space-y-2 my-4" {...props}>
+    <ul className="my-6 ml-6 list-disc [&>li]:mt-2" {...props}>
       {children}
     </ul>
   ),
 
-  li: ({ children, ...props }) => (
-    <li className="leading-relaxed" {...props}>
-      {children}
-    </li>
-  ),
-
   // Enhanced text elements
   strong: ({ children, ...props }) => (
-    <span className="font-semibold text-gray-900" {...props}>
+    <span className="font-semibold text-foreground" {...props}>
       {children}
     </span>
   ),
@@ -38,7 +54,7 @@ const components: Partial<Components> = {
   // Modern link styling
   a: ({ children, ...props }) => (
     <Link
-      className="text-blue-600 hover:text-blue-800 transition-colors duration-200 underline decoration-blue-300 hover:decoration-blue-600"
+      className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
       target="_blank"
       rel="noreferrer"
       {...props}
@@ -47,68 +63,69 @@ const components: Partial<Components> = {
     </Link>
   ),
 
-  // Enhanced heading hierarchy
+  // Modern heading hierarchy
   h1: ({ children, ...props }) => (
-    <h1 className="text-4xl font-bold text-gray-900 mt-8 mb-4 leading-tight" {...props}>
+    <h1 
+      className="scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl mb-8"
+      {...props}
+    >
       {children}
     </h1>
   ),
   h2: ({ children, ...props }) => (
-    <h2 className="text-3xl font-semibold text-gray-900 mt-8 mb-4 leading-tight" {...props}>
+    <h2 
+      className="scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0 mt-10 mb-4"
+      {...props}
+    >
       {children}
     </h2>
   ),
   h3: ({ children, ...props }) => (
-    <h3 className="text-2xl font-semibold text-gray-800 mt-6 mb-3 leading-tight" {...props}>
+    <h3 
+      className="scroll-m-20 text-2xl font-semibold tracking-tight mt-8 mb-4"
+      {...props}
+    >
       {children}
     </h3>
   ),
-  h4: ({ children, ...props }) => (
-    <h4 className="text-xl font-semibold text-gray-800 mt-6 mb-3 leading-tight" {...props}>
-      {children}
-    </h4>
-  ),
-  h5: ({ children, ...props }) => (
-    <h5 className="text-lg font-semibold text-gray-700 mt-4 mb-2 leading-tight" {...props}>
-      {children}
-    </h5>
-  ),
-  h6: ({ children, ...props }) => (
-    <h6 className="text-base font-semibold text-gray-700 mt-4 mb-2 leading-tight" {...props}>
-      {children}
-    </h6>
-  ),
 
-  // Enhanced table styling
+  // Modern table styling
   table: ({ children, ...props }) => (
-    <div className="overflow-x-auto my-8 rounded-lg border border-gray-200 shadow-sm">
-      <table className="w-full border-collapse bg-white" {...props}>
-        {children}
-      </table>
+    <div className="my-6 w-full">
+      <Card>
+        <ScrollArea className="rounded-lg border">
+          <table className="w-full caption-bottom text-sm" {...props}>
+            {children}
+          </table>
+        </ScrollArea>
+      </Card>
     </div>
   ),
 
   thead: ({ children, ...props }) => (
-    <thead className="bg-gray-50 border-b border-gray-200" {...props}>
+    <thead className="border-b bg-muted/50" {...props}>
       {children}
     </thead>
   ),
 
   tbody: ({ children, ...props }) => (
-    <tbody className="divide-y divide-gray-200" {...props}>
+    <tbody className="[&>tr:last-child]:border-0" {...props}>
       {children}
     </tbody>
   ),
 
   tr: ({ children, ...props }) => (
-    <tr className="hover:bg-gray-50 transition-colors duration-150" {...props}>
+    <tr 
+      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+      {...props}
+    >
       {children}
     </tr>
   ),
 
   th: ({ children, ...props }) => (
     <th 
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 bg-gray-50" 
+      className="h-10 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0"
       {...props}
     >
       {children}
@@ -116,42 +133,52 @@ const components: Partial<Components> = {
   ),
 
   td: ({ children, ...props }) => (
-    <td className="px-6 py-4 text-sm text-gray-600 align-middle" {...props}>
+    <td 
+      className="p-4 align-middle [&:has([role=checkbox])]:pr-0"
+      {...props}
+    >
       {children}
     </td>
   ),
 
-  // Add paragraph styling
+  // Enhanced paragraph styling
   p: ({ children, ...props }) => (
-    <p className="text-gray-600 leading-relaxed my-4" {...props}>
+    <p 
+      className="leading-7 [&:not(:first-child)]:mt-6"
+      {...props}
+    >
       {children}
     </p>
   ),
 
-  // Add blockquote styling
+  // Modern blockquote styling
   blockquote: ({ children, ...props }) => (
-    <blockquote 
-      className="border-l-4 border-gray-200 pl-4 my-4 italic text-gray-600"
-      {...props}
-    >
-      {children}
-    </blockquote>
+    <Card className="my-6">
+      <CardContent className="p-6">
+        <blockquote 
+          className="border-l-2 border-primary pl-6 italic text-muted-foreground"
+          {...props}
+        >
+          {children}
+        </blockquote>
+      </CardContent>
+    </Card>
   ),
 };
 
-// Configure remark plugins
 const remarkPlugins = [remarkGfm];
 
-// Performance-optimized markdown component
-const NonMemoizedMarkdown = ({ 
-  children,
-  className = ''
-}: { 
+interface MarkdownProps {
   children: string;
   className?: string;
+}
+
+const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({ 
+  children,
+  className = ''
 }) => {
   return (
-    <div className={`prose max-w-none ${className}`}>
+    <div className={`prose prose-stone dark:prose-invert max-w-none ${className}`}>
       <ReactMarkdown 
         remarkPlugins={remarkPlugins} 
         components={components}
@@ -162,7 +189,6 @@ const NonMemoizedMarkdown = ({
   );
 };
 
-// Export memoized version with proper prop comparison
 export const Markdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) => 
@@ -170,5 +196,4 @@ export const Markdown = memo(
     prevProps.className === nextProps.className
 );
 
-// Add display name for better debugging
 Markdown.displayName = 'Markdown';
