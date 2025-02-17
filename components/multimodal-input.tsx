@@ -34,7 +34,7 @@ import equal from 'fast-deep-equal';
  * Two-step code: 
  * (1) For each file, call `/api/files/upload`.
  * (2) Store { url, name, contentType } in `attachments`.
- * (3) On "Send," call `handleSubmit` with formData and experimental_attachments.
+ * (3) On "Send," call `handleSubmit` with experimental_attachments.
  */
 function PureMultimodalInput({
   chatId,
@@ -126,36 +126,22 @@ function PureMultimodalInput({
 
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
-    // Create FormData for submission
-    const formData = new FormData();
-    formData.append('id', chatId);
-
-    // Create and append the new user message to existing messages
-    const newMessages = [...messages];
-    if (input.trim()) {
-      newMessages.push({
-        id: Date.now().toString(),
-        content: input,
-        role: 'user',
-        createdAt: new Date(),
-      });
-    }
-    formData.append('messages', JSON.stringify(newMessages));
-    formData.append('selectedChatModel', 'chat-model-small');
-
-    // If we have attachments, append the first one as 'file'
+    // If we have attachments, prepare the file
     if (attachments.length > 0) {
       const attachment = attachments[0];
-      // We need to fetch the file from the URL that was saved during upload
       fetch(attachment.url)
         .then(r => r.blob())
         .then(blob => {
-          formData.append('file', blob, attachment.name);
+          // Create new file with correct name
+          const file = new File([blob], attachment.name, {
+            type: attachment.contentType
+          });
           
-          // Submit after file is appended
           handleSubmit?.(undefined, {
-            formData,
-            experimental_attachments: attachments,
+            experimental_attachments: [{
+              ...attachment,
+              file
+            }],
           });
         })
         .catch(err => {
@@ -165,7 +151,6 @@ function PureMultimodalInput({
     } else {
       // If no attachments, submit directly
       handleSubmit?.(undefined, {
-        formData,
         experimental_attachments: attachments,
       });
     }
@@ -209,7 +194,6 @@ function PureMultimodalInput({
         url: data.url,
         name: data.pathname,
         contentType: data.contentType,
-        originalFile: file,  // Keep original file for final submission
       };
     } catch (error) {
       console.error('File upload error:', error);
