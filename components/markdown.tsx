@@ -1,28 +1,36 @@
 import React, { memo, useState } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion } from 'framer-motion';
 import * as Separator from '@radix-ui/react-separator';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { 
-  ArrowUpRight, 
-  FileText, 
-  Copy, 
+import {
+  ArrowUpRight,
+  FileText,
+  Copy,
   Check,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react';
+
+// If you have a utility function `cn` in "@/lib/utils", import it.
+// Otherwise, you can replace `cn(...)` calls with a direct className string.
 import { cn } from '@/lib/utils';
 
-// Separate Code component with copy functionality
-const Code: React.FC<{ className?: string; children: React.ReactNode }> = ({ 
-  className, 
-  children 
-}) => {
+/** Extend HTMLAttributes so `Code` accepts standard HTML props + children. */
+interface CodeProps extends HTMLAttributes<HTMLElement> {
+  className?: string;
+  children?: ReactNode; // optional so it matches ReactMarkdown’s expectations
+}
+
+const Code: React.FC<CodeProps> = ({ className, children, ...props }) => {
   const [copied, setCopied] = useState(false);
+  // Language is everything after "language-", or default to "text"
   const language = className?.replace('language-', '') || 'text';
-  
+
   const copyToClipboard = () => {
+    // Only copy if children is a string
     if (typeof children === 'string') {
       navigator.clipboard.writeText(children).then(() => {
         setCopied(true);
@@ -31,16 +39,21 @@ const Code: React.FC<{ className?: string; children: React.ReactNode }> = ({
     }
   };
 
+  // If there's no "language-" in the className, render inline code
   if (!/language-/.test(className || '')) {
     return (
-      <code className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm text-foreground">
+      <code
+        {...props}
+        className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm text-foreground"
+      >
         {children}
       </code>
     );
   }
-  
+
+  // Otherwise, render a code block with copy functionality
   return (
-    <div className="my-6 rounded-lg border bg-muted/50 overflow-hidden">
+    <div {...props} className="my-6 rounded-lg border bg-muted/50 overflow-hidden">
       <div className="flex items-center justify-between border-b px-4 py-2 bg-muted/70">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
@@ -67,15 +80,20 @@ const Code: React.FC<{ className?: string; children: React.ReactNode }> = ({
   );
 };
 
+/**
+ * Custom component mapping for ReactMarkdown.
+ * These components override how certain markdown elements are rendered.
+ */
 const components: Partial<Components> = {
   code: Code,
 
-  // Links with tooltip
   a: ({ children, href }) => (
     <motion.a
       href={href || '#'}
       whileHover={{ scale: 1.02 }}
-      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/90 border border-primary/20 hover:border-primary/40 px-2 py-0.5 rounded-md transition-colors"
+      className="inline-flex items-center gap-1.5 text-primary hover:text-primary/90 
+                 border border-primary/20 hover:border-primary/40 px-2 py-0.5 rounded-md 
+                 transition-colors"
       target="_blank"
       rel="noreferrer"
     >
@@ -125,7 +143,7 @@ const components: Partial<Components> = {
 
   table: ({ children }) => (
     <div className="my-6 w-full overflow-hidden rounded-lg border">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="w-full overflow-auto"
@@ -172,29 +190,26 @@ const components: Partial<Components> = {
   ),
 };
 
+// Props for your Markdown wrapper
 interface MarkdownProps {
   children: string;
   className?: string;
 }
 
-const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({ 
-  children,
-  className = ''
-}) => {
+const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({ children, className = '' }) => {
   return (
-    <div className={cn(
-      "prose prose-stone dark:prose-invert max-w-none",
-      "prose-headings:text-foreground",
-      "prose-p:text-foreground",
-      "prose-strong:text-foreground",
-      "prose-ul:text-foreground",
-      "prose-ol:text-foreground",
-      className
-    )}>
-      <ReactMarkdown 
-        remarkPlugins={[remarkGfm]} 
-        components={components}
-      >
+    <div
+      className={cn(
+        "prose prose-stone dark:prose-invert max-w-none",
+        "prose-headings:text-foreground",
+        "prose-p:text-foreground",
+        "prose-strong:text-foreground",
+        "prose-ul:text-foreground",
+        "prose-ol:text-foreground",
+        className
+      )}
+    >
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {children}
       </ReactMarkdown>
     </div>
@@ -203,7 +218,7 @@ const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({
 
 export const Markdown = memo(
   NonMemoizedMarkdown,
-  (prevProps, nextProps) => 
+  (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
     prevProps.className === nextProps.className
 );
