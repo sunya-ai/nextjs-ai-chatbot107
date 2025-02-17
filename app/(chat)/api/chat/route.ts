@@ -73,7 +73,7 @@ function rateLimiter(userId: string): boolean {
     };
   }
 
-  // Check short-term
+  // short-term
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
@@ -83,7 +83,7 @@ function rateLimiter(userId: string): boolean {
     return false;
   }
 
-  // Check long-term
+  // long-term
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
@@ -93,7 +93,6 @@ function rateLimiter(userId: string): boolean {
     return false;
   }
 
-  // Increment usage
   userData.shortTermCount++;
   userData.longTermCount++;
   requestsMap.set(userId, userData);
@@ -128,38 +127,33 @@ async function getInitialAnalysis(
     return '';
   }
 
-  // Build a "messages" array for the generateText call
-  // We'll store the user's text in a content array.
-  let contentParts: any[] = [];
+  // Build "messages" array for generateText
+  let contentParts: any[] = [
+    {
+      type: 'text',
+      text: userMessage.content,
+    },
+  ];
 
-  // The user text (as a text part)
-  contentParts.push({
-    type: 'text',
-    text: userMessage.content,
-  });
-
-  // If there's a file, pass it as a file part
   if (fileBuffer) {
     console.log('[getInitialAnalysis] We have a file => attaching as "file" part');
     contentParts.push({
       type: 'file',
       data: fileBuffer,
-      mimeType: fileMime || 'application/octet-stream'
+      mimeType: fileMime || 'application/octet-stream',
     });
   }
 
   try {
     console.log('[getInitialAnalysis] Using "generateText" with google("gemini-2.0-flash")');
-
-    // We'll let "generateText" do a single synchronous call.
-    const { text, providerMetadata } = await generateText({
+    const { text } = await generateText({
       model: google('gemini-2.0-flash', { useSearchGrounding: true }),
       messages: [
         {
           role: 'user',
-          content: contentParts
-        }
-      ]
+          content: contentParts,
+        },
+      ],
     });
 
     console.log('[getInitialAnalysis] Gemini success => text length:', text.length);
@@ -272,7 +266,7 @@ export async function POST(request: Request) {
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // Optionally read the file bytes
+  // Optionally read file
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
@@ -286,7 +280,7 @@ export async function POST(request: Request) {
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
-        // --- Step A: Non-streaming Gemini pass with generateText
+        // --- Step A: Non-streaming gemini
         console.log('[EXECUTE] Step A => getInitialAnalysis (non-streaming gemini)');
         const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
         console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
@@ -296,7 +290,7 @@ export async function POST(request: Request) {
         const enhancedContext = await enhanceContext(initialAnalysis);
         console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
-        // --- Step C: final streaming pass
+        // --- Step C: final streaming
         console.log('[EXECUTE] Step C => final model => streaming pass');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
@@ -308,12 +302,7 @@ export async function POST(request: Request) {
           experimental_activeTools:
             selectedChatModel === 'chat-model-reasoning'
               ? []
-              : [
-                  'getWeather',
-                  'createDocument',
-                  'updateDocument',
-                  'requestSuggestions',
-                ],
+              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           tools: {
