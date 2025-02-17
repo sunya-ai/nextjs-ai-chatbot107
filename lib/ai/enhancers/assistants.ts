@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
-// API Response Interfaces
+// Tavily and Exa response interfaces
 interface TavilyResult {
   url: string;
   title: string;
@@ -23,7 +23,7 @@ interface ExaResponse {
   documents?: ExaDocument[];
 }
 
-// Initialize OpenAI clients
+// Instantiate OpenAI and Perplexity clients
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -34,7 +34,7 @@ const perplexity = new OpenAI({
 });
 
 /**
- * withTimeout => wraps a promise in a race with a timeout rejection
+ * withTimeout => wraps a promise in a race with a timeout
  */
 const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName: string) => {
   console.log(`[withTimeout] Start => ${serviceName}, timeout = ${timeoutMs}ms`);
@@ -60,7 +60,7 @@ const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName
 };
 
 /**
- * Perplexity => calls .chat.completions.create with a custom system prompt
+ * getPerplexityResponse => queries Perplexity via openai.chat.completions
  */
 async function getPerplexityResponse(message: string): Promise<string> {
   try {
@@ -99,7 +99,7 @@ CRITICAL RULES
 - Use multiple sources when possible
 - NO information without URL
 - NO summarizing original sources
-        `
+          `
         },
         {
           role: 'user',
@@ -116,13 +116,7 @@ CRITICAL RULES
 }
 
 /**
- * Minimal Tavily body => { query: message }
- * to match the official cURL example:
- * 
- * curl -X POST https://api.tavily.com/search \
- *   -H "Content-Type: application/json" \
- *   -H "Authorization: Bearer <API_KEY>" \
- *   -d '{"query": "<your text>"}'
+ * Minimal Tavily call => { "query": message }
  */
 async function getTavilyResponse(message: string): Promise<string> {
   try {
@@ -133,9 +127,7 @@ async function getTavilyResponse(message: string): Promise<string> {
         'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        query: message
-      })
+      body: JSON.stringify({ query: message })
     });
 
     if (!response.ok) {
@@ -145,20 +137,18 @@ async function getTavilyResponse(message: string): Promise<string> {
     const data = await response.json() as TavilyResponse;
     console.log('[getTavilyResponse] Tavily search complete =>', JSON.stringify(data, null, 2));
 
-    // For debugging, let's just return a stringified version or parse results
-    if (!data.results) {
-      // if no "results" field, return the entire data or data.answer
-      return data.answer || '[No results field returned]';
+    if (!data.results || data.results.length === 0) {
+      return data.answer ?? '[No Tavily results returned]';
     }
 
-    // Or format them if you want
-    const formattedResponse = data.results
-      .map((result) => `Source: ${result.url}\nTitle: ${result.title}\nContent: ${result.content}`)
+    // Format them
+    const formatted = data.results
+      .map((r) => `Source: ${r.url}\nTitle: ${r.title}\nContent: ${r.content}`)
       .join('\n\n');
 
     return data.answer 
-      ? `Answer: ${data.answer}\n\n${formattedResponse}`
-      : formattedResponse;
+      ? `Answer: ${data.answer}\n\n${formatted}`
+      : formatted;
   } catch (error) {
     console.error('[getTavilyResponse] Tavily error:', error);
     return '';
@@ -166,8 +156,7 @@ async function getTavilyResponse(message: string): Promise<string> {
 }
 
 /**
- * Exa => you said there's a type error if data.documents is undefined
- * So let's guard it:
+ * Exa => guard for data.documents
  */
 async function getExaResponse(message: string): Promise<string> {
   try {
@@ -193,19 +182,17 @@ async function getExaResponse(message: string): Promise<string> {
     const data = await response.json() as ExaResponse;
     console.log('[getExaResponse] Exa raw data =>', JSON.stringify(data, null, 2));
 
-    if (!data.documents) {
-      console.warn('[getExaResponse] No "documents" field => returning empty');
+    if (!data.documents || data.documents.length === 0) {
+      console.warn('[getExaResponse] No documents returned => empty');
       return '';
     }
 
-    const formattedResults = data.documents
-      .map((doc) => 
-        `Source: ${doc.url}\nTitle: ${doc.title}\nContent: ${doc.text}`
-      )
+    const formatted = data.documents
+      .map((doc) => `Source: ${doc.url}\nTitle: ${doc.title}\nContent: ${doc.text}`)
       .join('\n\n');
 
     console.log('[getExaResponse] Exa search complete => returning results');
-    return formattedResults;
+    return formatted;
   } catch (error) {
     console.error('[getExaResponse] Exa error:', error);
     return '';
@@ -214,78 +201,72 @@ async function getExaResponse(message: string): Promise<string> {
 
 /**
  * createAssistantsEnhancer => aggregator
- *   - references process.env.OPENAI_ASSISTANT_ID
- *   - calls each service in parallel with timeouts
+ *   Expects "assistantId" => calls openai Beta with that ID
  */
-export const createAssistantsEnhancer = (/* we can pass anything if needed */): ContextEnhancer => {
-  // use the correct ID => no more "default-assistant-id"
-  const assistantId = process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id';
-
+export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer => {
   return {
     name: 'combined-enhancer',
     enhance: async (message: string): Promise<EnhancerResponse> => {
       console.log('[enhance] aggregator => called with message (first 100 chars):', message.slice(0, 100));
       try {
-        // timeouts
         const TIMEOUTS = {
-          assistant: 60000,    // 60s
-          perplexity: 30000,   // 30s
-          tavily: 30000,       // 30s
-          exa: 30000           // 30s
+          assistant: 60000,
+          perplexity: 30000,
+          tavily: 30000,
+          exa: 30000
         };
 
         console.log('[enhance] Starting parallel calls => assistant, perplexity, tavily, exa');
 
-        const [assistantResponse, perplexityResponse, tavilyResponse, exaResponse] = 
-          await Promise.allSettled([
-            // Assistant => withTimeout
-            withTimeout((async () => {
-              console.log('[enhance] => 🤖 Starting Assistant API call...');
-              const thread = await openai.beta.threads.create();
-              await openai.beta.threads.messages.create(thread.id, {
-                role: 'user',
-                content: message
-              });
+        const [assistantResponse, perplexityResponse, tavilyResponse, exaResponse] = await Promise.allSettled([
+          // Assistant
+          withTimeout((async () => {
+            console.log('[enhance] => 🤖 Starting Assistant API call...');
+            const thread = await openai.beta.threads.create();
+            await openai.beta.threads.messages.create(thread.id, {
+              role: 'user',
+              content: message
+            });
 
-              const run = await openai.beta.threads.runs.create(thread.id, {
-                assistant_id: assistantId
-              });
+            const run = await openai.beta.threads.runs.create(thread.id, {
+              assistant_id: assistantId
+            });
 
-              let completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+            let completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
 
-              while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
-                console.log('[enhance] => assistant is in_progress/queued, waiting 1s');
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-              }
+            while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
+              console.log('[enhance] => assistant is in_progress/queued, waiting 1s');
+              await new Promise(res => setTimeout(res, 1000));
+              completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+            }
 
-              const messages = await openai.beta.threads.messages.list(thread.id);
-              const assistantContent = messages.data[0]?.content[0];
-              
-              console.log('[enhance] => assistant completed, content length:', messages.data[0]?.content?.length ?? 0);
-              if (assistantContent && 'text' in assistantContent) {
-                return assistantContent.text.value;
-              }
-              return '';
-            })(), TIMEOUTS.assistant, 'Assistant'),
+            const messages = await openai.beta.threads.messages.list(thread.id);
+            const assistantContent = messages.data[0]?.content[0];
 
-            // Perplexity => withTimeout
-            withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
+            console.log('[enhance] => assistant completed, content length:', messages.data[0]?.content?.length ?? 0);
+            if (assistantContent && 'text' in assistantContent) {
+              return assistantContent.text.value;
+            }
+            return '';
+          })(), TIMEOUTS.assistant, 'Assistant'),
 
-            // Tavily => if key provided
-            process.env.TAVILY_API_KEY
-              ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
-              : Promise.resolve(''),
+          // Perplexity
+          withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
 
-            // Exa => if key provided
-            process.env.EXA_API_KEY
-              ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
-              : Promise.resolve('')
-          ]);
+          // Tavily
+          process.env.TAVILY_API_KEY
+            ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
+            : Promise.resolve(''),
+
+          // Exa
+          process.env.EXA_API_KEY
+            ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
+            : Promise.resolve('')
+        ]);
 
         console.log('[enhance] Parallel calls completed => assembling results');
 
-        // combine results
+        // Combine results
         const results = {
           assistant: assistantResponse.status === 'fulfilled' ? assistantResponse.value : '',
           perplexity: perplexityResponse.status === 'fulfilled' ? perplexityResponse.value : '',
@@ -293,13 +274,13 @@ export const createAssistantsEnhancer = (/* we can pass anything if needed */): 
           exa: exaResponse.status === 'fulfilled' ? exaResponse.value : ''
         };
 
-        // build final context
+        // Join them into a single context
         const combinedContext = Object.entries(results)
           .filter(([_, val]) => val)
           .map(([service, val]) => `${service.charAt(0).toUpperCase() + service.slice(1)} Context:\n${val}`)
           .join('\n\n');
 
-        // create status info
+        // Build status
         const status = {
           assistant: {
             status: assistantResponse.status,
@@ -341,7 +322,7 @@ export const createAssistantsEnhancer = (/* we can pass anything if needed */): 
         console.error('❌ [enhance] Enhancement error:', error);
         return {
           enhancedContext: '',
-          metadata: { 
+          metadata: {
             error: 'Failed to enhance with services',
             errorDetails: error instanceof Error ? error.message : String(error)
           }
