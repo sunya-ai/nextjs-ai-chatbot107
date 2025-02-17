@@ -5,6 +5,7 @@ import { Overview } from "./overview"
 import { memo } from "react"
 import type { Vote } from "@/lib/db/schema"
 import equal from "fast-deep-equal"
+import type { WorkflowFile } from "./WorkflowStatus"
 
 interface MessagesProps {
   chatId: string
@@ -22,10 +23,10 @@ function PureMessages({ chatId, isLoading, votes, messages, setMessages, reload,
 
   // Example workflow files - in a real implementation, you'd derive these
   // from the actual processing state of your application
-  const workflowFiles = [
-    { path: "components/Messages.tsx", status: "complete" as const },
-    { path: "components/ThinkingMessage.tsx", status: "generating" as const },
-    { path: "hooks/use-messages.ts", status: "planning" as const },
+  const workflowFiles: WorkflowFile[] = [
+    { path: "components/Messages.tsx", status: "complete" },
+    { path: "components/ThinkingMessage.tsx", status: "generating" },
+    { path: "hooks/use-messages.ts", status: "planning" },
   ]
 
   return (
