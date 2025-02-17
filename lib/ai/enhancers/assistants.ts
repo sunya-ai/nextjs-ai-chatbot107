@@ -66,7 +66,7 @@ async function getPerplexityResponse(message: string): Promise<string> {
   try {
     console.log('[getPerplexityResponse] Starting Perplexity search...');
     const response = await perplexity.chat.completions.create({
-      model: 'sonar-medium-online',
+      model: 'sonar',
       messages: [
         {
           role: 'system',
@@ -96,6 +96,11 @@ async function getTavilyResponse(message: string): Promise<string> {
     if (!message.trim()) {
       console.error('[getTavilyResponse] Empty query string provided');
       return '[No query provided for Tavily search]';
+    }
+
+    if (message.length > 400) {
+      console.warn('[getTavilyResponse] Query too long, truncating to 400 chars');
+      message = message.slice(0, 400);
     }
 
     console.log('[getTavilyResponse] Starting Tavily search with query:', message.slice(0, 100));
