@@ -5,6 +5,7 @@ import {
   createDataStreamResponse,
   smoothStream,
   streamText,
+  generateText,
 } from 'ai';
 import { NextResponse } from 'next/server';
 
@@ -29,20 +30,14 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 
-// Non-streaming approach with google + generateText
+// Google provider + aggregator
 import { google } from '@ai-sdk/google';
-import { generateText } from 'ai';
-
-// Aggregator (context enhancement)
-// Use process.env.OPENAI_ASSISTANT_ID as the parameter for createAssistantsEnhancer:
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
 export const maxDuration = 180;
 
 /**
- * ======================================
  * 1) IN-MEMORY RATE LIMIT (2h + 12h)
- * ======================================
  */
 type RateLimitInfo = {
   shortTermCount: number;
@@ -53,13 +48,12 @@ type RateLimitInfo = {
 
 const requestsMap = new Map<string, RateLimitInfo>();
 
-// 50 requests in 2 hours
+// Short-term: 50 in 2 hours
 const SHORT_MAX_REQUESTS = 50;
-const SHORT_WINDOW_TIME = 2 * 60 * 60_000; // ms
-
-// 100 requests in 12 hours
-const LONG_WINDOW_TIME = 12 * 60 * 60_000; // ms
+const SHORT_WINDOW_TIME = 2 * 60 * 60_000;
+// Long-term: 100 in 12 hours
 const LONG_MAX_REQUESTS = 100;
+const LONG_WINDOW_TIME = 12 * 60 * 60_000;
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
@@ -74,7 +68,7 @@ function rateLimiter(userId: string): boolean {
     };
   }
 
-  // short-term
+  // short-term window
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
@@ -84,7 +78,7 @@ function rateLimiter(userId: string): boolean {
     return false;
   }
 
-  // long-term
+  // long-term window
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
@@ -97,23 +91,21 @@ function rateLimiter(userId: string): boolean {
   userData.shortTermCount++;
   userData.longTermCount++;
   requestsMap.set(userId, userData);
-
   return true;
 }
 
 /**
- * =========================================
  * 2) MULTI-PASS: GEMINI + ENHANCER + FINAL
- * =========================================
  */
 
-// aggregator: pass the environment variable used by your updated assistants.ts
+// Create aggregator with the correct Assistant ID
 const assistantsEnhancer = createAssistantsEnhancer(
   process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
 );
 
-/** 
- * Non-streaming Gemini initial analysis using generateText.
+/**
+ * getInitialAnalysis (non-streaming Gemini pass)
+ * Includes a custom system prompt + structuredOutputs:false to avoid JSON shape issues.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -124,20 +116,21 @@ async function getInitialAnalysis(
 
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
-    console.log('[getInitialAnalysis] No user message => returning empty');
+    console.log('[getInitialAnalysis] No user message => returning empty string');
     return '';
   }
 
-  // Build "messages" array for generateText
-  let contentParts: any[] = [
+  // Build user content
+  const contentParts: any[] = [
     {
       type: 'text',
       text: userMessage.content,
     },
   ];
 
+  // If there's a file, attach as file part
   if (fileBuffer) {
-    console.log('[getInitialAnalysis] We have a file => attaching as "file" part');
+    console.log('[getInitialAnalysis] Attaching file part');
     contentParts.push({
       type: 'file',
       data: fileBuffer,
@@ -145,10 +138,22 @@ async function getInitialAnalysis(
     });
   }
 
+  // Our custom system prompt: 
+  // "Take user query, improve the prompt and answer as an energy research assistant..."
+  const customSystemPrompt = `
+Take user query, improve the prompt and answer as an energy research assistant.
+Provide the original user's query and improved prompt as output with your answer.
+`;
+
   try {
-    console.log('[getInitialAnalysis] Using "generateText" with google("gemini-2.0-flash")');
+    console.log('[getInitialAnalysis] Using generateText => gemini-2.0-flash + structuredOutputs:false');
+
     const { text } = await generateText({
-      model: google('gemini-2.0-flash', { useSearchGrounding: true }),
+      model: google('gemini-2.0-flash', {
+        useSearchGrounding: true,
+        structuredOutputs: false, // no code blocks
+      }),
+      system: customSystemPrompt,
       messages: [
         {
           role: 'user',
@@ -159,13 +164,15 @@ async function getInitialAnalysis(
 
     console.log('[getInitialAnalysis] Gemini success => text length:', text.length);
     return text;
-  } catch (err) {
-    console.error('[getInitialAnalysis] Gemini error =>', err);
-    throw err;
+  } catch (error) {
+    console.error('[getInitialAnalysis] Gemini error =>', error);
+    throw error;
   }
 }
 
-/** aggregator => aggregator.enhance(...) */
+/**
+ * aggregator => aggregator.enhance(...)
+ */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
   try {
@@ -178,47 +185,48 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   }
 }
 
+/**
+ * 3) POST => Rate-limit + multi-pass + streaming
+ */
 export async function POST(request: Request) {
-  console.log('[POST] Enter route => /api/chat');
+  console.log('[POST] Enter => /api/chat');
   // 1. Auth
   const session = await auth();
   if (!session?.user?.id) {
-    console.log('[POST] Unauthorized => returning 401');
+    console.log('[POST] Unauthorized => 401');
     return new Response('Unauthorized', { status: 401 });
   }
-  console.log('[POST] Auth success => userId =', session.user.id);
+  console.log('[POST] userId =', session.user.id);
 
   // 2. Rate limit
   if (!rateLimiter(session.user.id)) {
-    console.log('[POST] Rate limit triggered => returning 429');
+    console.log('[POST] rate-limit => 429');
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  // 3. Parse either FormData or JSON
+  // 3. Parse JSON or FormData
   console.log('[POST] Checking content-type =>', request.headers.get('content-type'));
+
   let id = '';
   let messages: Message[] = [];
   let selectedChatModel = 'default-model';
   let file: File | null = null;
 
   if (request.headers.get('content-type')?.includes('application/json')) {
-    console.log('[POST] => Found JSON body, parsing...');
+    console.log('[POST] => Found JSON body');
     try {
       const json = await request.json();
       id = json.id;
       messages = json.messages;
       selectedChatModel = json.selectedChatModel || 'default-model';
-      console.log('[POST] JSON parse success =>', {
-        id,
-        selectedChatModel,
-        messagesCount: messages?.length,
-      });
+
+      console.log('[POST] JSON parse =>', { id, selectedChatModel, messagesCount: messages.length });
     } catch (err) {
       console.error('[POST] Invalid JSON =>', err);
       return new Response('Invalid JSON', { status: 400 });
     }
   } else {
-    console.log('[POST] => No JSON => Attempting formData parse...');
+    console.log('[POST] => Attempting formData parse...');
     try {
       const formData = await request.formData();
       id = formData.get('id')?.toString() || '';
@@ -234,13 +242,13 @@ export async function POST(request: Request) {
 
       try {
         messages = JSON.parse(messagesStr);
-        console.log('[POST] Parsed messages from formData => count:', messages?.length);
+        console.log('[POST] parsed messages => count:', messages.length);
       } catch (err) {
-        console.error('[POST] Invalid messages JSON in formData =>', err);
+        console.error('[POST] invalid messages JSON =>', err);
         return new Response('Invalid messages JSON', { status: 400 });
       }
     } catch (err) {
-      console.error('[POST] Invalid form data =>', err);
+      console.error('[POST] invalid form data =>', err);
       return new Response('Invalid form data', { status: 400 });
     }
   }
@@ -248,51 +256,50 @@ export async function POST(request: Request) {
   // 4. Validate user message
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
-    console.log('[POST] No user message found => returning 400');
+    console.log('[POST] no user message => 400');
     return new Response('No user message found', { status: 400 });
   }
 
-  // 5. Check if chat exists; if not, create
-  console.log('[POST] Checking chat => id:', id);
+  // 5. Check or create chat
+  console.log('[POST] checking chat =>', id);
   const chat = await getChatById({ id });
   if (!chat) {
-    console.log('[POST] No existing chat => creating new');
+    console.log('[POST] no chat => creating new');
     const title = await generateTitleFromUserMessage({ message: userMessage });
     await saveChat({ id, userId: session.user.id, title });
   }
 
-  // 6. Save the user's new message
-  console.log('[POST] Saving user message to DB');
+  // 6. Save user's new message
+  console.log('[POST] saving user message => DB');
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // Optionally read file
+  // 7. Possibly read file
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
-    console.log('[POST] file found => converting to arrayBuffer');
+    console.log('[POST] file found => read as arrayBuffer');
     fileBuffer = await file.arrayBuffer();
     fileMime = file.type;
   }
 
-  console.log('[POST] About to return createDataStreamResponse => multi-pass logic');
-
+  console.log('[POST] => createDataStreamResponse => multi-pass');
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
-        // --- Step A: Non-streaming gemini
-        console.log('[EXECUTE] Step A => getInitialAnalysis (non-streaming gemini)');
+        // Step A: Gemini non-streaming
+        console.log('[EXECUTE] Step A => getInitialAnalysis');
         const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
         console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
-        // --- Step B: aggregator
+        // Step B: aggregator
         console.log('[EXECUTE] Step B => aggregator => enhanceContext');
         const enhancedContext = await enhanceContext(initialAnalysis);
         console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
-        // --- Step C: final streaming
-        console.log('[EXECUTE] Step C => final model => streaming pass');
+        // Step C: final streaming pass
+        console.log('[EXECUTE] Step C => final => streaming text');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         const result = streamText({
@@ -310,13 +317,10 @@ export async function POST(request: Request) {
             getWeather,
             createDocument: createDocument({ session, dataStream }),
             updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({
-              session,
-              dataStream,
-            }),
+            requestSuggestions: requestSuggestions({ session, dataStream }),
           },
           onFinish: async ({ response, reasoning }) => {
-            console.log('[EXECUTE:onFinish] final model done => saving AI messages');
+            console.log('[EXECUTE:onFinish] final => saving AI messages');
             try {
               const sanitized = sanitizeResponseMessages({
                 messages: response.messages,
@@ -331,18 +335,18 @@ export async function POST(request: Request) {
                   createdAt: new Date(),
                 })),
               });
-              console.log('[EXECUTE:onFinish] Successfully saved AI messages');
+              console.log('[EXECUTE:onFinish] saved AI messages');
             } catch (err) {
-              console.error('[EXECUTE:onFinish] Failed to save AI messages =>', err);
+              console.error('[EXECUTE:onFinish] failed to save =>', err);
             }
           },
         });
 
-        console.log('[EXECUTE] Merging partial results => final model');
+        console.log('[EXECUTE] merge partial => final model');
         result.mergeIntoDataStream(dataStream, { sendReasoning: true });
       } catch (err) {
-        console.error('[EXECUTE] Multi-pass error =>', err);
-        console.log('[EXECUTE] Fallback => finalModel again');
+        console.error('[EXECUTE] multi-pass error =>', err);
+        console.log('[EXECUTE] fallback => finalModel');
 
         const fallbackModel = myProvider.languageModel(selectedChatModel);
         const fallbackResult = streamText({
@@ -359,19 +363,22 @@ export async function POST(request: Request) {
   });
 }
 
+/**
+ * DELETE => unchanged
+ */
 export async function DELETE(request: Request) {
-  console.log('[DELETE] /api/chat => deleting chat');
+  console.log('[DELETE] => /api/chat');
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
   if (!id) {
-    console.log('[DELETE] No id found => returning 404');
+    console.log('[DELETE] no id => 404');
     return new Response('Not Found', { status: 404 });
   }
 
   const session = await auth();
-  if (!session || !session.user) {
-    console.log('[DELETE] Unauthorized => returning 401');
+  if (!session?.user) {
+    console.log('[DELETE] unauthorized => 401');
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -379,11 +386,11 @@ export async function DELETE(request: Request) {
     console.log('[DELETE] Checking chat =>', id);
     const chat = await getChatById({ id });
     if (!chat || chat.userId !== session.user.id) {
-      console.log('[DELETE] Chat not found or not owned => returning 401');
+      console.log('[DELETE] not found/owned => 401');
       return new Response('Unauthorized', { status: 401 });
     }
 
-    console.log('[DELETE] Deleting chat =>', id);
+    console.log('[DELETE] Deleting =>', id);
     await deleteChatById({ id });
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
