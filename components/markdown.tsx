@@ -10,21 +10,21 @@ const components: Partial<Components> = {
   pre: ({ children }) => <>{children}</>,
   ol: ({ node, children, ...props }) => {
     return (
-      <ol className="list-decimal list-outside ml-4 [counter-reset:list-item]" {...props}>
+      <ol className="list-decimal list-outside ml-4 space-y-4 font-semibold [counter-reset:list-item]" {...props}>
         {children}
       </ol>
     );
   },
   li: ({ node, children, ...props }) => {
     return (
-      <li className="py-1" {...props}>
+      <li className="py-1 [&>strong]:mr-2" {...props}>
         {children}
       </li>
     );
   },
   ul: ({ node, children, ...props }) => {
     return (
-      <ul className="list-disc list-outside ml-4" {...props}>
+      <ul className="list-disc list-outside ml-8 space-y-2" {...props}>
         {children}
       </ul>
     );
@@ -58,7 +58,7 @@ const components: Partial<Components> = {
   },
   h2: ({ node, children, ...props }) => {
     return (
-      <h2 className="text-2xl font-semibold mt-6 mb-2" {...props}>
+      <h2 className="text-2xl font-bold mt-8 mb-6" {...props}>
         {children}
       </h2>
     );
