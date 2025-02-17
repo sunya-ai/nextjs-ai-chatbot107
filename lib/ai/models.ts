@@ -5,9 +5,13 @@
 import { google } from '@ai-sdk/google';
 import { perplexity } from '@ai-sdk/perplexity';
 import { openai } from '@ai-sdk/openai';
-import { customProvider } from 'ai';
+import {
+  customProvider,
+  extractReasoningMiddleware,
+  wrapLanguageModel,
+} from 'ai';
 
-// 1. Default model (Gemini small)
+// 1. Default Chat Model
 export const DEFAULT_CHAT_MODEL = 'chat-model-small';
 
 // 2. Create the Provider
@@ -26,13 +30,26 @@ export const myProvider = customProvider({
     // Reasoning Model: Perplexity (Sonar-Reasoning)
     'chat-model-reasoning': perplexity('sonar-reasoning'),
 
-    // Additional Models: OpenAI GPT-4o & GPT-4o-mini
+    // Additional OpenAI Models
     'openai-4o': openai('gpt-4o'),
     'openai-4o-mini': openai('gpt-4o-mini'),
+
+    // Title Model: Gemini 2.0 Flash
+    'title-model': google('gemini-2.0-flash', {
+      useSearchGrounding: true,
+    }),
+
+    // Artifact Model: Gemini 2.0 Pro Exp 02-05
+    'artifact-model': google('gemini-2.0-pro-exp-02-05', {
+      useSearchGrounding: true,
+    }),
   },
 
   // If you have image models, you can configure them here
-  imageModels: {},
+  imageModels: {
+    'small-model': openai.image('dall-e-2'),
+    'large-model': openai.image('dall-e-3'),
+  },
 });
 
 // 3. Chat Model Metadata Interface
@@ -42,7 +59,7 @@ interface ChatModel {
   description: string;
 }
 
-// 4. List of Chat Models for display or selection
+// 4. List of Chat Models for UI display/selection
 export const chatModels: ChatModel[] = [
   {
     id: 'chat-model-small',
