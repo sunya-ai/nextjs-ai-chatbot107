@@ -29,11 +29,11 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 
-// Gemini for the initial pass (non-streaming)
+// Non-streaming approach with google + generateText
 import { google } from '@ai-sdk/google';
-import type { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google';
+import { generateText } from 'ai';
 
-// Your aggregator
+// Aggregator (context enhancement)
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
 export const maxDuration = 180;
@@ -73,7 +73,7 @@ function rateLimiter(userId: string): boolean {
     };
   }
 
-  // Check short-term window
+  // Check short-term
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
@@ -83,7 +83,7 @@ function rateLimiter(userId: string): boolean {
     return false;
   }
 
-  // Check long-term window
+  // Check long-term
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
@@ -107,18 +107,13 @@ function rateLimiter(userId: string): boolean {
  * =========================================
  */
 
-// (A) Gemini model with search grounding ON, but no streaming
-const geminiModel = google('models/gemini-2.0-flash', {
-  useSearchGrounding: true,
-});
-
-// (B) aggregator
+// aggregator
 const assistantsEnhancer = createAssistantsEnhancer(
   process.env.MY_ASSISTANT_ID || 'default-assistant-id'
 );
 
-/**
- * Non-streaming Gemini approach => getInitialAnalysis
+/** 
+ * Non-streaming Gemini initial analysis using generateText.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -133,24 +128,42 @@ async function getInitialAnalysis(
     return '';
   }
 
-  // Combine user text with optional file mention
-  let content = userMessage.content;
+  // Build a "messages" array for the generateText call
+  // We'll store the user's text in a content array.
+  let contentParts: any[] = [];
+
+  // The user text (as a text part)
+  contentParts.push({
+    type: 'text',
+    text: userMessage.content,
+  });
+
+  // If there's a file, pass it as a file part
   if (fileBuffer) {
-    console.log('[getInitialAnalysis] We have a file => appending note to content');
-    content += `\n\n[File attached: ${fileMime ?? 'unknown type'}]`;
+    console.log('[getInitialAnalysis] We have a file => attaching as "file" part');
+    contentParts.push({
+      type: 'file',
+      data: fileBuffer,
+      mimeType: fileMime || 'application/octet-stream'
+    });
   }
 
   try {
-    console.log('[getInitialAnalysis] Using geminiModel.generateText (non-streaming)');
-    // Hypothetical .generateText method => adjust name if needed
-    const response = await geminiModel.generateText({
-      system: "Analyze the user's text plus any uploaded file. Extract key concepts.",
+    console.log('[getInitialAnalysis] Using "generateText" with google("gemini-2.0-flash")');
+
+    // We'll let "generateText" do a single synchronous call.
+    const { text, providerMetadata } = await generateText({
+      model: google('gemini-2.0-flash', { useSearchGrounding: true }),
       messages: [
-        { role: 'user', content }
+        {
+          role: 'user',
+          content: contentParts
+        }
       ]
     });
-    console.log('[getInitialAnalysis] Gemini success => text length:', response.text.length);
-    return response.text;
+
+    console.log('[getInitialAnalysis] Gemini success => text length:', text.length);
+    return text;
   } catch (err) {
     console.error('[getInitialAnalysis] Gemini error =>', err);
     throw err;
@@ -259,7 +272,7 @@ export async function POST(request: Request) {
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // Possibly get file bytes
+  // Optionally read the file bytes
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
@@ -273,14 +286,17 @@ export async function POST(request: Request) {
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
+        // --- Step A: Non-streaming Gemini pass with generateText
         console.log('[EXECUTE] Step A => getInitialAnalysis (non-streaming gemini)');
         const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
         console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
+        // --- Step B: aggregator
         console.log('[EXECUTE] Step B => aggregator => enhanceContext');
         const enhancedContext = await enhanceContext(initialAnalysis);
         console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
+        // --- Step C: final streaming pass
         console.log('[EXECUTE] Step C => final model => streaming pass');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
@@ -292,7 +308,12 @@ export async function POST(request: Request) {
           experimental_activeTools:
             selectedChatModel === 'chat-model-reasoning'
               ? []
-              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+              : [
+                  'getWeather',
+                  'createDocument',
+                  'updateDocument',
+                  'requestSuggestions',
+                ],
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           tools: {
@@ -305,7 +326,7 @@ export async function POST(request: Request) {
             }),
           },
           onFinish: async ({ response, reasoning }) => {
-            console.log('[EXECUTE:onFinish] Final model done => saving AI messages');
+            console.log('[EXECUTE:onFinish] final model done => saving AI messages');
             try {
               const sanitized = sanitizeResponseMessages({
                 messages: response.messages,
