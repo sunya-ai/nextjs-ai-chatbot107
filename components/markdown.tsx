@@ -28,7 +28,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="list-decimal list-outside ml-6 space-y-2"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.ol>
@@ -39,7 +39,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       className="list-disc list-outside ml-6 space-y-2"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.ul>
@@ -101,7 +101,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="text-4xl font-bold mt-8 mb-4 text-primary"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.h1>
@@ -112,7 +112,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="text-3xl font-bold mt-6 mb-4 text-primary"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.h2>
@@ -123,7 +123,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="text-2xl font-bold mt-6 mb-4 text-primary"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.h3>
@@ -134,7 +134,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="text-xl font-bold mt-6 mb-4 text-primary"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.h4>
@@ -145,7 +145,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="text-lg font-bold mt-6 mb-4 text-primary"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.h5>
@@ -156,7 +156,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="text-base font-bold mt-6 mb-4 text-primary"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.h6>
@@ -167,7 +167,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
       className="my-4 leading-7"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.p>
@@ -178,7 +178,7 @@ const components: Partial<Components> = {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.5 }}
       className="border-l-4 border-primary pl-4 py-2 my-4 italic bg-muted"
-      {...props}
+      {...(props as any)}
     >
       {children}
     </motion.blockquote>
