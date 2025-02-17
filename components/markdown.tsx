@@ -31,42 +31,60 @@ const components: Partial<Components> = {
     }
 
     return (
-      <code className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
+      <code className="rounded-md bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm text-foreground">
         {children}
       </code>
     );
   },
 
-  // Main heading with date
+  // Headings
   h1: ({ children }) => (
-    <div className="mb-8">
-      <h1 className="scroll-m-20 text-4xl font-bold tracking-tight lg:text-5xl">
-        {children}
-      </h1>
-      <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-        <Calendar className="h-4 w-4" />
-        <span>Updated January 2025</span>
-      </div>
-      <Separator.Root className="my-4 h-[1px] bg-border" />
-    </div>
+    <h1 className="mb-8 text-3xl font-bold tracking-tight text-foreground">
+      {children}
+    </h1>
   ),
 
-  // Section headings
   h2: ({ children }) => (
-    <h2 className="mt-12 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight first:mt-0">
+    <h2 className="mt-10 mb-4 text-2xl font-semibold tracking-tight text-foreground">
       {children}
     </h2>
   ),
 
   h3: ({ children }) => (
-    <h3 className="mt-8 scroll-m-20 text-xl font-semibold tracking-tight">
+    <h3 className="mt-8 mb-4 text-xl font-semibold tracking-tight text-foreground">
       {children}
     </h3>
   ),
 
-  // Enhanced table
+  // Links
+  a: ({ children, href }) => (
+    <Link
+      href={href || '#'}
+      className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+      target="_blank"
+      rel="noreferrer"
+    >
+      {children}
+      <ArrowUpRight className="h-3 w-3" />
+    </Link>
+  ),
+
+  // Lists
+  ul: ({ children }) => (
+    <ul className="my-6 ml-6 list-disc [&>li]:mt-2 text-foreground">
+      {children}
+    </ul>
+  ),
+
+  ol: ({ children }) => (
+    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2 text-foreground">
+      {children}
+    </ol>
+  ),
+
+  // Table
   table: ({ children }) => (
-    <div className="my-6 w-full overflow-auto rounded-lg border">
+    <div className="my-6 w-full overflow-auto">
       <table className="w-full border-collapse text-sm">
         {children}
       </table>
@@ -86,61 +104,52 @@ const components: Partial<Components> = {
   ),
 
   tr: ({ children }) => (
-    <tr className="transition-colors hover:bg-muted/50">
+    <tr className="transition-colors hover:bg-muted/50 text-foreground">
       {children}
     </tr>
   ),
 
   th: ({ children }) => (
-    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+    <th className="h-10 px-4 text-left align-middle font-medium text-foreground">
       {children}
     </th>
   ),
 
   td: ({ children }) => (
-    <td className="px-4 py-3 text-sm">
+    <td className="p-4 align-middle text-foreground">
       {children}
     </td>
   ),
 
-  // Links with icon
-  a: ({ children, href }) => (
-    <Link
-      href={href || '#'}
-      className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-      target="_blank"
-      rel="noreferrer"
-    >
+  // Text elements
+  p: ({ children }) => (
+    <p className="leading-7 [&:not(:first-child)]:mt-6 text-foreground">
       {children}
-      <ArrowUpRight className="h-3 w-3" />
-    </Link>
+    </p>
   ),
 
-  // Lists
-  ul: ({ children }) => (
-    <ul className="my-6 ml-6 list-disc [&>li]:mt-2">
+  strong: ({ children }) => (
+    <span className="font-semibold text-foreground">
       {children}
-    </ul>
+    </span>
   ),
 
-  ol: ({ children }) => (
-    <ol className="my-6 ml-6 list-decimal [&>li]:mt-2">
+  em: ({ children }) => (
+    <em className="italic text-foreground">
       {children}
-    </ol>
+    </em>
   ),
 
   // Blockquotes
   blockquote: ({ children }) => (
-    <div className="my-6 rounded-lg border-l-4 border-primary bg-muted/50 px-6 py-4 italic text-muted-foreground">
+    <blockquote className="mt-6 border-l-2 border-border pl-6 italic text-foreground">
       {children}
-    </div>
+    </blockquote>
   ),
 
-  // Paragraphs
-  p: ({ children }) => (
-    <p className="leading-7 [&:not(:first-child)]:mt-6">
-      {children}
-    </p>
+  // Horizontal rule
+  hr: () => (
+    <Separator.Root className="my-4 h-[1px] bg-border" />
   ),
 };
 
@@ -158,8 +167,11 @@ const NonMemoizedMarkdown: React.FC<MarkdownProps> = ({
   return (
     <div className={cn(
       "prose prose-stone dark:prose-invert max-w-none",
-      "prose-headings:font-sans prose-headings:font-bold",
-      "prose-a:text-primary prose-a:no-underline hover:prose-a:underline",
+      "prose-headings:text-foreground",
+      "prose-p:text-foreground",
+      "prose-strong:text-foreground",
+      "prose-ul:text-foreground",
+      "prose-ol:text-foreground",
       className
     )}>
       <ReactMarkdown 
