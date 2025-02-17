@@ -119,7 +119,20 @@ function PureMultimodalInput({
   const submitForm = useCallback(() => {
     window.history.replaceState({}, '', `/chat/${chatId}`);
 
+    const formData = new FormData();
+    formData.append('id', chatId);
+    formData.append('messages', JSON.stringify(messages));
+    formData.append('selectedChatModel', 'chat-model-small');
+
+    if (attachments.length > 0) {
+      const attachment = attachments[0];
+      // Note: The server expects a File object or Blob, not just the metadata
+      // You might need to adjust this depending on how your file upload works
+      formData.append('file', new Blob([attachment.url], { type: attachment.contentType }), attachment.name);
+    }
+
     handleSubmit?.(undefined, {
+      formData,
       experimental_attachments: attachments,
     });
 
@@ -132,11 +145,12 @@ function PureMultimodalInput({
     }
   }, [
     attachments,
+    chatId,
     handleSubmit,
+    messages,
     setAttachments,
     setLocalStorageInput,
     width,
-    chatId,
   ]);
 
   const uploadFile = async (file: File) => {
