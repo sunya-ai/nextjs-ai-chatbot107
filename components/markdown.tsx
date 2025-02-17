@@ -1,20 +1,46 @@
 import Link from 'next/link';
 import React, { memo } from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
+import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './code-block';
 
+//
+// 1. Define custom component mappings for ReactMarkdown
+//
 const components: Partial<Components> = {
-  // @ts-expect-error
+  // Code blocks
+  // @ts-expect-error - because react-markdown Components types can be broad
   code: CodeBlock,
+
+  // We don’t need a custom <pre> if CodeBlock handles syntax highlighting,
+  // but we'll keep it for consistency:
   pre: ({ children }) => <>{children}</>,
+
+  //
+  // Ordered List (<ol>): use decimal numbering, indent, etc.
+  //
   ol: ({ node, children, ...props }) => {
     return (
-      <ol className="list-decimal list-outside ml-4" {...props}>
+      <ol className="list-decimal list-outside pl-6" {...props}>
         {children}
       </ol>
     );
   },
+
+  //
+  // Unordered List (<ul>): use bullets, indent, etc.
+  //
+  ul: ({ node, children, ...props }) => {
+    return (
+      <ul className="list-disc list-outside pl-6" {...props}>
+        {children}
+      </ul>
+    );
+  },
+
+  //
+  // List Item (<li>): small vertical spacing
+  //
   li: ({ node, children, ...props }) => {
     return (
       <li className="py-1" {...props}>
@@ -22,13 +48,10 @@ const components: Partial<Components> = {
       </li>
     );
   },
-  ul: ({ node, children, ...props }) => {
-    return (
-      <ul className="list-decimal list-outside ml-4" {...props}>
-        {children}
-      </ul>
-    );
-  },
+
+  //
+  // Bold Text
+  //
   strong: ({ node, children, ...props }) => {
     return (
       <span className="font-semibold" {...props}>
@@ -36,9 +59,13 @@ const components: Partial<Components> = {
       </span>
     );
   },
+
+  //
+  // Hyperlinks
+  //
   a: ({ node, children, ...props }) => {
     return (
-      // @ts-expect-error
+      // @ts-expect-error - ignoring type check for Link props
       <Link
         className="text-blue-500 hover:underline"
         target="_blank"
@@ -49,6 +76,10 @@ const components: Partial<Components> = {
       </Link>
     );
   },
+
+  //
+  // Headings (h1...h6)
+  //
   h1: ({ node, children, ...props }) => {
     return (
       <h1 className="text-3xl font-semibold mt-6 mb-2" {...props}>
@@ -91,10 +122,50 @@ const components: Partial<Components> = {
       </h6>
     );
   },
+
+  //
+  // Tables
+  //
+  table: ({ node, children, ...props }) => {
+    return (
+      <table className="w-full border-collapse border border-gray-300 my-4" {...props}>
+        {children}
+      </table>
+    );
+  },
+  thead: ({ node, children, ...props }) => {
+    return <thead className="bg-gray-100" {...props}>{children}</thead>;
+  },
+  tbody: ({ node, children, ...props }) => {
+    return <tbody {...props}>{children}</tbody>;
+  },
+  tr: ({ node, children, ...props }) => {
+    return <tr className="border border-gray-300" {...props}>{children}</tr>;
+  },
+  th: ({ node, children, ...props }) => {
+    return (
+      <th className="px-4 py-2 border border-gray-300 font-semibold" {...props}>
+        {children}
+      </th>
+    );
+  },
+  td: ({ node, children, ...props }) => {
+    return (
+      <td className="px-4 py-2 border border-gray-300 align-top" {...props}>
+        {children}
+      </td>
+    );
+  },
 };
 
+//
+// 2. Configure remark plugins (GFM for tables, strikethrough, etc.)
+//
 const remarkPlugins = [remarkGfm];
 
+//
+// 3. Build the component
+//
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
   return (
     <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
@@ -103,6 +174,9 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
   );
 };
 
+//
+// 4. Export a memoized version if you like
+//
 export const Markdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) => prevProps.children === nextProps.children,
