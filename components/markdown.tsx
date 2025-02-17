@@ -3,6 +3,7 @@ import React, { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './code-block';
+
 const components: Partial<Components> = {
   // @ts-expect-error
   code: CodeBlock,
@@ -35,9 +36,10 @@ const components: Partial<Components> = {
       </span>
     );
   },
-  a: ({ node, children, ...props }) => {
+  a: ({ node, children, href, ...props }) => {
     return (
       <Link
+        href={href ?? '#'}
         className="font-mono text-[15px] px-1.5 py-0.5 rounded-sm border border-zinc-200 bg-zinc-50/50 hover:bg-zinc-100/80 transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:bg-zinc-900"
         target="_blank"
         rel="noreferrer"
@@ -90,7 +92,9 @@ const components: Partial<Components> = {
     );
   },
 };
+
 const remarkPlugins = [remarkGfm];
+
 const NonMemoizedMarkdown = ({ children }: { children: string }) => {
   return (
     <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
@@ -98,6 +102,7 @@ const NonMemoizedMarkdown = ({ children }: { children: string }) => {
     </ReactMarkdown>
   );
 };
+
 export const Markdown = memo(
   NonMemoizedMarkdown,
   (prevProps, nextProps) => prevProps.children === nextProps.children,
