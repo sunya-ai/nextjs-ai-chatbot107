@@ -36,7 +36,7 @@ import type { GoogleGenerativeAIProviderMetadata } from '@ai-sdk/google';
 // Your aggregator
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 /**
  * ======================================
