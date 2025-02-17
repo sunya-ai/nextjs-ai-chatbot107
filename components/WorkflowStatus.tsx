@@ -27,15 +27,15 @@ export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowSta
 
   const files: WorkflowFile[] = [
     {
-      path: "components/Messages.tsx",
+      path: "Processing initial request",
       status: stage >= 0 ? "complete" : "planning",
     },
     {
-      path: "components/ThinkingMessage.tsx",
+      path: "Scanning Sunya data + the web",
       status: stage >= 1 ? "generating" : "planning",
     },
     {
-      path: "hooks/use-messages.ts",
+      path: "Refining response",
       status: stage >= 2 ? "generating" : "planning",
     },
   ]
@@ -102,3 +102,4 @@ export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowSta
     </div>
   )
 }
+
