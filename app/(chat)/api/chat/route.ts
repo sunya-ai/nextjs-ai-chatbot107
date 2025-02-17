@@ -79,7 +79,8 @@ function rateLimiter(userId: string): boolean {
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
   }
   if (userData.shortTermCount >= SHORT_MAX_REQUESTS) {
-    return false; // Over short-term limit
+    console.log('[rateLimiter] Over short-term limit for user:', userId);
+    return false;
   }
 
   // Check long-term window
@@ -88,7 +89,8 @@ function rateLimiter(userId: string): boolean {
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
   }
   if (userData.longTermCount >= LONG_MAX_REQUESTS) {
-    return false; // Over long-term limit
+    console.log('[rateLimiter] Over long-term limit for user:', userId);
+    return false;
   }
 
   // Increment usage
@@ -123,8 +125,13 @@ async function processInitialQuery(
   fileArrayBuffer?: ArrayBuffer,
   fileMime?: string
 ) {
+  console.log('[processInitialQuery] Start');
+
   const userMessage = getMostRecentUserMessage(messages);
-  if (!userMessage) return null;
+  if (!userMessage) {
+    console.log('[processInitialQuery] No user message found => returning null');
+    return null;
+  }
 
   // Build the user "messageContent"
   let messageContent: any[] = [];
@@ -138,6 +145,7 @@ async function processInitialQuery(
 
   // If there's a file, attach it
   if (fileArrayBuffer) {
+    console.log('[processInitialQuery] We have a file buffer, attaching it');
     messageContent.push({
       type: 'file',
       data: fileArrayBuffer, // raw bytes
@@ -146,7 +154,7 @@ async function processInitialQuery(
   }
 
   try {
-    // We only destructure "text" from the result
+    console.log('[processInitialQuery] Calling geminiAnalysisModel with streamText');
     const { text: initialAnalysis } = await streamText({
       model: geminiAnalysisModel,
       system: 'Analyze the user\'s text plus any uploaded file. Extract key concepts.',
@@ -157,10 +165,10 @@ async function processInitialQuery(
         },
       ],
     });
-
+    console.log('[processInitialQuery] Gemini call success => got initialAnalysis');
     return initialAnalysis;
   } catch (err) {
-    console.error('Gemini first pass error:', err);
+    console.error('[processInitialQuery] Gemini first pass error:', err);
     throw err;
   }
 }
@@ -169,46 +177,58 @@ async function processInitialQuery(
  * Step B: contextEnhancement 
  */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
+  console.log('[enhanceContext] Start');
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
+    console.log('[enhanceContext] aggregator success => got enhancedContext');
     return enhancedContext;
   } catch (err) {
-    console.error('Context enhancement error:', err);
+    console.error('[enhanceContext] error =>', err);
     return initialAnalysis; // fallback
   }
 }
 
 export async function POST(request: Request) {
+  console.log('[POST] Enter route => /api/chat');
   // 1. Auth
   const session = await auth();
   if (!session?.user?.id) {
+    console.log('[POST] Unauthorized => returning 401');
     return new Response('Unauthorized', { status: 401 });
   }
+  console.log('[POST] Auth success => userId =', session.user.id);
 
   // 2. Rate limit
-  const userId = session.user.id;
-  if (!rateLimiter(userId)) {
+  if (!rateLimiter(session.user.id)) {
+    console.log('[POST] Rate limit triggered => returning 429');
     return new Response('Too Many Requests', { status: 429 });
   }
 
   // 3. Parse either FormData or JSON
+  console.log('[POST] Checking content-type =>', request.headers.get('content-type'));
   let id = '';
   let messages: Message[] = [];
   let selectedChatModel = 'default-model';
   let file: File | null = null;
 
-  // First try to parse as JSON
   if (request.headers.get('content-type')?.includes('application/json')) {
+    console.log('[POST] => Found JSON body, parsing...');
     try {
       const json = await request.json();
       id = json.id;
       messages = json.messages;
       selectedChatModel = json.selectedChatModel || 'default-model';
+      console.log('[POST] JSON parse success =>', {
+        id,
+        selectedChatModel,
+        messagesCount: messages?.length,
+      });
     } catch (err) {
+      console.error('[POST] Invalid JSON =>', err);
       return new Response('Invalid JSON', { status: 400 });
     }
   } else {
-    // Fall back to FormData
+    console.log('[POST] => No JSON => Attempting formData parse...');
     try {
       const formData = await request.formData();
       id = formData.get('id')?.toString() || '';
@@ -216,12 +236,21 @@ export async function POST(request: Request) {
       selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
       file = formData.get('file') as File | null;
 
+      console.log('[POST] formData =>', {
+        id,
+        selectedChatModel,
+        hasFile: !!file,
+      });
+
       try {
         messages = JSON.parse(messagesStr);
+        console.log('[POST] Parsed messages from formData => count:', messages?.length);
       } catch (err) {
+        console.error('[POST] Invalid messages JSON in formData =>', err);
         return new Response('Invalid messages JSON', { status: 400 });
       }
     } catch (err) {
+      console.error('[POST] Invalid form data =>', err);
       return new Response('Invalid form data', { status: 400 });
     }
   }
@@ -230,6 +259,7 @@ export async function POST(request: Request) {
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
+    console.log('[POST] file found => converting to arrayBuffer');
     fileBuffer = await file.arrayBuffer();
     fileMime = file.type;
   }
@@ -237,35 +267,42 @@ export async function POST(request: Request) {
   // 4. Validate user message
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
+    console.log('[POST] No user message found => returning 400');
     return new Response('No user message found', { status: 400 });
   }
 
   // 5. Check if chat exists; if not, create
+  console.log('[POST] Checking chat => id:', id);
   const chat = await getChatById({ id });
   if (!chat) {
+    console.log('[POST] No existing chat => creating new');
     const title = await generateTitleFromUserMessage({ message: userMessage });
     await saveChat({ id, userId: session.user.id, title });
   }
 
   // 6. Save the user's new message
+  console.log('[POST] Saving user message to DB');
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // 7. Return streaming response with multi-pass
+  console.log('[POST] About to return createDataStreamResponse => multi-pass logic');
+
   return createDataStreamResponse({
     execute: async (dataStream) => {
       try {
-        // Step A: Gemini - Process initial query with optional file
+        console.log('[EXECUTE] Step A => processInitialQuery');
         const initialAnalysis = await processInitialQuery(messages, fileBuffer, fileMime);
         if (!initialAnalysis) {
           throw new Error('Gemini returned null');
         }
+        console.log('[EXECUTE] initialAnalysis (first 100 chars)=', initialAnalysis.slice(0, 100), '...');
 
-        // Step B: Context Enhancement
+        console.log('[EXECUTE] Step B => enhanceContext');
         const enhancedContext = await enhanceContext(initialAnalysis);
+        console.log('[EXECUTE] enhancedContext (first 100 chars)=', enhancedContext.slice(0, 100), '...');
 
-        // Step C: Final Model Response
+        console.log('[EXECUTE] Step C => final model => streamText');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         const result = streamText({
@@ -289,6 +326,7 @@ export async function POST(request: Request) {
             }),
           },
           onFinish: async ({ response, reasoning }) => {
+            console.log('[EXECUTE:onFinish] Final model done => saving AI messages');
             try {
               const sanitized = sanitizeResponseMessages({
                 messages: response.messages,
@@ -303,17 +341,19 @@ export async function POST(request: Request) {
                   createdAt: new Date(),
                 })),
               });
+              console.log('[EXECUTE:onFinish] Successfully saved AI messages');
             } catch (err) {
-              console.error('Failed to save AI messages:', err);
+              console.error('[EXECUTE:onFinish] Failed to save AI messages =>', err);
             }
           },
         });
 
+        console.log('[EXECUTE] Merging partial results => result.mergeIntoDataStream');
         result.mergeIntoDataStream(dataStream, { sendReasoning: true });
       } catch (err) {
-        console.error('Multi-pass error:', err);
+        console.error('[EXECUTE] Multi-pass error =>', err);
+        console.log('[EXECUTE] Fallback => finalModel again');
 
-        // fallback
         const fallbackModel = myProvider.languageModel(selectedChatModel);
         const fallbackResult = streamText({
           model: fallbackModel,
@@ -330,28 +370,34 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  console.log('[DELETE] /api/chat => deleting chat');
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
   if (!id) {
+    console.log('[DELETE] No id found => returning 404');
     return new Response('Not Found', { status: 404 });
   }
 
   const session = await auth();
   if (!session || !session.user) {
+    console.log('[DELETE] Unauthorized => returning 401');
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
+    console.log('[DELETE] Checking chat =>', id);
     const chat = await getChatById({ id });
-    if (chat.userId !== session.user.id) {
+    if (!chat || chat.userId !== session.user.id) {
+      console.log('[DELETE] Chat not found or not owned => returning 401');
       return new Response('Unauthorized', { status: 401 });
     }
 
+    console.log('[DELETE] Deleting chat =>', id);
     await deleteChatById({ id });
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
-    console.error('Delete error:', error);
+    console.error('[DELETE] Error =>', error);
     return new Response('An error occurred while processing your request', {
       status: 500,
     });
