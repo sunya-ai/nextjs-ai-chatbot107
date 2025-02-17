@@ -35,10 +35,12 @@ const perplexity = new OpenAI({
 
 // Timeout wrapper function
 const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName: string) => {
+  console.log(`[withTimeout] Start => ${serviceName}, timeout = ${timeoutMs}ms`);
   let timeoutId: NodeJS.Timeout;
   
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
+      console.error(`[withTimeout] ${serviceName} => TIMEOUT after ${timeoutMs}ms`);
       reject(new Error(`${serviceName} timeout after ${timeoutMs}ms`));
     }, timeoutMs);
   });
@@ -46,16 +48,18 @@ const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName
   try {
     const result = await Promise.race([promise, timeoutPromise]);
     clearTimeout(timeoutId!);
+    console.log(`[withTimeout] ${serviceName} => success under timeout`);
     return result;
   } catch (error) {
     clearTimeout(timeoutId!);
+    console.error(`[withTimeout] ${serviceName} => error:`, error);
     throw error;
   }
 };
 
 async function getPerplexityResponse(message: string): Promise<string> {
   try {
-    console.log('🔍 Querying Perplexity...');
+    console.log('[getPerplexityResponse] Querying Perplexity...');
     const response = await perplexity.chat.completions.create({
       model: "sonar",
       messages: [
@@ -99,18 +103,17 @@ CRITICAL RULES
       ]
     });
     
-    console.log('✨ Perplexity response received');
+    console.log('[getPerplexityResponse] Perplexity response received');
     return response.choices[0].message.content || '';
   } catch (error) {
-    console.error('❌ Perplexity error:', error);
+    console.error('[getPerplexityResponse] Perplexity error:', error);
     return '';
   }
 }
 
 async function getTavilyResponse(message: string): Promise<string> {
   try {
-    console.log('🔎 Starting Tavily search...');
-    
+    console.log('[getTavilyResponse] Starting Tavily search...');
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: {
@@ -143,18 +146,17 @@ async function getTavilyResponse(message: string): Promise<string> {
       )
       .join('\n\n');
 
-    console.log('✨ Tavily search complete');
+    console.log('[getTavilyResponse] Tavily search complete');
     return formattedResponse;
   } catch (error) {
-    console.error('❌ Tavily error:', error);
+    console.error('[getTavilyResponse] Tavily error:', error);
     return '';
   }
 }
 
 async function getExaResponse(message: string): Promise<string> {
   try {
-    console.log('🔎 Starting Exa search...');
-    
+    console.log('[getExaResponse] Starting Exa search...');
     const response = await fetch('https://api.exa.ai/search', {
       method: 'POST',
       headers: {
@@ -180,10 +182,10 @@ async function getExaResponse(message: string): Promise<string> {
       )
       .join('\n\n');
 
-    console.log('✨ Exa search complete');
+    console.log('[getExaResponse] Exa search complete');
     return formattedResults;
   } catch (error) {
-    console.error('❌ Exa error:', error);
+    console.error('[getExaResponse] Exa error:', error);
     return '';
   }
 }
@@ -192,21 +194,22 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
   return {
     name: 'combined-enhancer',
     enhance: async (message: string): Promise<EnhancerResponse> => {
+      console.log('[enhance] aggregator => starting calls in parallel...');
       try {
         // Set timeouts
         const TIMEOUTS = {
           assistant: 60000,    // 60 seconds
           perplexity: 30000,   // 30 seconds
           tavily: 30000,       // 30 seconds
-          exa: 30000          // 30 seconds
+          exa: 30000           // 30 seconds
         };
 
-        // Run all API calls in parallel with timeouts
+        console.log('[enhance] Starting parallel calls => assistant, perplexity, tavily, exa');
         const [assistantResponse, perplexityResponse, tavilyResponse, exaResponse] = 
           await Promise.allSettled([
             // Assistant API call
             withTimeout((async () => {
-              console.log('🤖 Starting Assistant API call...');
+              console.log('[enhance] => 🤖 Starting Assistant API call...');
               const thread = await openai.beta.threads.create();
               await openai.beta.threads.messages.create(thread.id, {
                 role: 'user',
@@ -223,6 +226,7 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
               );
 
               while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
+                console.log('[enhance] => assistant is in_progress/queued, waiting 1s');
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 completedRun = await openai.beta.threads.runs.retrieve(
                   thread.id,
@@ -233,19 +237,28 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
               const messages = await openai.beta.threads.messages.list(thread.id);
               const assistantContent = messages.data[0].content[0];
               
+              console.log('[enhance] => assistant completed, content length:', messages.data[0].content?.length ?? 0);
               if ('text' in assistantContent) {
                 return assistantContent.text.value;
               }
               return '';
             })(), TIMEOUTS.assistant, 'Assistant'),
+
+            // Perplexity API call
             withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
+
+            // Tavily API call (if API key exists)
             process.env.TAVILY_API_KEY ? 
               withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily') : 
               Promise.resolve(''),
+
+            // Exa API call (if API key exists)
             process.env.EXA_API_KEY ? 
               withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa') : 
               Promise.resolve('')
           ]);
+
+        console.log('[enhance] Parallel calls completed => assembling results');
 
         // Combine all responses
         const results = {
@@ -287,7 +300,7 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           }
         };
 
-        console.log('📊 Service Status:', JSON.stringify(status, null, 2));
+        console.log('[enhance] 📊 Service Status =>', JSON.stringify(status, null, 2));
 
         return {
           enhancedContext: combinedContext,
@@ -300,7 +313,7 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           }
         };
       } catch (error) {
-        console.error('❌ Enhancement error:', error);
+        console.error('❌ [enhance] Enhancement error:', error);
         return {
           enhancedContext: '',
           metadata: { 
