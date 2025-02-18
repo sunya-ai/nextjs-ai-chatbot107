@@ -1,6 +1,9 @@
 import { OpenAI } from 'openai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
+// Models that enable external search
+const SEARCH_ENABLED_MODELS = ['chat-model-reasoning'];
+
 // API Response Interfaces
 interface TavilyResult {
   url: string;
@@ -228,7 +231,7 @@ async function getExaResponse(message: string): Promise<string> {
 /**
  * createAssistantsEnhancer => Main enhancer factory function
  */
-export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer => {
+export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?: string): ContextEnhancer => {
   return {
     name: 'combined-enhancer',
     enhance: async (message: string): Promise<EnhancerResponse> => {
@@ -286,15 +289,15 @@ export const createAssistantsEnhancer = (assistantId: string): ContextEnhancer =
           // Perplexity
           withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
 
-          // Tavily (with API key check)
-          process.env.TAVILY_API_KEY
+          // Tavily - only run for enabled models
+          selectedChatModel && SEARCH_ENABLED_MODELS.includes(selectedChatModel) && process.env.TAVILY_API_KEY
             ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
-            : Promise.resolve('[Tavily API key not configured]'),
+            : Promise.resolve(''),
 
-          // Exa (with API key check)
-          process.env.EXA_API_KEY
+          // Exa - only run for enabled models
+          selectedChatModel && SEARCH_ENABLED_MODELS.includes(selectedChatModel) && process.env.EXA_API_KEY
             ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
-            : Promise.resolve('[Exa API key not configured]')
+            : Promise.resolve('')
         ]);
 
         console.log('[enhance] Parallel calls completed => assembling results');
