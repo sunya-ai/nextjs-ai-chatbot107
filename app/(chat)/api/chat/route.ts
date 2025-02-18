@@ -105,7 +105,6 @@ const assistantsEnhancer = createAssistantsEnhancer(
 
 /**
  * getInitialAnalysis (non-streaming Gemini pass)
- * Includes a custom system prompt + structuredOutputs:false to avoid JSON shape issues.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -113,6 +112,7 @@ async function getInitialAnalysis(
   fileMime?: string
 ): Promise<string> {
   console.log('[getInitialAnalysis] Start');
+  const startTime = Date.now();
 
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
@@ -138,55 +138,15 @@ async function getInitialAnalysis(
     });
   }
 
-  // Our custom system prompt: 
-  // "Take user query, improve the prompt and answer as an energy research assistant..."
-  const customSystemPrompt = `
-Take user query, improve the prompt and answer as an energy research assistant.
-You are the “Prompt Refinement & Quick Insights” Assistant. You have web search capability to clarify the user's question and provide preliminary details. Your output must include verifiable sources (URLs) for every factual statement you make. Follow these instructions:
-
-1. **Rewrite & Improve the User Question**:
-   - Clarify any ambiguous wording.
-   - Retain essential elements of the original query.
-   - Note any missing details the user should provide.
-
-2. **Quick Web Search**:
-   - Conduct a short, targeted web search to verify or clarify basic facts.
-   - Include concise, relevant info discovered, citing each factual claim with a URL.
-   - If you cannot confirm a piece of data, explicitly state "Unverified" or "No data found."
-
-3. **Partial Answer**:
-   - Provide a brief, factual response, citing URLs for every statement.
-   - Avoid speculation or lengthy exposition—subsequent models will expand further.
-   - If insufficient data is available, state that more research is needed.
-
-4. **Key Search Terms or Topics**:
-   - Identify search terms or phrases relevant to the user's improved question.
-   - These terms will guide subsequent models in deeper context gathering.
-
-5. **Output Structure** (use these headings):
-   - **Section A:** "Improved Query"
-   - **Section B:** "Partial Answer" (with inline URLs or a bullet list of sources)
-   - **Section C:** "Key Search Terms"
-
-6. **Constraints & Additional Notes**:
-   - Cite a reliable URL after every verifiable fact (e.g., official domains, major news sites, research orgs).
-   - Do NOT fabricate or guess sources. If unknown, state "URL not found."
-   - Keep the partial answer concise; do not attempt final or comprehensive solutions.
-   - Maintain a professional, clear tone, and do not include filler text.
-
-Your role is to refine the query, provide a short fact-based partial answer (with sources), and highlight key terms for later models.
-Provide the original user's query and improved prompt as output with your answer. Respond with text.
-`;
-
   try {
-    console.log('[getInitialAnalysis] Using generateText => gemini-2.0-flash + structuredOutputs:false');
-
+    console.log('[getInitialAnalysis] Using generateText => gemini-2.0-flash');
+    
     const { text } = await generateText({
       model: google('gemini-2.0-flash', {
         useSearchGrounding: true,
-        structuredOutputs: false, // no code blocks
+        structuredOutputs: false,
       }),
-      system: customSystemPrompt,
+      system: systemPrompt({ selectedChatModel: 'gemini-2.0-flash' }),
       messages: [
         {
           role: 'user',
@@ -195,26 +155,44 @@ Provide the original user's query and improved prompt as output with your answer
       ],
     });
 
-    console.log('[getInitialAnalysis] Gemini success => text length:', text.length);
+    console.log('[getInitialAnalysis] Success', {
+      duration: Date.now() - startTime,
+      textLength: text.length
+    });
     return text;
   } catch (error) {
-    console.error('[getInitialAnalysis] Gemini error =>', error);
+    console.error('[getInitialAnalysis] Error:', {
+      error,
+      duration: Date.now() - startTime,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }
 
 /**
- * aggregator => aggregator.enhance(...)
+ * enhanceContext => aggregator.enhance with timing
  */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
+  const startTime = Date.now();
+
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
-    console.log('[enhanceContext] aggregator success => got enhancedContext');
+    console.log('[enhanceContext] Success', {
+      duration: Date.now() - startTime,
+      contextLength: enhancedContext.length
+    });
     return enhancedContext;
   } catch (err) {
-    console.error('[enhanceContext] error =>', err);
-    return initialAnalysis; // fallback
+    console.error('[enhanceContext] Error:', {
+      error: err,
+      duration: Date.now() - startTime,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined
+    });
+    return initialAnalysis; // fallback to initial
   }
 }
 
@@ -335,101 +313,106 @@ export async function POST(request: Request) {
         console.log('[EXECUTE] Step C => final => streaming text');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
-        const result = streamText({
-          model: finalModel,
-          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-          messages,
-          maxSteps: 5,
-          experimental_activeTools:
-            selectedChatModel === 'chat-model-reasoning'
-              ? []
-              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-          experimental_transform: smoothStream({ chunking: 'word' }),
-          experimental_generateMessageId: generateUUID,
-          tools: {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({ session, dataStream }),
-          },
-          onFinish: async ({ response, reasoning }) => {
-            console.log('[EXECUTE:onFinish] final => saving AI messages');
-            try {
-              const sanitized = sanitizeResponseMessages({
-                messages: response.messages,
-                reasoning,
-              });
-              await saveMessages({
-                messages: sanitized.map((m) => ({
-                  id: m.id,
-                  chatId: id,
-                  role: m.role,
-                  content: m.content,
-                  createdAt: new Date(),
-                })),
-              });
-              console.log('[EXECUTE:onFinish] saved AI messages');
-            } catch (err) {
-              console.error('[EXECUTE:onFinish] failed to save =>', err);
-            }
-          },
-        });
+        let streamStartTime = Date.now();
+        let lastChunkTime = Date.now();
+        let chunkCount = 0;
 
-        console.log('[EXECUTE] merge partial => final model');
-        result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+        try {
+          const result = streamText({
+            model: finalModel,
+            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+            messages,
+            maxSteps: 5,
+            experimental_activeTools:
+              selectedChatModel === 'chat-model-reasoning'
+                ? []
+                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+            experimental_transform: (chunk) => {
+              // Monitor streaming progress
+              const now = Date.now();
+              chunkCount++;
+              console.log('[EXECUTE:stream] Chunk received:', {
+                chunkNumber: chunkCount,
+                chunkLength: chunk.length,
+                timeSinceLastChunk: now - lastChunkTime,
+                totalStreamTime: now - streamStartTime
+              });
+              lastChunkTime = now;
+              
+              return smoothStream({ chunking: 'word' })(chunk);
+            },
+            experimental_generateMessageId: generateUUID,
+            tools: {
+              getWeather,
+              createDocument: createDocument({ session, dataStream }),
+              updateDocument: updateDocument({ session, dataStream }),
+              requestSuggestions: requestSuggestions({ session, dataStream }),
+            },
+            onError: (streamError) => {
+              console.error('[EXECUTE:stream] Streaming error:', {
+                error: streamError,
+                totalChunks: chunkCount,
+                totalTime: Date.now() - streamStartTime,
+                timeSinceLastChunk: Date.now() - lastChunkTime
+              });
+              return 'The response was interrupted. Please try again.';
+            },
+            onFinish: async ({ response, reasoning }) => {
+              console.log('[EXECUTE:onFinish] Stream completed', {
+                totalChunks: chunkCount,
+                totalTime: Date.now() - streamStartTime
+              });
+              try {
+                const sanitized = sanitizeResponseMessages({
+                  messages: response.messages,
+                  reasoning,
+                });
+                await saveMessages({
+                  messages: sanitized.map((m) => ({
+                    id: m.id,
+                    chatId: id,
+                    role: m.role,
+                    content: m.content,
+                    createdAt: new Date(),
+                  })),
+                });
+                console.log('[EXECUTE:onFinish] Messages saved successfully');
+              } catch (err) {
+                console.error('[EXECUTE:onFinish] Failed to save messages:', err);
+              }
+            },
+          });
+
+          console.log('[EXECUTE] Merging stream into dataStream');
+          await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+          console.log('[EXECUTE] Stream merge completed successfully');
+
+        } catch (streamError) {
+          console.error('[EXECUTE] Fatal streaming error:', {
+            error: streamError,
+            message: streamError instanceof Error ? streamError.message : String(streamError),
+            stack: streamError instanceof Error ? streamError.stack : undefined,
+            totalChunks: chunkCount,
+            totalTime: Date.now() - streamStartTime,
+            timeSinceLastChunk: Date.now() - lastChunkTime
+          });
+          
+          // Try to send a final error message through the stream
+          try {
+            const errorResult = streamText({
+              model: finalModel,
+              system: systemPrompt({ selectedChatModel }),
+              messages: [{ role: 'user', content: 'The previous response was interrupted. Please try again.' }],
+              experimental_transform: smoothStream({ chunking: 'word' }),
+              experimental_generateMessageId: generateUUID,
+            });
+            await errorResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+          } catch (recoveryError) {
+            console.error('[EXECUTE] Failed to send error message:', recoveryError);
+            throw recoveryError;
+          }
+        }
+
       } catch (err) {
-        console.error('[EXECUTE] multi-pass error =>', err);
-        console.log('[EXECUTE] fallback => finalModel');
-
-        const fallbackModel = myProvider.languageModel(selectedChatModel);
-        const fallbackResult = streamText({
-          model: fallbackModel,
-          system: systemPrompt({ selectedChatModel }),
-          messages,
-          experimental_transform: smoothStream({ chunking: 'word' }),
-          experimental_generateMessageId: generateUUID,
-        });
-        fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
-      }
-    },
-    onError: () => 'Oops, an error occurred!',
-  });
-}
-
-/**
- * DELETE => unchanged
- */
-export async function DELETE(request: Request) {
-  console.log('[DELETE] => /api/chat');
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    console.log('[DELETE] no id => 404');
-    return new Response('Not Found', { status: 404 });
-  }
-
-  const session = await auth();
-  if (!session?.user) {
-    console.log('[DELETE] unauthorized => 401');
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  try {
-    console.log('[DELETE] Checking chat =>', id);
-    const chat = await getChatById({ id });
-    if (!chat || chat.userId !== session.user.id) {
-      console.log('[DELETE] not found/owned => 401');
-      return new Response('Unauthorized', { status: 401 });
-    }
-
-    console.log('[DELETE] Deleting =>', id);
-    await deleteChatById({ id });
-    return new Response('Chat deleted', { status: 200 });
-  } catch (error) {
-    console.error('[DELETE] Error =>', error);
-    return new Response('An error occurred while processing your request', {
-      status: 500,
-    });
-  }
-}
+        console.error('[EXECUTE] multi-pass error:', {
+          error
