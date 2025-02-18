@@ -15,9 +15,6 @@ const components: Partial<Components> = {
   // @ts-expect-error
   code: CodeBlock,
   pre: ({ children }) => <>{children}</>,
-  root: ({ children }) => (
-    <div className="max-w-prose mx-auto">{children}</div>
-  ),
   ol: ({ node, children, ...props }) => {
     return (
       <ol className="list-decimal list-outside ml-4 space-y-4 font-semibold [counter-reset:list-item]" {...props}>
