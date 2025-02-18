@@ -14,9 +14,9 @@ import { ExternalLink } from 'lucide-react';
 const components: Partial<Components> = {
   // @ts-expect-error
   code: CodeBlock,
-  pre: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  root: ({ children }: { children: React.ReactNode }) => (
-    <div className="max-w-prose">{children}</div>
+  pre: ({ children }) => <>{children}</>,
+  root: ({ children }) => (
+    <div className="max-w-prose mx-auto">{children}</div>
   ),
   ol: ({ node, children, ...props }) => {
     return (
