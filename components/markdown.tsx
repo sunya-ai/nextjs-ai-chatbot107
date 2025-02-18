@@ -36,10 +36,18 @@ const components: Partial<Components> = {
       </ul>
     );
   },
+  p: ({ node, children, ...props }) => {
+    return (
+      <p className="my-2" {...props}>
+        {children}
+      </p>
+    );
+  },
   strong: ({ node, children, ...props }) => {
+    const cleanText = children.toString().replace(/\*+/g, '').trim();
     return (
       <span className="font-semibold" {...props}>
-        {children}
+        {cleanText}
       </span>
     );
   },
@@ -110,7 +118,7 @@ const components: Partial<Components> = {
   },
   table: ({ node, children, ...props }) => {
     return (
-      <div className="my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="my-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <table className="w-full border-collapse" {...props}>
           {children}
         </table>
@@ -119,14 +127,14 @@ const components: Partial<Components> = {
   },
   thead: ({ node, children, ...props }) => {
     return (
-      <thead className="bg-zinc-50 dark:bg-zinc-900/50" {...props}>
+      <thead className="bg-zinc-50/50 dark:bg-zinc-900" {...props}>
         {children}
       </thead>
     );
   },
   tbody: ({ node, children, ...props }) => {
     return (
-      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800" {...props}>
+      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800" {...props}>
         {children}
       </tbody>
     );
@@ -134,7 +142,7 @@ const components: Partial<Components> = {
   tr: ({ node, children, ...props }) => {
     return (
       <tr 
-        className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors" 
+        className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150" 
         {...props}
       >
         {children}
@@ -143,14 +151,14 @@ const components: Partial<Components> = {
   },
   td: ({ node, children, ...props }) => {
     return (
-      <td className="px-4 py-3" {...props}>
+      <td className="px-6 py-3 text-sm whitespace-nowrap" {...props}>
         {children}
       </td>
     );
   },
   th: ({ node, children, ...props }) => {
     return (
-      <th className="px-4 py-3 text-left font-semibold" {...props}>
+      <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-zinc-600 dark:text-zinc-300 uppercase" {...props}>
         {children}
       </th>
     );
