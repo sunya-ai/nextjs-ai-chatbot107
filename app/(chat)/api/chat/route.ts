@@ -415,4 +415,76 @@ export async function POST(request: Request) {
 
       } catch (err) {
         console.error('[EXECUTE] multi-pass error:', {
-          error
+          error: err,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+          phase: 'multi-pass',
+          modelUsed: selectedChatModel
+        });
+        
+        // Try fallback
+        try {
+          console.log('[EXECUTE] attempting fallback model');
+          const fallbackModel = myProvider.languageModel(selectedChatModel);
+          const fallbackResult = streamText({
+            model: fallbackModel,
+            system: systemPrompt({ selectedChatModel }),
+            messages,
+            experimental_transform: smoothStream({ chunking: 'word' }),
+            experimental_generateMessageId: generateUUID,
+          });
+          await fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+        } catch (fallbackError) {
+          console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
+          throw fallbackError;
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('[createDataStreamResponse] Final error handler:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      return 'Something went wrong. Please try again.';
+    },
+  });
+}
+
+/**
+ * DELETE handler remains unchanged
+ */
+export async function DELETE(request: Request) {
+  console.log('[DELETE] => /api/chat');
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+
+  if (!id) {
+    console.log('[DELETE] no id => 404');
+    return new Response('Not Found', { status: 404 });
+  }
+
+  const session = await auth();
+  if (!session?.user) {
+    console.log('[DELETE] unauthorized => 401');
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  try {
+    console.log('[DELETE] Checking chat =>', id);
+    const chat = await getChatById({ id });
+    if (!chat || chat.userId !== session.user.id) {
+      console.log('[DELETE] not found/owned => 401');
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    console.log('[DELETE] Deleting =>', id);
+    await deleteChatById({ id });
+    return new Response('Chat deleted', { status: 200 });
+  } catch (error) {
+    console.error('[DELETE] Error =>', error);
+    return new Response('An error occurred while processing your request', {
+      status: 500,
+    });
+  }
+}
