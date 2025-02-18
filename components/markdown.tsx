@@ -50,7 +50,7 @@ const components: Partial<Components> = {
           <TooltipTrigger asChild>
             <Link
               href={href ?? '#'}
-              className="font-mono text-[13px] px-1.5 py-0.5 rounded-sm border border-zinc-200 bg-zinc-50/50 hover:bg-zinc-100/80 transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 inline-flex items-center gap-1.5"
+              className="font-mono text-xs px-1.5 py-0.5 rounded-sm border border-zinc-200 bg-zinc-50/50 hover:bg-zinc-100/80 transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:bg-zinc-900 inline-flex items-center gap-1.5"
               target="_blank"
               rel="noreferrer"
               {...props}
@@ -68,42 +68,42 @@ const components: Partial<Components> = {
   },
   h1: ({ node, children, ...props }) => {
     return (
-      <h1 className="text-2xl font-semibold mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
+      <h1 className="text-xl font-bold mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
         {children}
       </h1>
     );
   },
   h2: ({ node, children, ...props }) => {
     return (
-      <h2 className="text-xl font-bold mt-8 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
+      <h2 className="text-lg font-bold mt-8 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
         {children}
       </h2>
     );
   },
   h3: ({ node, children, ...props }) => {
     return (
-      <h3 className="text-lg font-semibold mt-6 mb-3" {...props}>
+      <h3 className="text-base font-bold mt-6 mb-3" {...props}>
         {children}
       </h3>
     );
   },
   h4: ({ node, children, ...props }) => {
     return (
-      <h4 className="text-lg font-semibold mt-6 mb-2" {...props}>
+      <h4 className="text-base font-semibold mt-6 mb-2" {...props}>
         {children}
       </h4>
     );
   },
   h5: ({ node, children, ...props }) => {
     return (
-      <h5 className="text-base font-semibold mt-6 mb-2" {...props}>
+      <h5 className="text-sm font-semibold mt-6 mb-2" {...props}>
         {children}
       </h5>
     );
   },
   h6: ({ node, children, ...props }) => {
     return (
-      <h6 className="text-sm font-semibold mt-6 mb-2" {...props}>
+      <h6 className="text-xs font-semibold mt-6 mb-2" {...props}>
         {children}
       </h6>
     );
