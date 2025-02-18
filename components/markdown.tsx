@@ -3,7 +3,6 @@ import React, { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './code-block';
-import { Badge } from "@/components/ui/badge";
 import { 
   Tooltip,
   TooltipContent,
@@ -53,12 +52,9 @@ const components: Partial<Components> = {
     
     if (isCitation) {
       return (
-        <Badge 
-          variant="secondary" 
-          className="align-super ml-0.5 text-[10px] font-normal hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-        >
+        <span className="text-[9px] text-zinc-500 dark:text-zinc-400 align-super bg-zinc-100/50 dark:bg-zinc-800/50 rounded px-1" {...props}>
           {cleanText}
-        </Badge>
+        </span>
       );
     }
 
