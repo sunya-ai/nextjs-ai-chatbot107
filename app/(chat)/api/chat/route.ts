@@ -327,19 +327,17 @@ export async function POST(request: Request) {
               selectedChatModel === 'chat-model-reasoning'
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: (chunk) => {
-              // Monitor streaming progress
+            experimental_transform: smoothStream({ chunking: 'word' }),
+            onStreamPartReceived: (chunk) => {
               const now = Date.now();
               chunkCount++;
               console.log('[EXECUTE:stream] Chunk received:', {
                 chunkNumber: chunkCount,
-                chunkLength: chunk.length,
+                chunkLength: typeof chunk === 'string' ? chunk.length : 'non-text chunk',
                 timeSinceLastChunk: now - lastChunkTime,
                 totalStreamTime: now - streamStartTime
               });
               lastChunkTime = now;
-              
-              return smoothStream({ chunking: 'word' })(chunk);
             },
             experimental_generateMessageId: generateUUID,
             tools: {
@@ -412,8 +410,7 @@ export async function POST(request: Request) {
             throw recoveryError;
           }
         }
-
-      } catch (err) {
+        } catch (err) {
         console.error('[EXECUTE] multi-pass error:', {
           error: err,
           errorMessage: err instanceof Error ? err.message : String(err),
@@ -452,7 +449,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * DELETE handler remains unchanged
+ * DELETE handler
  */
 export async function DELETE(request: Request) {
   console.log('[DELETE] => /api/chat');
