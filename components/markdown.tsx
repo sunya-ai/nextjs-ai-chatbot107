@@ -3,6 +3,7 @@ import React, { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CodeBlock } from './code-block';
+import { Badge } from "@/components/ui/badge";
 import { 
   Tooltip,
   TooltipContent,
@@ -15,6 +16,9 @@ const components: Partial<Components> = {
   // @ts-expect-error
   code: CodeBlock,
   pre: ({ children }) => <>{children}</>,
+  root: ({ children }) => (
+    <div className="max-w-prose">{children}</div>
+  ),
   ol: ({ node, children, ...props }) => {
     return (
       <ol className="list-decimal list-outside ml-4 space-y-4 font-semibold [counter-reset:list-item]" {...props}>
@@ -24,7 +28,7 @@ const components: Partial<Components> = {
   },
   li: ({ node, children, ...props }) => {
     return (
-      <li className="py-1 [&>strong]:mr-2" {...props}>
+      <li className="py-1 [&>strong]:mr-2 break-words" {...props}>
         {children}
       </li>
     );
@@ -38,13 +42,26 @@ const components: Partial<Components> = {
   },
   p: ({ node, children, ...props }) => {
     return (
-      <p className="my-2" {...props}>
+      <p className="my-2 leading-relaxed break-words" {...props}>
         {children}
       </p>
     );
   },
   strong: ({ node, children, ...props }) => {
     const cleanText = children?.toString().replace(/\*+/g, '').trim() || '';
+    const isCitation = /^\[\d+(,\s*\d+)*\]$/.test(cleanText);
+    
+    if (isCitation) {
+      return (
+        <Badge 
+          variant="secondary" 
+          className="align-super ml-0.5 text-[10px] font-normal hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          {cleanText}
+        </Badge>
+      );
+    }
+
     return (
       <span className="font-semibold" {...props}>
         {cleanText}
@@ -151,7 +168,7 @@ const components: Partial<Components> = {
   },
   td: ({ node, children, ...props }) => {
     return (
-      <td className="px-6 py-3 text-sm whitespace-nowrap" {...props}>
+      <td className="px-6 py-3 text-sm whitespace-normal" {...props}>
         {children}
       </td>
     );
