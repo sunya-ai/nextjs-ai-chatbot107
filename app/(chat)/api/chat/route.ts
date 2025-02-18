@@ -293,57 +293,75 @@ export async function POST(request: Request) {
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
         const finalModel = myProvider.languageModel(selectedChatModel);
 
-        const result = streamText({
-          model: finalModel,
-          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-          messages,
-          maxSteps: 5,
-          experimental_activeTools:
-            selectedChatModel === 'chat-model-reasoning'
-              ? []
-              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-          experimental_transform: smoothStream({ chunking: 'word' }),
-          experimental_generateMessageId: generateUUID,
-          tools: {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({ session, dataStream }),
-          },
-          onError: (error) => {
-            console.error('[EXECUTE:stream] Error during streaming:', {
-              error,
-              errorType: error instanceof Error ? error.constructor.name : typeof error,
-              message: error instanceof Error ? error.message : String(error)
-            });
-            return 'The response was interrupted. Please try again.';
-          },
-          onFinish: async ({ response, reasoning }) => {
-            console.log('[EXECUTE:stream] Stream completed, saving messages');
-            try {
-              const sanitized = sanitizeResponseMessages({
-                messages: response.messages,
-                reasoning,
-              });
-              await saveMessages({
-                messages: sanitized.map((m) => ({
-                  id: m.id,
-                  chatId: id,
-                  role: m.role,
-                  content: m.content,
-                  createdAt: new Date(),
-                })),
-              });
-              console.log('[EXECUTE:stream] Messages saved successfully');
-            } catch (err) {
-              console.error('[EXECUTE:stream] Failed to save messages:', err);
-            }
-          },
-        });
+        try {
+          const result = streamText({
+            model: finalModel,
+            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+            messages,
+            maxSteps: 5,
+            experimental_activeTools:
+              selectedChatModel === 'chat-model-reasoning'
+                ? []
+                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+            experimental_transform: smoothStream({ chunking: 'word' }),
+            experimental_generateMessageId: generateUUID,
+            tools: {
+              getWeather,
+              createDocument: createDocument({ session, dataStream }),
+              updateDocument: updateDocument({ session, dataStream }),
+              requestSuggestions: requestSuggestions({ session, dataStream }),
+            },
+            onFinish: async ({ response, reasoning }) => {
+              console.log('[EXECUTE:stream] Stream completed, saving messages');
+              try {
+                const sanitized = sanitizeResponseMessages({
+                  messages: response.messages,
+                  reasoning,
+                });
+                await saveMessages({
+                  messages: sanitized.map((m) => ({
+                    id: m.id,
+                    chatId: id,
+                    role: m.role,
+                    content: m.content,
+                    createdAt: new Date(),
+                  })),
+                });
+                console.log('[EXECUTE:stream] Messages saved successfully');
+              } catch (err) {
+                console.error('[EXECUTE:stream] Failed to save messages:', err);
+              }
+            },
+          });
 
-        console.log('[EXECUTE] Merging stream into dataStream');
-        await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
-        console.log('[EXECUTE] Stream merge completed');
+          console.log('[EXECUTE] Merging stream into dataStream');
+          await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+          console.log('[EXECUTE] Stream merge completed');
+
+        } catch (streamError) {
+          console.error('[EXECUTE:stream] Error during streaming:', {
+            error: streamError,
+            errorType: streamError instanceof Error ? streamError.constructor.name : typeof streamError,
+            message: streamError instanceof Error ? streamError.message : String(streamError),
+            stack: streamError instanceof Error ? streamError.stack : undefined
+          });
+
+          // Attempt fallback
+          try {
+            console.log('[EXECUTE] Attempting fallback response');
+            const fallbackResult = streamText({
+              model: finalModel,
+              system: systemPrompt({ selectedChatModel }),
+              messages,
+              experimental_transform: smoothStream({ chunking: 'word' }),
+              experimental_generateMessageId: generateUUID,
+            });
+            await fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+          } catch (fallbackError) {
+            console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
+            throw fallbackError;
+          }
+        }
 
       } catch (err) {
         console.error('[EXECUTE] Error during processing:', {
@@ -352,17 +370,7 @@ export async function POST(request: Request) {
           message: err instanceof Error ? err.message : String(err),
           stack: err instanceof Error ? err.stack : undefined
         });
-        
-        console.log('[EXECUTE] Attempting fallback response');
-        const fallbackModel = myProvider.languageModel(selectedChatModel);
-        const fallbackResult = streamText({
-          model: fallbackModel,
-          system: systemPrompt({ selectedChatModel }),
-          messages,
-          experimental_transform: smoothStream({ chunking: 'word' }),
-          experimental_generateMessageId: generateUUID,
-        });
-        fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+        throw err; // Let the outer error handler deal with it
       }
     },
     onError: (error) => {
@@ -414,3 +422,5 @@ export async function DELETE(request: Request) {
     });
   }
 }
+
+                  
