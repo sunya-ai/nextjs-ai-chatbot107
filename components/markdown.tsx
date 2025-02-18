@@ -44,7 +44,7 @@ const components: Partial<Components> = {
     );
   },
   strong: ({ node, children, ...props }) => {
-    const cleanText = children.toString().replace(/\*+/g, '').trim();
+    const cleanText = children?.toString().replace(/\*+/g, '').trim() || '';
     return (
       <span className="font-semibold" {...props}>
         {cleanText}
