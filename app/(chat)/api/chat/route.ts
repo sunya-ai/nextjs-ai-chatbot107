@@ -34,7 +34,7 @@ import { getWeather } from '@/lib/ai/tools/get-weather';
 import { google } from '@ai-sdk/google';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
-export const maxDuration = 180;
+export const maxDuration = 240;
 
 /**
  * 1) IN-MEMORY RATE LIMIT (2h + 12h)
