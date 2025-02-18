@@ -112,7 +112,6 @@ async function getInitialAnalysis(
   fileMime?: string
 ): Promise<string> {
   console.log('[getInitialAnalysis] Start');
-  const startTime = Date.now();
 
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
@@ -140,7 +139,6 @@ async function getInitialAnalysis(
 
   try {
     console.log('[getInitialAnalysis] Using generateText => gemini-2.0-flash');
-    
     const { text } = await generateText({
       model: google('gemini-2.0-flash', {
         useSearchGrounding: true,
@@ -155,44 +153,26 @@ async function getInitialAnalysis(
       ],
     });
 
-    console.log('[getInitialAnalysis] Success', {
-      duration: Date.now() - startTime,
-      textLength: text.length
-    });
+    console.log('[getInitialAnalysis] Gemini success');
     return text;
   } catch (error) {
-    console.error('[getInitialAnalysis] Error:', {
-      error,
-      duration: Date.now() - startTime,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    console.error('[getInitialAnalysis] Gemini error =>', error);
     throw error;
   }
 }
 
 /**
- * enhanceContext => aggregator.enhance with timing
+ * aggregator => aggregator.enhance(...)
  */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
-  const startTime = Date.now();
-
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
-    console.log('[enhanceContext] Success', {
-      duration: Date.now() - startTime,
-      contextLength: enhancedContext.length
-    });
+    console.log('[enhanceContext] aggregator success => got enhancedContext');
     return enhancedContext;
   } catch (err) {
-    console.error('[enhanceContext] Error:', {
-      error: err,
-      duration: Date.now() - startTime,
-      errorMessage: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined
-    });
-    return initialAnalysis; // fallback to initial
+    console.error('[enhanceContext] error =>', err);
+    return initialAnalysis; // fallback
   }
 }
 
@@ -310,137 +290,86 @@ export async function POST(request: Request) {
         console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
         // Step C: final streaming pass
-        console.log('[EXECUTE] Step C => final => streaming text');
+        console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
         const finalModel = myProvider.languageModel(selectedChatModel);
 
-        let streamStartTime = Date.now();
-        let lastChunkTime = Date.now();
-        let chunkCount = 0;
-
-        try {
-          const result = streamText({
-            model: finalModel,
-            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-            messages,
-            maxSteps: 5,
-            experimental_activeTools:
-              selectedChatModel === 'chat-model-reasoning'
-                ? []
-                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ chunking: 'word' }),
-            onStreamPartReceived: (chunk) => {
-              const now = Date.now();
-              chunkCount++;
-              console.log('[EXECUTE:stream] Chunk received:', {
-                chunkNumber: chunkCount,
-                chunkLength: typeof chunk === 'string' ? chunk.length : 'non-text chunk',
-                timeSinceLastChunk: now - lastChunkTime,
-                totalStreamTime: now - streamStartTime
-              });
-              lastChunkTime = now;
-            },
-            experimental_generateMessageId: generateUUID,
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({ session, dataStream }),
-            },
-            onError: (streamError) => {
-              console.error('[EXECUTE:stream] Streaming error:', {
-                error: streamError,
-                totalChunks: chunkCount,
-                totalTime: Date.now() - streamStartTime,
-                timeSinceLastChunk: Date.now() - lastChunkTime
-              });
-              return 'The response was interrupted. Please try again.';
-            },
-            onFinish: async ({ response, reasoning }) => {
-              console.log('[EXECUTE:onFinish] Stream completed', {
-                totalChunks: chunkCount,
-                totalTime: Date.now() - streamStartTime
-              });
-              try {
-                const sanitized = sanitizeResponseMessages({
-                  messages: response.messages,
-                  reasoning,
-                });
-                await saveMessages({
-                  messages: sanitized.map((m) => ({
-                    id: m.id,
-                    chatId: id,
-                    role: m.role,
-                    content: m.content,
-                    createdAt: new Date(),
-                  })),
-                });
-                console.log('[EXECUTE:onFinish] Messages saved successfully');
-              } catch (err) {
-                console.error('[EXECUTE:onFinish] Failed to save messages:', err);
-              }
-            },
-          });
-
-          console.log('[EXECUTE] Merging stream into dataStream');
-          await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
-          console.log('[EXECUTE] Stream merge completed successfully');
-
-        } catch (streamError) {
-          console.error('[EXECUTE] Fatal streaming error:', {
-            error: streamError,
-            message: streamError instanceof Error ? streamError.message : String(streamError),
-            stack: streamError instanceof Error ? streamError.stack : undefined,
-            totalChunks: chunkCount,
-            totalTime: Date.now() - streamStartTime,
-            timeSinceLastChunk: Date.now() - lastChunkTime
-          });
-          
-          // Try to send a final error message through the stream
-          try {
-            const errorResult = streamText({
-              model: finalModel,
-              system: systemPrompt({ selectedChatModel }),
-              messages: [{ role: 'user', content: 'The previous response was interrupted. Please try again.' }],
-              experimental_transform: smoothStream({ chunking: 'word' }),
-              experimental_generateMessageId: generateUUID,
+        const result = streamText({
+          model: finalModel,
+          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+          messages,
+          maxSteps: 5,
+          experimental_activeTools:
+            selectedChatModel === 'chat-model-reasoning'
+              ? []
+              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+          experimental_transform: smoothStream({ chunking: 'word' }),
+          experimental_generateMessageId: generateUUID,
+          tools: {
+            getWeather,
+            createDocument: createDocument({ session, dataStream }),
+            updateDocument: updateDocument({ session, dataStream }),
+            requestSuggestions: requestSuggestions({ session, dataStream }),
+          },
+          onError: (error) => {
+            console.error('[EXECUTE:stream] Error during streaming:', {
+              error,
+              errorType: error instanceof Error ? error.constructor.name : typeof error,
+              message: error instanceof Error ? error.message : String(error)
             });
-            await errorResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
-          } catch (recoveryError) {
-            console.error('[EXECUTE] Failed to send error message:', recoveryError);
-            throw recoveryError;
-          }
-        }
-        } catch (err) {
-        console.error('[EXECUTE] multi-pass error:', {
+            return 'The response was interrupted. Please try again.';
+          },
+          onFinish: async ({ response, reasoning }) => {
+            console.log('[EXECUTE:stream] Stream completed, saving messages');
+            try {
+              const sanitized = sanitizeResponseMessages({
+                messages: response.messages,
+                reasoning,
+              });
+              await saveMessages({
+                messages: sanitized.map((m) => ({
+                  id: m.id,
+                  chatId: id,
+                  role: m.role,
+                  content: m.content,
+                  createdAt: new Date(),
+                })),
+              });
+              console.log('[EXECUTE:stream] Messages saved successfully');
+            } catch (err) {
+              console.error('[EXECUTE:stream] Failed to save messages:', err);
+            }
+          },
+        });
+
+        console.log('[EXECUTE] Merging stream into dataStream');
+        await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+        console.log('[EXECUTE] Stream merge completed');
+
+      } catch (err) {
+        console.error('[EXECUTE] Error during processing:', {
           error: err,
-          errorMessage: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined,
-          phase: 'multi-pass',
-          modelUsed: selectedChatModel
+          errorType: err instanceof Error ? err.constructor.name : typeof err,
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
         });
         
-        // Try fallback
-        try {
-          console.log('[EXECUTE] attempting fallback model');
-          const fallbackModel = myProvider.languageModel(selectedChatModel);
-          const fallbackResult = streamText({
-            model: fallbackModel,
-            system: systemPrompt({ selectedChatModel }),
-            messages,
-            experimental_transform: smoothStream({ chunking: 'word' }),
-            experimental_generateMessageId: generateUUID,
-          });
-          await fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
-        } catch (fallbackError) {
-          console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
-          throw fallbackError;
-        }
+        console.log('[EXECUTE] Attempting fallback response');
+        const fallbackModel = myProvider.languageModel(selectedChatModel);
+        const fallbackResult = streamText({
+          model: fallbackModel,
+          system: systemPrompt({ selectedChatModel }),
+          messages,
+          experimental_transform: smoothStream({ chunking: 'word' }),
+          experimental_generateMessageId: generateUUID,
+        });
+        fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
       }
     },
     onError: (error) => {
       console.error('[createDataStreamResponse] Final error handler:', {
         error,
-        errorMessage: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
       return 'Something went wrong. Please try again.';
@@ -449,7 +378,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * DELETE handler
+ * DELETE => unchanged
  */
 export async function DELETE(request: Request) {
   console.log('[DELETE] => /api/chat');
