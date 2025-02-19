@@ -93,7 +93,6 @@ function rateLimiter(userId: string): boolean {
   requestsMap.set(userId, userData);
   return true;
 }
-
 /**
  * 2) MULTI-PASS: GEMINI + ENHANCER + FINAL
  */
@@ -172,6 +171,7 @@ If query seems unrelated to energy, find relevant energy sector angles.
     throw error;
   }
 }
+
 /**
  * aggregator => aggregator.enhance(...)
  */
@@ -186,7 +186,6 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
     return initialAnalysis; // fallback
   }
 }
-
 /**
  * 3) POST => Rate-limit + multi-pass + streaming
  */
@@ -324,6 +323,14 @@ export async function POST(request: Request) {
               updateDocument: updateDocument({ session, dataStream }),
               requestSuggestions: requestSuggestions({ session, dataStream }),
             },
+            onChunk: (chunk) => {
+              // You can log or handle different chunk types here
+              if (chunk.type === 'source') {
+                console.log('[EXECUTE:stream] Received source:', chunk.source);
+              } else if (chunk.type === 'reasoning') {
+                console.log('[EXECUTE:stream] Received reasoning:', chunk.textDelta);
+              }
+            },
             onFinish: async ({ response, reasoning }) => {
               console.log('[EXECUTE:stream] Stream completed, saving messages');
               try {
@@ -347,12 +354,10 @@ export async function POST(request: Request) {
             },
           });
 
-          console.log('[EXECUTE] Merging stream into dataStream');
-          await result.mergeIntoDataStream(dataStream, { 
+          return result.toDataStreamResponse({
             sendReasoning: true,
             sendSources: true
           });
-          console.log('[EXECUTE] Stream merge completed');
 
         } catch (streamError) {
           console.error('[EXECUTE:stream] Error during streaming:', {
@@ -362,7 +367,7 @@ export async function POST(request: Request) {
             stack: streamError instanceof Error ? streamError.stack : undefined
           });
 
-          // Attempt fallback
+          // Attempt fallback with same configuration
           try {
             console.log('[EXECUTE] Attempting fallback response');
             const fallbackResult = streamText({
@@ -374,7 +379,8 @@ export async function POST(request: Request) {
               }),
               experimental_generateMessageId: generateUUID,
             });
-            await fallbackResult.mergeIntoDataStream(dataStream, { 
+
+            return fallbackResult.toDataStreamResponse({
               sendReasoning: true,
               sendSources: true
             });
@@ -407,7 +413,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * DELETE => unchanged
+ * DELETE handler
  */
 export async function DELETE(request: Request) {
   console.log('[DELETE] => /api/chat');
@@ -443,3 +449,5 @@ export async function DELETE(request: Request) {
     });
   }
 }
+
+                          
