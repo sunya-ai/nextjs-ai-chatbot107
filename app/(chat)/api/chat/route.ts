@@ -347,7 +347,10 @@ export async function POST(request: Request) {
           });
 
           console.log('[EXECUTE] Merging stream into dataStream');
-          await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+          dataStream.writeData({ type: 'source_handler_enabled' });  // Signal source handling
+          await result.mergeIntoDataStream(dataStream, { 
+          sendReasoning: true,
+          });
           console.log('[EXECUTE] Stream merge completed');
 
         } catch (streamError) {
