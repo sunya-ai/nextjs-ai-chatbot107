@@ -1,10 +1,15 @@
+/******************************************************
+ * assistants.ts
+ ******************************************************/
 import { OpenAI } from 'openai';
+import { google } from '@ai-sdk/google';
+import { generateText } from 'ai';
 import { ContextEnhancer, EnhancerResponse } from './types';
 
-// Models that enable external search
+// Models that enable external search for Tavily/Exa
 const SEARCH_ENABLED_MODELS = ['chat-model-reasoning'];
 
-// API Response Interfaces
+// Per the original code
 interface TavilyResult {
   url: string;
   title: string;
@@ -63,7 +68,7 @@ const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName
 };
 
 /**
- * getPerplexityResponse => Queries Perplexity 
+ * getPerplexityResponse => Queries Perplexity
  */
 async function getPerplexityResponse(message: string): Promise<string> {
   try {
@@ -88,6 +93,41 @@ Key requirements:
   } catch (error) {
     console.error('[getPerplexityResponse] Perplexity error:', error);
     return `[Perplexity Search Failed: ${error instanceof Error ? error.message : String(error)}]`;
+  }
+}
+
+/**
+ * getGeminiProResponse => Calls Gemini 2.0 Pro with the same system prompt as Perplexity
+ */
+async function getGeminiProResponse(message: string): Promise<string> {
+  try {
+    console.log('[getGeminiProResponse] Starting Gemini search...');
+    // "Copy" the Perplexity system prompt:
+    const systemPrompt = `You are a research assistant. Find relevant, factual information with source URLs.
+Key requirements:
+- Include source URLs for all information
+- Use multiple sources when possible
+- Validate across sources
+- No information without URL sources`;
+
+    const { text } = await generateText({
+      model: google('gemini-2.0-pro-exp-02-05', {
+        useSearchGrounding: true,
+        structuredOutputs: false,
+      }),
+      // Provide a system + user prompt
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ],
+    });
+
+    console.log('[getGeminiProResponse] Gemini success => text length:', text?.length || 0);
+    return text;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[getGeminiProResponse] Error =>', msg);
+    return `[GeminiPro error: ${msg}]`;
   }
 }
 
@@ -240,21 +280,28 @@ export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?
         const TIMEOUTS = {
           assistant: 60000,
           perplexity: 30000,
+          gemini: 30000, // Added
           tavily: 30000,
           exa: 30000
         };
 
-        // Check API keys before starting
+        // Check API keys (Gemini not strictly needed if using google() approach, but you can warn if desired)
         if (!process.env.TAVILY_API_KEY) {
           console.warn('[enhance] ⚠️ Tavily API key not found - skipping Tavily search');
         }
         if (!process.env.EXA_API_KEY) {
           console.warn('[enhance] ⚠️ Exa API key not found - skipping Exa search');
         }
+        
+        console.log('[enhance] Starting parallel calls => assistant, perplexity, gemini, tavily, exa');
 
-        console.log('[enhance] Starting parallel calls => assistant, perplexity, tavily, exa');
-
-        const [assistantResponse, perplexityResponse, tavilyResponse, exaResponse] = await Promise.allSettled([
+        const [
+          assistantResponse,
+          perplexityResponse,
+          geminiResponse,
+          tavilyResponse,
+          exaResponse
+        ] = await Promise.allSettled([
           // Assistant
           withTimeout((async () => {
             console.log('[enhance] => 🤖 Starting Assistant API call...');
@@ -286,15 +333,18 @@ export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?
             return '';
           })(), TIMEOUTS.assistant, 'Assistant'),
 
-          // Perplexity
+          // Perplexity (always runs)
           withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
 
-          // Tavily - only run for enabled models
+          // Gemini => always runs (no condition on selectedChatModel)
+          withTimeout(getGeminiProResponse(message), TIMEOUTS.gemini, 'Gemini'),
+
+          // Tavily => conditional
           selectedChatModel && SEARCH_ENABLED_MODELS.includes(selectedChatModel) && process.env.TAVILY_API_KEY
             ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
             : Promise.resolve(''),
 
-          // Exa - only run for enabled models
+          // Exa => conditional
           selectedChatModel && SEARCH_ENABLED_MODELS.includes(selectedChatModel) && process.env.EXA_API_KEY
             ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
             : Promise.resolve('')
@@ -306,6 +356,7 @@ export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?
         const results = {
           assistant: assistantResponse.status === 'fulfilled' ? assistantResponse.value : '',
           perplexity: perplexityResponse.status === 'fulfilled' ? perplexityResponse.value : '',
+          gemini: geminiResponse.status === 'fulfilled' ? geminiResponse.value : '',
           tavily: tavilyResponse.status === 'fulfilled' ? tavilyResponse.value : '',
           exa: exaResponse.status === 'fulfilled' ? exaResponse.value : ''
         };
@@ -328,6 +379,11 @@ export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?
             error: perplexityResponse.status === 'rejected' ? perplexityResponse.reason?.message : null,
             responseReceived: !!results.perplexity
           },
+          gemini: {
+            status: geminiResponse.status,
+            error: geminiResponse.status === 'rejected' ? geminiResponse.reason?.message : null,
+            responseReceived: !!results.gemini
+          },
           tavily: {
             enabled: !!process.env.TAVILY_API_KEY,
             status: tavilyResponse.status,
@@ -349,6 +405,7 @@ export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?
           metadata: {
             assistantStatus: assistantResponse.status,
             perplexityStatus: perplexityResponse.status,
+            geminiStatus: geminiResponse.status,
             tavilyStatus: tavilyResponse.status,
             exaStatus: exaResponse.status,
             serviceStatus: status
