@@ -346,7 +346,7 @@ export async function POST(request: Request) {
             },
           });
 
-         console.log('[EXECUTE] Merging stream into dataStream');
+          console.log('[EXECUTE] Merging stream into dataStream');
           await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
           console.log('[EXECUTE] Stream merge completed');
 
