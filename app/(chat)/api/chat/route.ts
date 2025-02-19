@@ -335,7 +335,7 @@ export async function POST(request: Request) {
           });
 
           console.log('[EXECUTE] Merging stream into dataStream');
-          await result.mergeIntoDataStream(dataStream, { sendReasoning: true, sendSources: true });
+          await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
           console.log('[EXECUTE] Stream merge completed');
 
         } catch (streamError) {
@@ -356,7 +356,7 @@ export async function POST(request: Request) {
               experimental_transform: smoothStream({ chunking: 'word' }),
               experimental_generateMessageId: generateUUID,
             });
-            await fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true, sendSources: true });
+            await fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
           } catch (fallbackError) {
             console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
             throw fallbackError;
