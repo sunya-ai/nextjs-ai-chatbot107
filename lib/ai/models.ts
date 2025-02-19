@@ -43,9 +43,16 @@ export const myProvider = customProvider({
     'artifact-model': google('gemini-2.0-pro-exp-02-05', {
       useSearchGrounding: true,
     }),
+
+    // ---------------------------------------
+    // NEW Gemini Model (No Search Grounding)
+    // ---------------------------------------
+    'chat-model-thinking': google('gemini-2.0-flash-thinking-exp', {
+      useSearchGrounding: false,
+    }),
   },
 
-  // If you have image models, you can configure them here
+  // Image Models
   imageModels: {
     'small-model': openai.image('dall-e-2'),
     'large-model': openai.image('dall-e-3'),
@@ -85,5 +92,14 @@ export const chatModels: ChatModel[] = [
     id: 'openai-4o-mini',
     name: 'OpenAI GPT-4o (Mini)',
     description: 'OpenAI 4o-mini model',
+  },
+
+  // ---------------------------------------
+  // NEW Gemini Model (No Search Grounding)
+  // ---------------------------------------
+  {
+    id: 'chat-model-thinking',
+    name: 'Gemini 2.0 Flash Thinking Exp',
+    description: 'Experimental Gemini thinking model',
   },
 ];
