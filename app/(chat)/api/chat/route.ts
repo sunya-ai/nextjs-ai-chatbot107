@@ -331,12 +331,24 @@ return createDataStreamResponse({
             updateDocument: updateDocument({ session, dataStream }),
             requestSuggestions: requestSuggestions({ session, dataStream }),
           },
-          onChunk: (chunk) => {
-            if (chunk.type === 'source' || chunk.type === 'reasoning') {
-              dataStream.writeMessageAnnotation({ 
-                type: chunk.type,
-                content: chunk.type === 'source' ? chunk.source : chunk.textDelta 
-              });
+          onChunk: async (chunk) => {
+            // Handle each type of chunk according to the documentation
+            switch (chunk.type) {
+              case 'text-delta':
+                // Handle normal text
+                break;
+              case 'reasoning':
+                dataStream.writeMessageAnnotation({ 
+                  type: 'reasoning',
+                  content: chunk.textDelta 
+                });
+                break;
+              case 'tool-call':
+              case 'tool-call-streaming-start':
+              case 'tool-call-delta':
+              case 'tool-result':
+                // Handle tool-related chunks
+                break;
             }
           },
           onFinish: async ({ response, reasoning }) => {
