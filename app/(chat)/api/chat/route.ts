@@ -423,6 +423,8 @@ return createDataStreamResponse({
   },
 });
 
+}
+
 /**
  * DELETE handler
  */
