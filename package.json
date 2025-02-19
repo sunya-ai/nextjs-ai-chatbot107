@@ -106,7 +106,6 @@
   },
   "pnpm": {
     "overrides": {
-      // Force all sub-dependencies to use the same version of @ai-sdk/provider
       "@ai-sdk/provider": "1.0.8"
     }
   }
