@@ -302,6 +302,8 @@ This specification:
 - Must be fully implemented
 - Cannot be partially applied
 - Requires all sections to be followed
+- Organize professionally
+- Well designed
 
 
 `;
