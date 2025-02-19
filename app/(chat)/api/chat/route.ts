@@ -286,131 +286,142 @@ export async function POST(request: Request) {
   }
 
   console.log('[POST] => createDataStreamResponse => multi-pass');
-  return createDataStreamResponse({
-    execute: async (dataStream) => {
+return createDataStreamResponse({
+  status: 200,
+  statusText: 'OK',
+  headers: {
+    'Content-Type': 'text/plain; charset=utf-8',
+  },
+  execute: async (dataStream) => {
+    try {
+      // Step A: Gemini non-streaming
+      console.log('[EXECUTE] Step A => getInitialAnalysis');
+      dataStream.writeData('initializing_analysis');
+      const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
+      console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
+
+      // Step B: aggregator
+      console.log('[EXECUTE] Step B => aggregator => enhanceContext');
+      dataStream.writeData('enhancing_context');
+      const enhancedContext = await enhanceContext(initialAnalysis);
+      console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
+
+      // Step C: final streaming pass
+      console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
+      dataStream.writeData('starting_stream');
+      const finalModel = myProvider.languageModel(selectedChatModel);
+
       try {
-        // Step A: Gemini non-streaming
-        console.log('[EXECUTE] Step A => getInitialAnalysis');
-        const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-        console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
+        const result = streamText({
+          model: finalModel,
+          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+          messages,
+          maxSteps: 5,
+          experimental_activeTools:
+            selectedChatModel === 'chat-model-reasoning'
+              ? []
+              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+          experimental_transform: smoothStream({ 
+            chunking: 'word'
+          }),
+          experimental_generateMessageId: generateUUID,
+          tools: {
+            getWeather,
+            createDocument: createDocument({ session, dataStream }),
+            updateDocument: updateDocument({ session, dataStream }),
+            requestSuggestions: requestSuggestions({ session, dataStream }),
+          },
+          onChunk: (chunk) => {
+            if (chunk.type === 'source' || chunk.type === 'reasoning') {
+              dataStream.writeMessageAnnotation({ 
+                type: chunk.type,
+                content: chunk.type === 'source' ? chunk.source : chunk.textDelta 
+              });
+            }
+          },
+          onFinish: async ({ response, reasoning }) => {
+            console.log('[EXECUTE:stream] Stream completed, saving messages');
+            try {
+              const sanitized = sanitizeResponseMessages({
+                messages: response.messages,
+                reasoning,
+              });
+              const savedMessages = await saveMessages({
+                messages: sanitized.map((m) => ({
+                  id: m.id,
+                  chatId: id,
+                  role: m.role,
+                  content: m.content,
+                  createdAt: new Date(),
+                })),
+              });
+              dataStream.writeMessageAnnotation({
+                type: 'save_complete',
+                messageIds: savedMessages.map(m => m.id)
+              });
+              console.log('[EXECUTE:stream] Messages saved successfully');
+            } catch (err) {
+              console.error('[EXECUTE:stream] Failed to save messages:', err);
+              dataStream.writeMessageAnnotation({
+                type: 'save_error',
+                error: err instanceof Error ? err.message : 'Unknown error'
+              });
+            }
+          },
+        });
 
-        // Step B: aggregator
-        console.log('[EXECUTE] Step B => aggregator => enhanceContext');
-        const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
+        await result.mergeIntoDataStream(dataStream, {
+          sendReasoning: true,
+          sendSources: true,
+          sendUsage: true
+        });
 
-        // Step C: final streaming pass
-        console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-        const finalModel = myProvider.languageModel(selectedChatModel);
+        dataStream.writeData('stream_complete');
 
+      } catch (streamError) {
+        console.error('[EXECUTE:stream] Error during streaming:', streamError);
+        dataStream.writeData('stream_error');
+
+        // Attempt fallback
         try {
-          const result = streamText({
+          console.log('[EXECUTE] Attempting fallback response');
+          dataStream.writeData('attempting_fallback');
+          
+          const fallbackResult = streamText({
             model: finalModel,
-            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+            system: systemPrompt({ selectedChatModel }),
             messages,
-            maxSteps: 5,
-            experimental_activeTools:
-              selectedChatModel === 'chat-model-reasoning'
-                ? []
-                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
             experimental_transform: smoothStream({ 
               chunking: 'word'
             }),
             experimental_generateMessageId: generateUUID,
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({ session, dataStream }),
-            },
-            onChunk: (chunk) => {
-              // You can log or handle different chunk types here
-              if (chunk.type === 'source') {
-                console.log('[EXECUTE:stream] Received source:', chunk.source);
-              } else if (chunk.type === 'reasoning') {
-                console.log('[EXECUTE:stream] Received reasoning:', chunk.textDelta);
-              }
-            },
-            onFinish: async ({ response, reasoning }) => {
-              console.log('[EXECUTE:stream] Stream completed, saving messages');
-              try {
-                const sanitized = sanitizeResponseMessages({
-                  messages: response.messages,
-                  reasoning,
-                });
-                await saveMessages({
-                  messages: sanitized.map((m) => ({
-                    id: m.id,
-                    chatId: id,
-                    role: m.role,
-                    content: m.content,
-                    createdAt: new Date(),
-                  })),
-                });
-                console.log('[EXECUTE:stream] Messages saved successfully');
-              } catch (err) {
-                console.error('[EXECUTE:stream] Failed to save messages:', err);
-              }
-            },
           });
 
-          return result.toDataStreamResponse({
+          await fallbackResult.mergeIntoDataStream(dataStream, {
             sendReasoning: true,
-            sendSources: true
+            sendSources: true,
+            sendUsage: true
           });
 
-        } catch (streamError) {
-          console.error('[EXECUTE:stream] Error during streaming:', {
-            error: streamError,
-            errorType: streamError instanceof Error ? streamError.constructor.name : typeof streamError,
-            message: streamError instanceof Error ? streamError.message : String(streamError),
-            stack: streamError instanceof Error ? streamError.stack : undefined
-          });
-
-          // Attempt fallback with same configuration
-          try {
-            console.log('[EXECUTE] Attempting fallback response');
-            const fallbackResult = streamText({
-              model: finalModel,
-              system: systemPrompt({ selectedChatModel }),
-              messages,
-              experimental_transform: smoothStream({ 
-                chunking: 'word'
-              }),
-              experimental_generateMessageId: generateUUID,
-            });
-
-            return fallbackResult.toDataStreamResponse({
-              sendReasoning: true,
-              sendSources: true
-            });
-          } catch (fallbackError) {
-            console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
-            throw fallbackError;
-          }
+          dataStream.writeData('fallback_complete');
+        } catch (fallbackError) {
+          console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
+          dataStream.writeData('fallback_failed');
+          throw fallbackError;
         }
-
-      } catch (err) {
-        console.error('[EXECUTE] Error during processing:', {
-          error: err,
-          errorType: err instanceof Error ? err.constructor.name : typeof err,
-          message: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined
-        });
-        throw err;
       }
-    },
-    onError: (error) => {
-      console.error('[createDataStreamResponse] Final error handler:', {
-        error,
-        errorType: error instanceof Error ? error.constructor.name : typeof error,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      return 'Something went wrong. Please try again.';
-    },
-  });
-}
+
+    } catch (err) {
+      console.error('[EXECUTE] Error during processing:', err);
+      dataStream.writeData('processing_error');
+      throw err;
+    }
+  },
+  onError: (error) => {
+    console.error('[createDataStreamResponse] Final error handler:', error);
+    return error instanceof Error ? error.message : 'An error occurred';
+  },
+});
 
 /**
  * DELETE handler
