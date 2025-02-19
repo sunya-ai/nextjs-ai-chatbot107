@@ -113,6 +113,18 @@ async function getInitialAnalysis(
 ): Promise<string> {
   console.log('[getInitialAnalysis] Start');
 
+  const initialAnalysisPrompt = `
+You are an energy research query refiner. Reframe each query to optimize for search results.
+
+Format your response as:
+Original: [user's exact question]
+Refined: [reframed query optimized for energy sector search]
+Terms: [3-5 key energy industry search terms]
+
+Keep it brief and search-focused.
+If query seems unrelated to energy, find relevant energy sector angles.
+`;
+
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
     console.log('[getInitialAnalysis] No user message => returning empty string');
@@ -144,7 +156,7 @@ async function getInitialAnalysis(
         useSearchGrounding: true,
         structuredOutputs: false,
       }),
-      system: systemPrompt({ selectedChatModel: 'gemini-2.0-flash' }),
+      system: initialAnalysisPrompt,  // Using our new prompt here
       messages: [
         {
           role: 'user',
