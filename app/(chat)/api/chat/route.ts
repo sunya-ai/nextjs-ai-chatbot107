@@ -156,7 +156,7 @@ If query seems unrelated to energy, find relevant energy sector angles.
         useSearchGrounding: true,
         structuredOutputs: false,
       }),
-      system: initialAnalysisPrompt,  // Using our new prompt here
+      system: initialAnalysisPrompt,
       messages: [
         {
           role: 'user',
@@ -315,9 +315,7 @@ export async function POST(request: Request) {
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
             experimental_transform: smoothStream({ 
-              chunking: 'word',
-              handleSourceChunks: true,  // Add this
-              handleReasoningChunks: true // Add this
+              chunking: 'word'
             }),
             experimental_generateMessageId: generateUUID,
             tools: {
@@ -351,8 +349,8 @@ export async function POST(request: Request) {
 
           console.log('[EXECUTE] Merging stream into dataStream');
           await result.mergeIntoDataStream(dataStream, { 
-            sendReasoning: true,  // Add this
-            sendSources: true     // Add this
+            sendReasoning: true,
+            sendSources: true
           });
           console.log('[EXECUTE] Stream merge completed');
 
@@ -372,15 +370,13 @@ export async function POST(request: Request) {
               system: systemPrompt({ selectedChatModel }),
               messages,
               experimental_transform: smoothStream({ 
-                chunking: 'word',
-                handleSourceChunks: true,  // Add this
-                handleReasoningChunks: true // Add this
+                chunking: 'word'
               }),
               experimental_generateMessageId: generateUUID,
             });
             await fallbackResult.mergeIntoDataStream(dataStream, { 
-              sendReasoning: true,  // Add this
-              sendSources: true     // Add this
+              sendReasoning: true,
+              sendSources: true
             });
           } catch (fallbackError) {
             console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
