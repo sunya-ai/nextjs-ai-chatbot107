@@ -172,7 +172,6 @@ If query seems unrelated to energy, find relevant energy sector angles.
     throw error;
   }
 }
-
 /**
  * aggregator => aggregator.enhance(...)
  */
@@ -315,7 +314,11 @@ export async function POST(request: Request) {
               selectedChatModel === 'chat-model-reasoning'
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ chunking: 'word' }),
+            experimental_transform: smoothStream({ 
+              chunking: 'word',
+              handleSourceChunks: true,  // Add this
+              handleReasoningChunks: true // Add this
+            }),
             experimental_generateMessageId: generateUUID,
             tools: {
               getWeather,
@@ -347,7 +350,10 @@ export async function POST(request: Request) {
           });
 
           console.log('[EXECUTE] Merging stream into dataStream');
-          await result.mergeIntoDataStream(dataStream, { sendReasoning: true });
+          await result.mergeIntoDataStream(dataStream, { 
+            sendReasoning: true,  // Add this
+            sendSources: true     // Add this
+          });
           console.log('[EXECUTE] Stream merge completed');
 
         } catch (streamError) {
@@ -365,10 +371,17 @@ export async function POST(request: Request) {
               model: finalModel,
               system: systemPrompt({ selectedChatModel }),
               messages,
-              experimental_transform: smoothStream({ chunking: 'word' }),
+              experimental_transform: smoothStream({ 
+                chunking: 'word',
+                handleSourceChunks: true,  // Add this
+                handleReasoningChunks: true // Add this
+              }),
               experimental_generateMessageId: generateUUID,
             });
-            await fallbackResult.mergeIntoDataStream(dataStream, { sendReasoning: true });
+            await fallbackResult.mergeIntoDataStream(dataStream, { 
+              sendReasoning: true,  // Add this
+              sendSources: true     // Add this
+            });
           } catch (fallbackError) {
             console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
             throw fallbackError;
@@ -382,7 +395,7 @@ export async function POST(request: Request) {
           message: err instanceof Error ? err.message : String(err),
           stack: err instanceof Error ? err.stack : undefined
         });
-        throw err; // Let the outer error handler deal with it
+        throw err;
       }
     },
     onError: (error) => {
@@ -434,5 +447,3 @@ export async function DELETE(request: Request) {
     });
   }
 }
-
-                  
