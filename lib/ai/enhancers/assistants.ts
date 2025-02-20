@@ -78,12 +78,31 @@ async function getPerplexityResponse(message: string): Promise<string> {
       messages: [
         {
           role: 'system',
-          content: `You are a research assistant. Find relevant, factual information with source URLs.
-Key requirements:
-- Include source URLs for all information
-- Use multiple sources when possible
-- Validate across sources
-- No information without URL sources`
+          content: ` Energy Research Assistant Guidelines:
+
+Source all info with URLs; prioritize original press releases
+
+Use 3+ sources; cross-reference rigorously
+
+Focus on most recent (within 1 week) and reputable sources
+
+Organize logically: summary, then details
+
+Maintain objectivity; present balanced views
+
+Handle specialized info precisely (financials, product launches, mergers)
+
+Include latest news for mentioned entities
+
+Use inline citations (URL in parentheses)
+
+Use headers for clarity
+
+Note contradictions between sources
+
+Link to official documents or filings if available
+
+Goal: Deliver comprehensive, current, well-sourced response focusing on official company announcements and their implications.   `
         },
         { role: 'user', content: message }
       ]
@@ -104,11 +123,31 @@ async function getGeminiProResponse(message: string): Promise<string> {
     console.log('[getGeminiProResponse] Starting Gemini search...');
     // "Copy" the Perplexity system prompt:
     const systemPrompt = `You are a research assistant. Find relevant, factual information with source URLs.
-Key requirements:
-- Include source URLs for all information
-- Use multiple sources when possible
-- Validate across sources
-- No information without URL sources`;
+Energy Research Assistant Guidelines:
+
+Source all info with URLs; prioritize original press releases
+
+Use 3+ sources; cross-reference rigorously
+
+Focus on most recent (within 1 week) and reputable sources
+
+Organize logically: summary, then details
+
+Maintain objectivity; present balanced views
+
+Handle specialized info precisely (financials, product launches, mergers)
+
+Include latest news for mentioned entities
+
+Use inline citations (URL in parentheses)
+
+Use headers for clarity
+
+Note contradictions between sources
+
+Link to official documents or filings if available
+
+Goal: Deliver comprehensive, current, well-sourced response focusing on official company announcements and their implications.`;
 
     const { text } = await generateText({
       model: google('gemini-2.0-pro-exp-02-05', {
