@@ -33,7 +33,6 @@ import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
 export const maxDuration = 240;
 
-// Rate limit types and setup
 type RateLimitInfo = {
   shortTermCount: number;
   shortTermResetTime: number;
@@ -85,13 +84,9 @@ function rateLimiter(userId: string): boolean {
   return true;
 }
 
-// Create aggregator with Assistant ID
 const assistantsEnhancer = createAssistantsEnhancer(
   process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
 );
-/**
- * getInitialAnalysis (non-streaming Gemini pass)
- */
 async function getInitialAnalysis(
   messages: Message[],
   fileBuffer?: ArrayBuffer,
@@ -157,9 +152,6 @@ If query seems unrelated to energy, find relevant energy sector angles.
   }
 }
 
-/**
- * enhanceContext using aggregator
- */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
   try {
@@ -172,12 +164,8 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   }
 }
 
-/**
- * POST Handler
- */
 export async function POST(request: Request) {
   console.log('[POST] Enter => /api/chat');
-  // Auth check
   const session = await auth();
   if (!session?.user?.id) {
     console.log('[POST] Unauthorized => 401');
@@ -185,13 +173,11 @@ export async function POST(request: Request) {
   }
   console.log('[POST] userId =', session.user.id);
 
-  // Rate limit check
   if (!rateLimiter(session.user.id)) {
     console.log('[POST] rate-limit => 429');
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  // Parse request body
   console.log('[POST] Checking content-type =>', request.headers.get('content-type'));
 
   let id = '';
@@ -243,14 +229,12 @@ export async function POST(request: Request) {
       return new Response('Invalid form data', { status: 400 });
     }
   }
-  // Validate user message
-  const userMessage = getMostRecentUserMessage(messages);
+const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
     console.log('[POST] no user message => 400');
     return new Response('No user message found', { status: 400 });
   }
 
-  // Check or create chat
   console.log('[POST] checking chat =>', id);
   const chat = await getChatById({ id });
   if (!chat) {
@@ -259,13 +243,11 @@ export async function POST(request: Request) {
     await saveChat({ id, userId: session.user.id, title });
   }
 
-  // Save user's new message
   console.log('[POST] saving user message => DB');
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // Read file if present
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
@@ -283,25 +265,18 @@ export async function POST(request: Request) {
     },
     execute: async (dataStream) => {
       try {
-        // Initial state
-        dataStream.writeData('workflow_stage:initial');
-        
-        // Step A: Gemini analysis
         console.log('[EXECUTE] Step A => getInitialAnalysis');
-        dataStream.writeData('workflow_stage:analysis');
         const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
         console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
-        // Step B: Context enhancement
         console.log('[EXECUTE] Step B => enhanceContext');
-        dataStream.writeData('workflow_stage:enhancing');
         const enhancedContext = await enhanceContext(initialAnalysis);
         console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
-        // Step C: Final streaming
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-        dataStream.writeData('workflow_stage:refining');
         const finalModel = myProvider.languageModel(selectedChatModel);
+
+        let isFirstContent = true;
 
         try {
           const result = streamText({
@@ -326,15 +301,12 @@ export async function POST(request: Request) {
             onChunk: async (event) => {
               const { chunk } = event;
 
-              if (chunk.type === 'text-delta' && chunk.textDelta.trim()) {
+              if (chunk.type === 'text-delta' && chunk.textDelta.trim() && isFirstContent) {
+                isFirstContent = false;
                 dataStream.writeData('workflow_stage:complete');
               }
 
               switch (chunk.type) {
-                case 'text-delta':
-                  // Handle text delta streaming if needed
-                  break;
-
                 case 'reasoning':
                   dataStream.writeMessageAnnotation({
                     type: 'reasoning',
@@ -346,7 +318,7 @@ export async function POST(request: Request) {
                 case 'tool-call-streaming-start':
                 case 'tool-call-delta':
                 case 'tool-result':
-                  // Handle tool-related chunks if needed
+                  // Keep thinking state during tool calls
                   break;
               }
             },
@@ -359,15 +331,13 @@ export async function POST(request: Request) {
                   });
 
                   await saveMessages({
-                    messages: sanitizedResponseMessages.map((message) => {
-                      return {
-                        id: message.id,
-                        chatId: id,
-                        role: message.role,
-                        content: message.content,
-                        createdAt: new Date(),
-                      };
-                    }),
+                    messages: sanitizedResponseMessages.map((message) => ({
+                      id: message.id,
+                      chatId: id,
+                      role: message.role,
+                      content: message.content,
+                      createdAt: new Date(),
+                    })),
                   });
                 } catch (error) {
                   console.error('Failed to save chat', error);
@@ -380,16 +350,12 @@ export async function POST(request: Request) {
             sendReasoning: true,
             sendSources: true,
           });
-          
+
         } catch (streamError) {
           console.error('[EXECUTE:stream] Error during streaming:', streamError);
-          dataStream.writeData('workflow_stage:error');
 
-          // Attempt fallback
           try {
             console.log('[EXECUTE] Attempting fallback response');
-            dataStream.writeData('workflow_stage:refining');
-
             const fallbackResult = streamText({
               model: finalModel,
               system: systemPrompt({ selectedChatModel }),
@@ -407,13 +373,11 @@ export async function POST(request: Request) {
 
           } catch (fallbackError) {
             console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
-            dataStream.writeData('workflow_stage:error');
             throw fallbackError;
           }
         }
       } catch (err) {
         console.error('[EXECUTE] Error during processing:', err);
-        dataStream.writeData('workflow_stage:error');
         throw err;
       }
     },
@@ -424,9 +388,6 @@ export async function POST(request: Request) {
   });
 }
 
-/**
- * DELETE Handler
- */
 export async function DELETE(request: Request) {
   console.log('[DELETE] => /api/chat');
   const { searchParams } = new URL(request.url);
