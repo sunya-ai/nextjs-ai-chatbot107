@@ -1,6 +1,6 @@
 // app/(chat)/api/chat/route.ts
 
-import {
+import { 
   type Message,
   createDataStreamResponse,
   smoothStream,
