@@ -331,26 +331,64 @@ return createDataStreamResponse({
             updateDocument: updateDocument({ session, dataStream }),
             requestSuggestions: requestSuggestions({ session, dataStream }),
           },
-          onChunk: async (chunk) => {
-            // Handle each type of chunk according to the documentation
-            switch (chunk.type) {
-              case 'text-delta':
-                // Handle normal text
-                break;
-              case 'reasoning':
-                dataStream.writeMessageAnnotation({ 
-                  type: 'reasoning',
-                  content: chunk.textDelta 
-                });
-                break;
-              case 'tool-call':
-              case 'tool-call-streaming-start':
-              case 'tool-call-delta':
-              case 'tool-result':
-                // Handle tool-related chunks
-                break;
-            }
-          },
+       onChunk: async (event) => {
+  const { chunk } = event;
+  
+  switch (chunk.type) {
+    case 'text-delta':
+      // Handle text delta streaming
+      break;
+    
+    case 'reasoning':
+      dataStream.writeMessageAnnotation({ 
+        type: 'reasoning',
+        content: chunk.textDelta 
+      });
+      break;
+    
+    case 'source':
+      dataStream.writeMessageAnnotation({ 
+        type: 'source',
+        content: chunk.source 
+      });
+      break;
+    
+    case 'tool-call-streaming-start':
+      dataStream.writeMessageAnnotation({
+        type: 'tool-call-start',
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.toolName
+      });
+      break;
+    
+    case 'tool-call-delta':
+      dataStream.writeMessageAnnotation({
+        type: 'tool-call-delta',
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.toolName,
+        argsTextDelta: chunk.argsTextDelta
+      });
+      break;
+    
+    case 'tool-call':
+      dataStream.writeMessageAnnotation({
+        type: 'tool-call',
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.toolName,
+        args: chunk.args
+      });
+      break;
+    
+    case 'tool-result':
+      dataStream.writeMessageAnnotation({
+        type: 'tool-result',
+        toolCallId: chunk.toolCallId,
+        toolName: chunk.toolName,
+        result: chunk.result
+      });
+      break;
+  }
+},
           onFinish: async ({ response, reasoning }) => {
             console.log('[EXECUTE:stream] Stream completed, saving messages');
             try {
