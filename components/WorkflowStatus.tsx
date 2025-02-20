@@ -12,6 +12,7 @@ export interface WorkflowFile {
 interface WorkflowStatusProps {
   currentMessage?: string
   isLoading?: boolean
+  currentStage?: "initial" | "analysis" | "enhancing" | "refining" | "complete" | "error"
 }
 
 const thinkingMessages = [
@@ -29,17 +30,27 @@ const thinkingMessages = [
   "Hang tight—I'm rebooting my brain for you.",
 ]
 
-export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowStatusProps) {
-  const [stage, setStage] = useState(0)
+export function WorkflowStatus({
+  currentMessage,
+  isLoading = true,
+  currentStage = "initial"
+}: WorkflowStatusProps) {
   const [thinkingMessage, setThinkingMessage] = useState("")
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setStage((prev) => (prev + 1) % 3)
-    }, 2000)
+  // Map workflow stages to numeric stages for the UI
+  const getStageNumber = (stage: string): number => {
+    switch (stage) {
+      case "initial": return 0
+      case "analysis": return 1
+      case "enhancing": return 2
+      case "refining": return 2
+      case "complete": return 3
+      case "error": return 0
+      default: return 0
+    }
+  }
 
-    return () => clearInterval(timer)
-  }, [])
+  const stage = getStageNumber(currentStage)
 
   useEffect(() => {
     if (isLoading) {
@@ -61,6 +72,11 @@ export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowSta
       status: stage >= 2 ? "generating" : "planning",
     },
   ]
+
+  // Only show if we're still processing or loading
+  const shouldShow = currentStage !== "complete" && isLoading
+
+  if (!shouldShow) return null
 
   return (
     <div className="bg-white/80 dark:bg-black/40 backdrop-blur-sm text-gray-900 dark:text-zinc-100 rounded-lg border border-gray-200/50 dark:border-white/10 shadow-lg shadow-[#454b1b]/5 w-full max-w-sm overflow-hidden">
@@ -107,7 +123,9 @@ export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowSta
                     }`}
                   />
                 </div>
-                <span className="text-xs font-mono text-gray-500 dark:text-zinc-400">{file.path}</span>
+                <span className="text-xs font-mono text-gray-500 dark:text-zinc-400">
+                  {file.path}
+                </span>
               </div>
               <motion.span
                 key={file.status}
@@ -124,4 +142,3 @@ export function WorkflowStatus({ currentMessage, isLoading = true }: WorkflowSta
     </div>
   )
 }
-
