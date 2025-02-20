@@ -223,7 +223,11 @@ export async function POST(request: Request) {
       messages = json.messages;
       selectedChatModel = json.selectedChatModel || 'default-model';
 
-      console.log('[POST] JSON parse =>', { id, selectedChatModel, messagesCount: messages.length });
+      console.log('[POST] JSON parse =>', {
+        id,
+        selectedChatModel,
+        messagesCount: messages.length,
+      });
     } catch (err) {
       console.error('[POST] Invalid JSON =>', err);
       return new Response('Invalid JSON', { status: 400 });
@@ -306,7 +310,10 @@ export async function POST(request: Request) {
         console.log('[EXECUTE] Step B => aggregator => enhanceContext');
         dataStream.writeData('enhancing_context');
         const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
+        console.log(
+          '[EXECUTE] enhancedContext => first 100 chars:',
+          enhancedContext.slice(0, 100)
+        );
 
         // Step C: final streaming pass
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
@@ -323,8 +330,8 @@ export async function POST(request: Request) {
               selectedChatModel === 'chat-model-reasoning'
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ 
-              chunking: 'word'
+            experimental_transform: smoothStream({
+              chunking: 'word',
             }),
             experimental_generateMessageId: generateUUID,
             tools: {
@@ -333,60 +340,60 @@ export async function POST(request: Request) {
               updateDocument: updateDocument({ session, dataStream }),
               requestSuggestions: requestSuggestions({ session, dataStream }),
             },
-          onChunk: async (event) => {
-  const { chunk } = event;
-  
-  switch (chunk.type) {
-    case 'text-delta':
-      // Handle text delta streaming if needed
-      break;
-    
-    case 'reasoning':
-      dataStream.writeMessageAnnotation({ 
-        type: 'reasoning',
-        content: chunk.textDelta 
-      });
-      break;
-    
-    case 'tool-call':
-    case 'tool-call-streaming-start':
-    case 'tool-call-delta':
-    case 'tool-result':
-      // Handle tool-related chunks if needed
-      break;
-  }
-},
-onFinish: async ({ response, reasoning }) => {
-  if (session.user?.id) {
-    try {
-      const sanitizedResponseMessages = sanitizeResponseMessages({
-        messages: response.messages,
-        reasoning,
-      });
+            onChunk: async (event) => {
+              const { chunk } = event;
 
-      await saveMessages({
-        messages: sanitizedResponseMessages.map((message) => {
-          return {
-            id: message.id,
-            chatId: id,
-            role: message.role,
-            content: message.content,
-            createdAt: new Date(),
-          };
-        }),
-      });
-    } catch (error) {
-      console.error('Failed to save chat', error);
-    }
-  }
-},
+              switch (chunk.type) {
+                case 'text-delta':
+                  // Handle text delta streaming if needed
+                  break;
+
+                case 'reasoning':
+                  dataStream.writeMessageAnnotation({
+                    type: 'reasoning',
+                    content: chunk.textDelta,
+                  });
+                  break;
+
+                case 'tool-call':
+                case 'tool-call-streaming-start':
+                case 'tool-call-delta':
+                case 'tool-result':
+                  // Handle tool-related chunks if needed
+                  break;
+              }
+            },
+            onFinish: async ({ response, reasoning }) => {
+              if (session.user?.id) {
+                try {
+                  const sanitizedResponseMessages = sanitizeResponseMessages({
+                    messages: response.messages,
+                    reasoning,
+                  });
+
+                  await saveMessages({
+                    messages: sanitizedResponseMessages.map((message) => {
+                      return {
+                        id: message.id,
+                        chatId: id,
+                        role: message.role,
+                        content: message.content,
+                        createdAt: new Date(),
+                      };
+                    }),
+                  });
+                } catch (error) {
+                  console.error('Failed to save chat', error);
+                }
+              }
+            },
           });
 
-          return result.toDataStreamResponse({
-  sendReasoning: true,
-  sendSources: true,
-});
-
+          // IMPORTANT: changed from "return result.toDataStreamResponse(...)" to "await mergeIntoDataStream(...)"
+          await result.mergeIntoDataStream(dataStream, {
+            sendReasoning: true,
+            sendSources: true,
+          });
           dataStream.writeData('stream_complete');
 
         } catch (streamError) {
@@ -397,13 +404,13 @@ onFinish: async ({ response, reasoning }) => {
           try {
             console.log('[EXECUTE] Attempting fallback response');
             dataStream.writeData('attempting_fallback');
-            
+
             const fallbackResult = streamText({
               model: finalModel,
               system: systemPrompt({ selectedChatModel }),
               messages,
-              experimental_transform: smoothStream({ 
-                chunking: 'word'
+              experimental_transform: smoothStream({
+                chunking: 'word',
               }),
               experimental_generateMessageId: generateUUID,
             });
@@ -411,7 +418,7 @@ onFinish: async ({ response, reasoning }) => {
             await fallbackResult.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
               sendSources: true,
-              sendUsage: true
+              sendUsage: true,
             });
 
             dataStream.writeData('fallback_complete');
@@ -421,7 +428,6 @@ onFinish: async ({ response, reasoning }) => {
             throw fallbackError;
           }
         }
-
       } catch (err) {
         console.error('[EXECUTE] Error during processing:', err);
         dataStream.writeData('processing_error');
