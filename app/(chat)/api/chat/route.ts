@@ -382,11 +382,10 @@ onFinish: async ({ response, reasoning }) => {
 },
           });
 
-          await result.mergeIntoDataStream(dataStream, {
-            sendReasoning: true,
-            sendSources: true,
-            sendUsage: true
-          });
+          return result.toDataStreamResponse({
+  sendReasoning: true,
+  sendSources: true,
+});
 
           dataStream.writeData('stream_complete');
 
