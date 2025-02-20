@@ -93,6 +93,7 @@ function rateLimiter(userId: string): boolean {
   requestsMap.set(userId, userData);
   return true;
 }
+
 /**
  * 2) MULTI-PASS: GEMINI + ENHANCER + FINAL
  */
@@ -186,6 +187,7 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
     return initialAnalysis; // fallback
   }
 }
+
 /**
  * 3) POST => Rate-limit + multi-pass + streaming
  */
@@ -286,167 +288,157 @@ export async function POST(request: Request) {
   }
 
   console.log('[POST] => createDataStreamResponse => multi-pass');
-return createDataStreamResponse({
-  status: 200,
-  statusText: 'OK',
-  headers: {
-    'Content-Type': 'text/plain; charset=utf-8',
-  },
-  execute: async (dataStream) => {
-    try {
-      // Step A: Gemini non-streaming
-      console.log('[EXECUTE] Step A => getInitialAnalysis');
-      dataStream.writeData('initializing_analysis');
-      const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-      console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
-
-      // Step B: aggregator
-      console.log('[EXECUTE] Step B => aggregator => enhanceContext');
-      dataStream.writeData('enhancing_context');
-      const enhancedContext = await enhanceContext(initialAnalysis);
-      console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
-
-      // Step C: final streaming pass
-      console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-      dataStream.writeData('starting_stream');
-      const finalModel = myProvider.languageModel(selectedChatModel);
-
+  return createDataStreamResponse({
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+    },
+    execute: async (dataStream) => {
       try {
-        const result = streamText({
-          model: finalModel,
-          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-          messages,
-          maxSteps: 5,
-          experimental_activeTools:
-            selectedChatModel === 'chat-model-reasoning'
-              ? []
-              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-          experimental_transform: smoothStream({ 
-            chunking: 'word'
-          }),
-          experimental_generateMessageId: generateUUID,
-          tools: {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({ session, dataStream }),
-          },
-      onChunk: async (event) => {
-  const { chunk } = event;
-  
-  if ('type' in chunk) {
-    switch (chunk.type) {
-      case 'text-delta':
-        // Handle text delta streaming if needed
-        break;
-      
-      case 'reasoning':
-        dataStream.writeMessageAnnotation({ 
-          type: 'reasoning',
-          content: chunk.textDelta 
-        });
-        break;
-      
-      case 'source':
-        dataStream.writeMessageAnnotation({ 
-          type: 'source',
-          content: chunk.source 
-        });
-        break;
-      
-      case 'tool-call':
-      case 'tool-call-streaming-start':
-      case 'tool-call-delta':
-      case 'tool-result':
-        // Handle tool-related chunks if needed
-        break;
-    }
-  }
-},
-          onFinish: async ({ response, reasoning }) => {
-            console.log('[EXECUTE:stream] Stream completed, saving messages');
-            try {
-              const sanitized = sanitizeResponseMessages({
-                messages: response.messages,
-                reasoning,
-              });
-              const savedMessages = await saveMessages({
-                messages: sanitized.map((m) => ({
-                  id: m.id,
-                  chatId: id,
-                  role: m.role,
-                  content: m.content,
-                  createdAt: new Date(),
-                })),
-              });
-              dataStream.writeMessageAnnotation({
-                type: 'save_complete',
-                messageIds: savedMessages.map(m => m.id)
-              });
-              console.log('[EXECUTE:stream] Messages saved successfully');
-            } catch (err) {
-              console.error('[EXECUTE:stream] Failed to save messages:', err);
-              dataStream.writeMessageAnnotation({
-                type: 'save_error',
-                error: err instanceof Error ? err.message : 'Unknown error'
-              });
-            }
-          },
-        });
+        // Step A: Gemini non-streaming
+        console.log('[EXECUTE] Step A => getInitialAnalysis');
+        dataStream.writeData('initializing_analysis');
+        const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
+        console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
-        await result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true,
-          sendSources: true,
-          sendUsage: true
-        });
+        // Step B: aggregator
+        console.log('[EXECUTE] Step B => aggregator => enhanceContext');
+        dataStream.writeData('enhancing_context');
+        const enhancedContext = await enhanceContext(initialAnalysis);
+        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
-        dataStream.writeData('stream_complete');
+        // Step C: final streaming pass
+        console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
+        dataStream.writeData('starting_stream');
+        const finalModel = myProvider.languageModel(selectedChatModel);
 
-      } catch (streamError) {
-        console.error('[EXECUTE:stream] Error during streaming:', streamError);
-        dataStream.writeData('stream_error');
-
-        // Attempt fallback
         try {
-          console.log('[EXECUTE] Attempting fallback response');
-          dataStream.writeData('attempting_fallback');
-          
-          const fallbackResult = streamText({
+          const result = streamText({
             model: finalModel,
-            system: systemPrompt({ selectedChatModel }),
+            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
             messages,
+            maxSteps: 5,
+            experimental_activeTools:
+              selectedChatModel === 'chat-model-reasoning'
+                ? []
+                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
             experimental_transform: smoothStream({ 
               chunking: 'word'
             }),
             experimental_generateMessageId: generateUUID,
+            tools: {
+              getWeather,
+              createDocument: createDocument({ session, dataStream }),
+              updateDocument: updateDocument({ session, dataStream }),
+              requestSuggestions: requestSuggestions({ session, dataStream }),
+            },
+            onChunk: async (event) => {
+              const { chunk } = event;
+              
+              switch (chunk.type) {
+                case 'text-delta':
+                  // Handle text delta streaming if needed
+                  break;
+                
+                case 'reasoning':
+                  dataStream.writeMessageAnnotation({ 
+                    type: 'reasoning',
+                    content: chunk.textDelta 
+                  });
+                  break;
+                
+                case 'tool-call':
+                case 'tool-call-streaming-start':
+                case 'tool-call-delta':
+                case 'tool-result':
+                  // Handle tool-related chunks if needed
+                  break;
+              }
+            },
+            onFinish: async ({ response, reasoning }) => {
+              console.log('[EXECUTE:stream] Stream completed, saving messages');
+              try {
+                const sanitized = sanitizeResponseMessages({
+                  messages: response.messages,
+                  reasoning,
+                });
+                const savedMessages = await saveMessages({
+                  messages: sanitized.map((m) => ({
+                    id: m.id,
+                    chatId: id,
+                    role: m.role,
+                    content: m.content,
+                    createdAt: new Date(),
+                  })),
+                });
+                dataStream.writeMessageAnnotation({
+                  type: 'save_complete',
+                  messageIds: savedMessages.map(m => m.id)
+                });
+                console.log('[EXECUTE:stream] Messages saved successfully');
+              } catch (err) {
+                console.error('[EXECUTE:stream] Failed to save messages:', err);
+                dataStream.writeMessageAnnotation({
+                  type: 'save_error',
+                  error: err instanceof Error ? err.message : 'Unknown error'
+                });
+              }
+            },
           });
 
-          await fallbackResult.mergeIntoDataStream(dataStream, {
+          await result.mergeIntoDataStream(dataStream, {
             sendReasoning: true,
             sendSources: true,
             sendUsage: true
           });
 
-          dataStream.writeData('fallback_complete');
-        } catch (fallbackError) {
-          console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
-          dataStream.writeData('fallback_failed');
-          throw fallbackError;
+          dataStream.writeData('stream_complete');
+
+        } catch (streamError) {
+          console.error('[EXECUTE:stream] Error during streaming:', streamError);
+          dataStream.writeData('stream_error');
+
+          // Attempt fallback
+          try {
+            console.log('[EXECUTE] Attempting fallback response');
+            dataStream.writeData('attempting_fallback');
+            
+            const fallbackResult = streamText({
+              model: finalModel,
+              system: systemPrompt({ selectedChatModel }),
+              messages,
+              experimental_transform: smoothStream({ 
+                chunking: 'word'
+              }),
+              experimental_generateMessageId: generateUUID,
+            });
+
+            await fallbackResult.mergeIntoDataStream(dataStream, {
+              sendReasoning: true,
+              sendSources: true,
+              sendUsage: true
+            });
+
+            dataStream.writeData('fallback_complete');
+          } catch (fallbackError) {
+            console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
+            dataStream.writeData('fallback_failed');
+            throw fallbackError;
+          }
         }
+
+      } catch (err) {
+        console.error('[EXECUTE] Error during processing:', err);
+        dataStream.writeData('processing_error');
+        throw err;
       }
-
-    } catch (err) {
-      console.error('[EXECUTE] Error during processing:', err);
-      dataStream.writeData('processing_error');
-      throw err;
-    }
-  },
-  onError: (error) => {
-    console.error('[createDataStreamResponse] Final error handler:', error);
-    return error instanceof Error ? error.message : 'An error occurred';
-  },
-});
-
+    },
+    onError: (error) => {
+      console.error('[createDataStreamResponse] Final error handler:', error);
+      return error instanceof Error ? error.message : 'An error occurred';
+    },
+  });
 }
 
 /**
@@ -486,5 +478,3 @@ export async function DELETE(request: Request) {
     });
   }
 }
-
-                          
