@@ -333,58 +333,53 @@ export async function POST(request: Request) {
               updateDocument: updateDocument({ session, dataStream }),
               requestSuggestions: requestSuggestions({ session, dataStream }),
             },
-            onChunk: async (event) => {
-              const { chunk } = event;
-              
-              switch (chunk.type) {
-                case 'text-delta':
-                  // Handle text delta streaming if needed
-                  break;
-                
-                case 'reasoning':
-                  dataStream.writeMessageAnnotation({ 
-                    type: 'reasoning',
-                    content: chunk.textDelta 
-                  });
-                  break;
-                
-                case 'tool-call':
-                case 'tool-call-streaming-start':
-                case 'tool-call-delta':
-                case 'tool-result':
-                  // Handle tool-related chunks if needed
-                  break;
-              }
-            },
-            onFinish: async ({ response, reasoning }) => {
-              console.log('[EXECUTE:stream] Stream completed, saving messages');
-              try {
-                const sanitized = sanitizeResponseMessages({
-                  messages: response.messages,
-                  reasoning,
-                });
-                const savedMessages = await saveMessages({
-                  messages: sanitized.map((m) => ({
-                    id: m.id,
-                    chatId: id,
-                    role: m.role,
-                    content: m.content,
-                    createdAt: new Date(),
-                  })),
-                });
-                dataStream.writeMessageAnnotation({
-                  type: 'save_complete',
-                  messageIds: savedMessages.map(m => m.id)
-                });
-                console.log('[EXECUTE:stream] Messages saved successfully');
-              } catch (err) {
-                console.error('[EXECUTE:stream] Failed to save messages:', err);
-                dataStream.writeMessageAnnotation({
-                  type: 'save_error',
-                  error: err instanceof Error ? err.message : 'Unknown error'
-                });
-              }
-            },
+          onChunk: async (event) => {
+  const { chunk } = event;
+  
+  switch (chunk.type) {
+    case 'text-delta':
+      // Handle text delta streaming if needed
+      break;
+    
+    case 'reasoning':
+      dataStream.writeMessageAnnotation({ 
+        type: 'reasoning',
+        content: chunk.textDelta 
+      });
+      break;
+    
+    case 'tool-call':
+    case 'tool-call-streaming-start':
+    case 'tool-call-delta':
+    case 'tool-result':
+      // Handle tool-related chunks if needed
+      break;
+  }
+},
+onFinish: async ({ response, reasoning }) => {
+  if (session.user?.id) {
+    try {
+      const sanitizedResponseMessages = sanitizeResponseMessages({
+        messages: response.messages,
+        reasoning,
+      });
+
+      await saveMessages({
+        messages: sanitizedResponseMessages.map((message) => {
+          return {
+            id: message.id,
+            chatId: id,
+            role: message.role,
+            content: message.content,
+            createdAt: new Date(),
+          };
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save chat', error);
+    }
+  }
+},
           });
 
           await result.mergeIntoDataStream(dataStream, {
