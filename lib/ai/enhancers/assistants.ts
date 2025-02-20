@@ -84,7 +84,7 @@ Source all info with URLs; prioritize original press releases
 
 Use 3+ sources; cross-reference rigorously
 
-Focus on most recent (within 1 week) and reputable sources
+Focus on most recent and reputable sources
 
 Organize logically: summary, then details
 
@@ -129,7 +129,7 @@ Source all info with URLs; prioritize original press releases
 
 Use 3+ sources; cross-reference rigorously
 
-Focus on most recent (within 1 week) and reputable sources
+Focus on most recent and reputable sources
 
 Organize logically: summary, then details
 
