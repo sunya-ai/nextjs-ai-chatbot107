@@ -331,62 +331,36 @@ return createDataStreamResponse({
             updateDocument: updateDocument({ session, dataStream }),
             requestSuggestions: requestSuggestions({ session, dataStream }),
           },
-       onChunk: async (event) => {
+      onChunk: async (event) => {
   const { chunk } = event;
   
-  switch (chunk.type) {
-    case 'text-delta':
-      // Handle text delta streaming
-      break;
-    
-    case 'reasoning':
-      dataStream.writeMessageAnnotation({ 
-        type: 'reasoning',
-        content: chunk.textDelta 
-      });
-      break;
-    
-    case 'source':
-      dataStream.writeMessageAnnotation({ 
-        type: 'source',
-        content: chunk.source 
-      });
-      break;
-    
-    case 'tool-call-streaming-start':
-      dataStream.writeMessageAnnotation({
-        type: 'tool-call-start',
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName
-      });
-      break;
-    
-    case 'tool-call-delta':
-      dataStream.writeMessageAnnotation({
-        type: 'tool-call-delta',
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        argsTextDelta: chunk.argsTextDelta
-      });
-      break;
-    
-    case 'tool-call':
-      dataStream.writeMessageAnnotation({
-        type: 'tool-call',
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        args: chunk.args
-      });
-      break;
-    
-    case 'tool-result':
-      dataStream.writeMessageAnnotation({
-        type: 'tool-result',
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        result: chunk.result
-      });
-      break;
+  if ('type' in chunk) {
+    switch (chunk.type) {
+      case 'text-delta':
+        // Handle text delta streaming if needed
+        break;
+      
+      case 'reasoning':
+        dataStream.writeMessageAnnotation({ 
+          type: 'reasoning',
+          content: chunk.textDelta 
+        });
+        break;
+      
+      case 'source':
+        dataStream.writeMessageAnnotation({ 
+          type: 'source',
+          content: chunk.source 
+        });
+        break;
+      
+      case 'tool-call':
+      case 'tool-call-streaming-start':
+      case 'tool-call-delta':
+      case 'tool-result':
+        // Handle tool-related chunks if needed
+        break;
+    }
   }
 },
           onFinish: async ({ response, reasoning }) => {
