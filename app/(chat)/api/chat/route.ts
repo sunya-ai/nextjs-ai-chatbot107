@@ -1,5 +1,3 @@
-// app/(chat)/api/chat/route.ts
-
 import { 
   type Message,
   createDataStreamResponse,
@@ -30,15 +28,12 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 
-// Google provider + aggregator
 import { google } from '@ai-sdk/google';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 
 export const maxDuration = 240;
 
-/**
- * 1) IN-MEMORY RATE LIMIT (2h + 12h)
- */
+// Rate limit types and setup
 type RateLimitInfo = {
   shortTermCount: number;
   shortTermResetTime: number;
@@ -48,10 +43,8 @@ type RateLimitInfo = {
 
 const requestsMap = new Map<string, RateLimitInfo>();
 
-// Short-term: 50 in 2 hours
 const SHORT_MAX_REQUESTS = 50;
 const SHORT_WINDOW_TIME = 2 * 60 * 60_000;
-// Long-term: 100 in 12 hours
 const LONG_MAX_REQUESTS = 100;
 const LONG_WINDOW_TIME = 12 * 60 * 60_000;
 
@@ -68,7 +61,6 @@ function rateLimiter(userId: string): boolean {
     };
   }
 
-  // short-term window
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
@@ -78,7 +70,6 @@ function rateLimiter(userId: string): boolean {
     return false;
   }
 
-  // long-term window
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
@@ -94,15 +85,10 @@ function rateLimiter(userId: string): boolean {
   return true;
 }
 
-/**
- * 2) MULTI-PASS: GEMINI + ENHANCER + FINAL
- */
-
-// Create aggregator with the correct Assistant ID
+// Create aggregator with Assistant ID
 const assistantsEnhancer = createAssistantsEnhancer(
   process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
 );
-
 /**
  * getInitialAnalysis (non-streaming Gemini pass)
  */
@@ -131,7 +117,6 @@ If query seems unrelated to energy, find relevant energy sector angles.
     return '';
   }
 
-  // Build user content
   const contentParts: any[] = [
     {
       type: 'text',
@@ -139,7 +124,6 @@ If query seems unrelated to energy, find relevant energy sector angles.
     },
   ];
 
-  // If there's a file, attach as file part
   if (fileBuffer) {
     console.log('[getInitialAnalysis] Attaching file part');
     contentParts.push({
@@ -174,7 +158,7 @@ If query seems unrelated to energy, find relevant energy sector angles.
 }
 
 /**
- * aggregator => aggregator.enhance(...)
+ * enhanceContext using aggregator
  */
 async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
@@ -189,11 +173,11 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
 }
 
 /**
- * 3) POST => Rate-limit + multi-pass + streaming
+ * POST Handler
  */
 export async function POST(request: Request) {
   console.log('[POST] Enter => /api/chat');
-  // 1. Auth
+  // Auth check
   const session = await auth();
   if (!session?.user?.id) {
     console.log('[POST] Unauthorized => 401');
@@ -201,13 +185,13 @@ export async function POST(request: Request) {
   }
   console.log('[POST] userId =', session.user.id);
 
-  // 2. Rate limit
+  // Rate limit check
   if (!rateLimiter(session.user.id)) {
     console.log('[POST] rate-limit => 429');
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  // 3. Parse JSON or FormData
+  // Parse request body
   console.log('[POST] Checking content-type =>', request.headers.get('content-type'));
 
   let id = '';
@@ -259,15 +243,14 @@ export async function POST(request: Request) {
       return new Response('Invalid form data', { status: 400 });
     }
   }
-
-  // 4. Validate user message
+  // Validate user message
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
     console.log('[POST] no user message => 400');
     return new Response('No user message found', { status: 400 });
   }
 
-  // 5. Check or create chat
+  // Check or create chat
   console.log('[POST] checking chat =>', id);
   const chat = await getChatById({ id });
   if (!chat) {
@@ -276,13 +259,13 @@ export async function POST(request: Request) {
     await saveChat({ id, userId: session.user.id, title });
   }
 
-  // 6. Save user's new message
+  // Save user's new message
   console.log('[POST] saving user message => DB');
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
 
-  // 7. Possibly read file
+  // Read file if present
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
@@ -300,24 +283,24 @@ export async function POST(request: Request) {
     },
     execute: async (dataStream) => {
       try {
-        // Step A: Gemini non-streaming
+        // Initial state
+        dataStream.writeData('workflow_stage:initial');
+        
+        // Step A: Gemini analysis
         console.log('[EXECUTE] Step A => getInitialAnalysis');
-        dataStream.writeData('initializing_analysis');
+        dataStream.writeData('workflow_stage:analysis');
         const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
         console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
-        // Step B: aggregator
-        console.log('[EXECUTE] Step B => aggregator => enhanceContext');
-        dataStream.writeData('enhancing_context');
+        // Step B: Context enhancement
+        console.log('[EXECUTE] Step B => enhanceContext');
+        dataStream.writeData('workflow_stage:enhancing');
         const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log(
-          '[EXECUTE] enhancedContext => first 100 chars:',
-          enhancedContext.slice(0, 100)
-        );
+        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
-        // Step C: final streaming pass
+        // Step C: Final streaming
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-        dataStream.writeData('starting_stream');
+        dataStream.writeData('workflow_stage:refining');
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         try {
@@ -342,6 +325,10 @@ export async function POST(request: Request) {
             },
             onChunk: async (event) => {
               const { chunk } = event;
+
+              if (chunk.type === 'text-delta' && chunk.textDelta.trim()) {
+                dataStream.writeData('workflow_stage:complete');
+              }
 
               switch (chunk.type) {
                 case 'text-delta':
@@ -389,21 +376,19 @@ export async function POST(request: Request) {
             },
           });
 
-          // IMPORTANT: changed from "return result.toDataStreamResponse(...)" to "await mergeIntoDataStream(...)"
           await result.mergeIntoDataStream(dataStream, {
             sendReasoning: true,
             sendSources: true,
           });
-          dataStream.writeData('stream_complete');
-
+          
         } catch (streamError) {
           console.error('[EXECUTE:stream] Error during streaming:', streamError);
-          dataStream.writeData('stream_error');
+          dataStream.writeData('workflow_stage:error');
 
           // Attempt fallback
           try {
             console.log('[EXECUTE] Attempting fallback response');
-            dataStream.writeData('attempting_fallback');
+            dataStream.writeData('workflow_stage:refining');
 
             const fallbackResult = streamText({
               model: finalModel,
@@ -418,19 +403,17 @@ export async function POST(request: Request) {
             await fallbackResult.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
               sendSources: true,
-              sendUsage: true,
             });
 
-            dataStream.writeData('fallback_complete');
           } catch (fallbackError) {
             console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
-            dataStream.writeData('fallback_failed');
+            dataStream.writeData('workflow_stage:error');
             throw fallbackError;
           }
         }
       } catch (err) {
         console.error('[EXECUTE] Error during processing:', err);
-        dataStream.writeData('processing_error');
+        dataStream.writeData('workflow_stage:error');
         throw err;
       }
     },
@@ -442,7 +425,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * DELETE handler
+ * DELETE Handler
  */
 export async function DELETE(request: Request) {
   console.log('[DELETE] => /api/chat');
