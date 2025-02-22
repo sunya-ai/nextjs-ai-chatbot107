@@ -46,6 +46,7 @@
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.1",
+    "compromise": "^14.7.0", // Added for better company name detection in chat markdown
     "date-fns": "^4.1.0",
     "diff-match-patch": "^1.0.5",
     "dotenv": "^16.4.5",
@@ -54,6 +55,9 @@
     "framer-motion": "^11.3.19",
     "geist": "^1.3.1",
     "lucide-react": "^0.446.0",
+    "@handsontable/react": "^14.1.0", // For spreadsheets
+    "handsontable": "^14.1.0",
+    "markdown-it": "^13.0.2", // Added for markdown parsing in chat
     "nanoid": "^5.0.8",
     "next": "15.0.3-canary.2",
     "next-auth": "5.0.0-beta.25",
@@ -75,6 +79,7 @@
     "react-dom": "19.0.0-rc-45804af1-20241021",
     "react-markdown": "^9.0.1",
     "react-resizable-panels": "^2.1.7",
+    "recharts": "^2.12.7", // Added for charts
     "remark-gfm": "^4.0.0",
     "server-only": "^0.0.1",
     "sonner": "^1.5.0",
