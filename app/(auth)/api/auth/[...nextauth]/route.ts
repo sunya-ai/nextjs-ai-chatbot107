@@ -1,5 +1,4 @@
-import NextAuth from 'next-auth';
-import type { NextAuthConfig } from 'next-auth'; // Changed import for NextAuthOptions
+import NextAuth, { NextAuthConfig } from 'next-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { user } from '@/lib/db/schema';
@@ -11,6 +10,7 @@ const authOptions: NextAuthConfig = {
     {
       id: 'credentials',
       name: 'Credentials',
+      type: 'credentials', // Added required 'type' property for CredentialsProvider
       credentials: {
         email: { label: 'Email', type: 'text' },
         password: { label: 'Password', type: 'password' },
