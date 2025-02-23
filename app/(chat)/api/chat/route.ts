@@ -450,7 +450,7 @@ export async function POST(request: Request) {
                     rehypePlugins: [rehypeHighlight, rehypeRaw],
                   });
 
-                  // Ensure the message conforms to ResponseMessage type, storing custom data separately
+                  // Ensure the message conforms to ResponseMessage type, storing custom data in metadata
                   const lastMessageIndex = response.messages.length - 1;
                   const sanitizedMessages = sanitizeResponseMessages({
                     messages: response.messages.map((m, index) => {
@@ -462,14 +462,13 @@ export async function POST(request: Request) {
                           role: m.role, // Ensure role matches (e.g., "assistant" or "tool")
                           id: m.id,
                         };
-                        // Store sources and reasoning separately (e.g., in a custom property or database)
                         return baseMessage;
                       }
                       return m as ResponseMessage;
                     }),
                   });
 
-                  // Save messages with custom data
+                  // Save messages with custom data in metadata
                   await saveMessages({
                     messages: sanitizedMessages.map((message) => ({
                       id: message.id,
@@ -477,11 +476,10 @@ export async function POST(request: Request) {
                       role: message.role,
                       content: message.content, // Store MDX string (function body) for DB
                       createdAt: new Date(),
-                      // Optionally store sources and reasoning in a separate property or table
                       metadata: JSON.stringify({
                         sources: [...new Set(sources)],
                         reasoning: reasoning,
-                      }),
+                      }), // Store sources and reasoning in JSON
                     })),
                   });
                 } catch (error) {
