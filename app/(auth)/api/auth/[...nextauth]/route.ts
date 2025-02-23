@@ -1,11 +1,11 @@
-import NextAuth from 'next-auth';
+import NextAuth, { NextAuthOptions } from 'next-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-// Define authOptions with CredentialsProvider
-const authOptions = {
+// Define authOptions with proper NextAuthOptions type
+const authOptions: NextAuthOptions = {
   providers: [
     {
       id: 'credentials',
@@ -28,14 +28,21 @@ const authOptions = {
   pages: { signIn: '/auth/signin' }, // Optional: Customize sign-in page if needed
 };
 
-// Create a handler using NextAuth with the config
+// Create a typed handler using NextAuth
 const handler = NextAuth(authOptions);
 
-// Export GET and POST handlers for Next.js App Router
-export async function GET(req: NextRequest) {
-  return handler(req);
+// Export GET and POST handlers with proper typing for Next.js App Router
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  return await handler(request);
 }
 
-export async function POST(req: NextRequest) {
-  return handler(req);
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  return await handler(request);
 }
+
+// Optional: Add config for Route if needed (e.g., body parser)
+export const config = {
+  api: {
+    bodyParser: false, // Ensure NextAuth handles request bodies correctly
+  },
+};
