@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
+// Define authOptions with CredentialsProvider
 const authOptions = {
   providers: [
     {
@@ -26,6 +27,13 @@ const authOptions = {
   pages: { signIn: '/auth/signin' }, // Optional: Customize sign-in page if needed
 };
 
-const handler = NextAuth(authOptions);
+// Export NextAuth handlers for App Router
+export { default as GET } from 'next-auth';
+export { default as POST } from 'next-auth';
 
-export { handler as GET, handler as POST };
+// Configure NextAuth with authOptions for the Route
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
