@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import React, { memo } from 'react';
-import { MDXContent } from '@mdx-js/react'; // Updated to MDXContent
+import React, { memo, useMemo } from 'react';
+import { MDXProvider } from '@mdx-js/react'; // Use MDXProvider instead of MDXContent
 import { compile } from '@mdx-js/mdx'; // For MDX compilation
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight'; // For code highlighting
@@ -210,9 +210,12 @@ const NonMemoizedMarkdown = async ({ children: initialContent }: { children: str
   const sources = collectSources(initialContent);
   const mdxContent = await compileMDX(initialContent);
 
+  // Use MDXProvider to render MDX content
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
-      <MDXContent components={components}>{mdxContent}</MDXContent>
+      <MDXProvider components={components}>
+        <MDXContent>{mdxContent}</MDXContent>
+      </MDXProvider>
       <SourcePreview sources={sources} />
     </div>
   );
