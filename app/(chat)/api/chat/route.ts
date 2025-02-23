@@ -31,7 +31,7 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
-import { compile } from '@mdx-js/mdx'; // Updated to use compile instead of serialize
+import { compile } from '@mdx-js/mdx'; // Updated to use compile for MDX
 import remarkGfm from 'remark-gfm'; // For GitHub-flavored Markdown
 import rehypeHighlight from 'rehype-highlight'; // For code highlighting
 import rehypeRaw from 'rehype-raw'; // For raw HTML in MDX
@@ -395,8 +395,18 @@ export async function POST(request: Request) {
               if (session.user?.id) {
                 try {
                   let content = response.messages[response.messages.length - 1]?.content || '';
+                  let contentString: string;
+                  if (typeof content === 'string') {
+                    contentString = content;
+                  } else if (Array.isArray(content)) {
+                    // Handle array of parts (e.g., TextPart or ToolCallPart)
+                    contentString = content.map(part => ('text' in part ? part.text : '')).join('');
+                  } else {
+                    contentString = ''; // Fallback for unexpected types
+                  }
+
                   const md = new markdownIt();
-                  const tokens = md.parse(content, {});
+                  const tokens = md.parse(contentString, {});
                   const companyNames = [];
                   const sources: { id: string; url: string }[] = [];
 
@@ -428,12 +438,12 @@ export async function POST(request: Request) {
 
                   for (const [company, logoUrl] of Object.entries(logoMap)) {
                     if (logoUrl !== 'unknown') {
-                      content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
+                      contentString = contentString.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
                     }
                   }
 
                   // Compile to MDX for best Markdown rendering
-                  const compiledMdx = await compile(content, {
+                  const compiledMdx = await compile(contentString, {
                     outputFormat: 'function-body',
                     remarkPlugins: [remarkGfm],
                     rehypePlugins: [rehypeHighlight, rehypeRaw],
