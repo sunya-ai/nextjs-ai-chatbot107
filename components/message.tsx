@@ -45,6 +45,7 @@ const PurePreviewMessage = ({
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const { theme } = useTheme();
+  const [renderedContent, setRenderedContent] = useState<string | null>(null);
 
   // Parse Clearbit logos from content (assumes markdown links like [Company](logo:https://logo.clearbit.com/domain))
   const parseLogos = useCallback((text: string) => {
@@ -54,12 +55,12 @@ const PurePreviewMessage = ({
     });
   }, []);
 
-  // Serialize content for MDX if needed (optional, based on route.ts output)
-  const [renderedContent, setRenderedContent] = useState<string>(typeof message.content === 'string' ? parseLogos(message.content) : '');
-
   useEffect(() => {
     if (typeof message.content === 'string') {
-      setRenderedContent(parseLogos(message.content));
+      const contentWithLogos = parseLogos(message.content);
+      setRenderedContent(contentWithLogos);
+    } else {
+      setRenderedContent(null); // Handle non-string content (e.g., MDX object)
     }
   }, [message.content, parseLogos]);
 
@@ -121,7 +122,11 @@ const PurePreviewMessage = ({
                     'bg-primary text-primary-foreground px-3 py-2 rounded-xl': message.role === 'user',
                   })}
                 >
-                  <Markdown>{renderedContent}</Markdown>
+                  {renderedContent ? (
+                    <Markdown>{renderedContent}</Markdown>
+                  ) : (
+                    <div>Loading content...</div> // Fallback while content loads
+                  )}
                 </div>
               </div>
             )}
