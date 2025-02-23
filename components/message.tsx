@@ -4,11 +4,11 @@ import type React from 'react';
 import type { ChatRequestOptions, Message } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useState } from 'react';
+import { memo, useState, useEffect, useCallback } from 'react';
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
 import { PencilEditIcon, SparklesIcon } from './icons';
-import { Markdown } from './markdown'; // Your updated Markdown component
+import { Markdown } from './markdown'; // Updated to MDX version
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
@@ -47,14 +47,21 @@ const PurePreviewMessage = ({
   const { theme } = useTheme();
 
   // Parse Clearbit logos from content (assumes markdown links like [Company](logo:https://logo.clearbit.com/domain))
-  const parseLogos = (text: string) => {
+  const parseLogos = useCallback((text: string) => {
     const logoRegex = /\[([^\]]+)\]\(logo:([^)]+)\)/g;
     return text.replace(logoRegex, (match, company, logoUrl) => {
       return `<img src="${logoUrl}" alt="${company} logo" className="inline h-6 w-auto mr-2" />${company}`;
     });
-  };
+  }, []);
 
-  const renderedContent = typeof message.content === 'string' ? parseLogos(message.content) : message.content;
+  // Serialize content for MDX if needed (optional, based on route.ts output)
+  const [renderedContent, setRenderedContent] = useState<string>(typeof message.content === 'string' ? parseLogos(message.content) : '');
+
+  useEffect(() => {
+    if (typeof message.content === 'string') {
+      setRenderedContent(parseLogos(message.content));
+    }
+  }, [message.content, parseLogos]);
 
   return (
     <AnimatePresence>
@@ -76,7 +83,7 @@ const PurePreviewMessage = ({
           {message.role === 'assistant' && (
             <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
               <div className="translate-y-px">
-                <SparklesIcon className="size-3" /> {/* Updated to size-3 */}
+                <SparklesIcon size={12} /> {/* Use size prop */}
               </div>
             </div>
           )}
@@ -102,7 +109,7 @@ const PurePreviewMessage = ({
                         className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
                         onClick={() => setMode('edit')}
                       >
-                        <PencilEditIcon className="size-3" /> {/* Updated to size-3 */}
+                        <PencilEditIcon size={12} /> {/* Use size prop */}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Edit message</TooltipContent>
@@ -236,7 +243,7 @@ export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage
         )}
       >
         <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-          <SparklesIcon className="size-3" /> {/* Updated to size-3 */}
+          <SparklesIcon size={12} /> {/* Use size prop */}
         </div>
 
         <div className="flex flex-col gap-2 w-full">
