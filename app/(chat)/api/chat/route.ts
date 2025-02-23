@@ -2,7 +2,8 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { type Message, createDataStreamResponse, smoothStream, streamText } from 'ai';
 import { NextResponse } from 'next/server';
-import auth from 'next-auth'; // Changed to default import
+import { getServerSession } from 'next-auth'; // Use getServerSession for compatibility
+import { authOptions } from '@/app/(auth)/api/auth/[...nextauth]/route'; // Import authOptions from your auth file
 import { systemPrompt } from '@/lib/ai/prompts';
 import { deleteChatById, getChatById, saveChat, saveMessages } from '@/lib/db/queries';
 import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
@@ -62,7 +63,12 @@ function isFollowUp(messages: Message[]): boolean {
   const prevMessage = messages[messages.length - 2];
   if (!prevMessage || prevMessage.role !== 'assistant') return false;
   const content = userMessage.content.toLowerCase();
-  return content.includes('this') || content.includes('that') || content.includes('more') || content.match(/^\w+$/);
+  return (
+    content.includes('this') ||
+    content.includes('that') ||
+    content.includes('more') ||
+    !!content.match(/^\w+$/) // Ensure match returns boolean
+  );
 }
 
 const assistantsEnhancer = createAssistantsEnhancer(process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id');
@@ -134,8 +140,8 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
 export async function POST(request: Request) {
   console.log('[POST] /api/chat started');
 
-  // Use NextAuth's auth() to get session
-  const session = await auth();
+  // Use getServerSession for authentication
+  const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     console.log('[POST] Unauthorized');
     return new Response('Unauthorized', { status: 401 });
@@ -323,8 +329,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   console.log('[DELETE] /api/chat started');
 
-  // Use NextAuth's auth() for session
-  const session = await auth();
+  // Use getServerSession for authentication
+  const session = await getServerSession(authOptions);
   if (!session?.user) {
     console.log('[DELETE] Unauthorized');
     return new Response('Unauthorized', { status: 401 });
