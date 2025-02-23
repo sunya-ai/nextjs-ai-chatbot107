@@ -1,5 +1,6 @@
 import {
   type Message, // Use the exported Message type
+  type CoreAssistantMessage, // Import CoreAssistantMessage for type safety
   createDataStreamResponse,
   smoothStream,
   streamText,
@@ -298,7 +299,7 @@ export async function POST(request: Request) {
 
   console.log('[POST] saving user message => DB');
   await saveMessages({
-    messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }], // Add default metadata
+    messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }],
   });
 
   let fileBuffer: ArrayBuffer | undefined;
@@ -449,22 +450,24 @@ export async function POST(request: Request) {
                     rehypePlugins: [rehypeHighlight, rehypeRaw],
                   });
 
-                  // Ensure the message conforms to Message type, storing custom data in metadata
+                  // Ensure the message conforms to ResponseMessage type, filtering for assistant messages
                   const lastMessageIndex = response.messages.length - 1;
                   const sanitizedMessages = sanitizeResponseMessages({
-                    messages: response.messages.map((m, index) => {
-                      if (index === lastMessageIndex) {
-                        // Create a Message that matches the SDK type, preserving only SDK-required fields
-                        const baseMessage: Message = {
-                          ...m,
-                          content: compiledMdx.toString(), // Update content with MDX
-                          role: m.role, // Ensure role matches (e.g., "assistant" or "tool")
-                          id: m.id,
-                        };
-                        return baseMessage;
-                      }
-                      return m as Message;
-                    }),
+                    messages: response.messages
+                      .filter(m => m.role === 'assistant') // Filter to only assistant messages
+                      .map((m, index) => {
+                        if (index === response.messages.filter(mm => mm.role === 'assistant').length - 1) {
+                          // Create a ResponseMessage for the last assistant message
+                          const baseMessage: CoreAssistantMessage & { id: string } = {
+                            ...m,
+                            content: compiledMdx.toString(), // Update content with MDX
+                            role: 'assistant', // Explicitly set role to "assistant"
+                            id: m.id,
+                          };
+                          return baseMessage;
+                        }
+                        return m as CoreAssistantMessage & { id: string }; // Ensure type safety
+                      }),
                   });
 
                   // Save messages with custom data in metadata
