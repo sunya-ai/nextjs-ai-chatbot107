@@ -2,7 +2,7 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { type Message, createDataStreamResponse, smoothStream, streamText } from 'ai';
 import { NextResponse } from 'next/server';
-import { auth } from 'next-auth'; // Use NextAuth's auth() for sessions
+import auth from 'next-auth'; // Changed to default import
 import { systemPrompt } from '@/lib/ai/prompts';
 import { deleteChatById, getChatById, saveChat, saveMessages } from '@/lib/db/queries';
 import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
