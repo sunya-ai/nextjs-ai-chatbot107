@@ -24,9 +24,9 @@ import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
-import { inferDomains } from '@/lib/ai/tools/infer-domains'; // For Clearbit logos
+import { inferDomains } from '@/lib/ai/tools/infer-domains';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
-import { google } from '@ai-sdk/google'; // Named import for callable functionality
+import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
@@ -135,12 +135,12 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
   }
 
   try {
-    const result = await streamText({
+    // Await the streamText call directly; it now returns a string.
+    const text = await streamText({
       model: google('gemini-2.0-flash'),
       system: initialAnalysisPrompt,
       messages: [{ role: 'user', content: contentParts }],
     });
-    const text = await result.text();
     console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
     return text;
   } catch (error) {
@@ -281,7 +281,7 @@ export async function POST(request: Request) {
         } else if (selectedChatModel === 'chat-model-reasoning') {
           finalModel = myProvider.languageModel('chat-model-reasoning');
         } else {
-          finalModel = myProvider.languageModel(selectedChatModel) || google('gemini-2.0-flash'); // Fallback to Gemini Flash
+          finalModel = myProvider.languageModel(selectedChatModel) || google('gemini-2.0-flash');
         }
 
         let isFirstContent = true;
