@@ -1,51 +1,19 @@
-import { 
-  type Message,
-  createDataStreamResponse,
-  smoothStream,
-  streamText,
-  generateText,
-} from 'ai';
-import { NextResponse } from 'next/server';
-
-import { auth } from '@/app/(auth)/auth';
-import { myProvider } from '@/lib/ai/models';
-import { systemPrompt } from '@/lib/ai/prompts';
-import {
-  deleteChatById,
-  getChatById,
-  saveChat,
-  saveMessages,
-} from '@/lib/db/queries';
-import {
-  generateUUID,
-  getMostRecentUserMessage,
-  sanitizeResponseMessages,
-} from '@/lib/utils';
-
-import { generateTitleFromUserMessage } from '../../actions';
-import { createDocument } from '@/lib/ai/tools/create-document';
-import { updateDocument } from '@/lib/ai/tools/update-document';
-import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
-import { getWeather } from '@/lib/ai/tools/get-weather';
-
 import { google } from '@ai-sdk/google';
+import { type Message, createDataStreamResponse, smoothStream, streamText } from 'ai';
+import { NextResponse } from 'next/server';
+import { auth } from '@/app/(auth)/auth';
+import { openai } from '@ai-sdk/openai';
+import { systemPrompt } from '@/lib/ai/prompts';
+import { deleteChatById, getChatById, saveChat, saveMessages, getMessagesByChatId } from '@/lib/db/queries';
+import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
+import { generateTitleFromUserMessage } from '../../actions';
+import { createDocument, updateDocument, requestSuggestions, getWeather, fetch_energy_deals } from '@/lib/ai/tools';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
+import { inferDomains } from '@/lib/ai/tools'; // Use batch inference
+import markdownIt from 'markdown-it'; // For markdown parsing
+import compromise from 'compromise'; // For better company detection
 
 export const maxDuration = 240;
-
-type RateLimitInfo = {
-  shortTermCount: number;
-  shortTermResetTime: number;
-  longTermCount: number;
-  longTermResetTime: number;
-};
-
-const requestsMap = new Map<string, RateLimitInfo>();
-
-const SHORT_MAX_REQUESTS = 50;
-const SHORT_WINDOW_TIME = 2 * 60 * 60_000;
-const LONG_MAX_REQUESTS = 100;
-const LONG_WINDOW_TIME = 12 * 60 * 60_000;
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
@@ -54,29 +22,23 @@ function rateLimiter(userId: string): boolean {
   if (!userData) {
     userData = {
       shortTermCount: 0,
-      shortTermResetTime: now + SHORT_WINDOW_TIME,
+      shortTermResetTime: now + 2 * 60 * 60_000, // 2 hours
       longTermCount: 0,
-      longTermResetTime: now + LONG_WINDOW_TIME,
+      longTermResetTime: now + 12 * 60 * 60_000, // 12 hours
     };
   }
 
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
-    userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
+    userData.shortTermResetTime = now + 2 * 60 * 60_000;
   }
-  if (userData.shortTermCount >= SHORT_MAX_REQUESTS) {
-    console.log('[rateLimiter] Over short-term limit for user:', userId);
-    return false;
-  }
+  if (userData.shortTermCount >= 50) return false;
 
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
-    userData.longTermResetTime = now + LONG_WINDOW_TIME;
+    userData.longTermResetTime = now + 12 * 60 * 60_000;
   }
-  if (userData.longTermCount >= LONG_MAX_REQUESTS) {
-    console.log('[rateLimiter] Over long-term limit for user:', userId);
-    return false;
-  }
+  if (userData.longTermCount >= 100) return false;
 
   userData.shortTermCount++;
   userData.longTermCount++;
@@ -84,26 +46,42 @@ function rateLimiter(userId: string): boolean {
   return true;
 }
 
-const assistantsEnhancer = createAssistantsEnhancer(
-  process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
-);
-async function getInitialAnalysis(
-  messages: Message[],
-  fileBuffer?: ArrayBuffer,
-  fileMime?: string
-): Promise<string> {
-  console.log('[getInitialAnalysis] Start');
+const requestsMap = new Map<string, {
+  shortTermCount: number;
+  shortTermResetTime: number;
+  longTermCount: number;
+  longTermResetTime: number;
+}>();
+
+function isFollowUp(messages: Message[]): boolean {
+  const userMessage = getMostRecentUserMessage(messages);
+  if (!userMessage) return false;
+  const prevMessage = messages[messages.length - 2];
+  if (!prevMessage || prevMessage.role !== 'assistant') return false;
+  const content = userMessage.content.toLowerCase();
+  return content.includes('this') || content.includes('that') || content.includes('more') || content.match(/^\w+$/);
+}
+
+const assistantsEnhancer = createAssistantsEnhancer(process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id');
+
+async function getInitialAnalysis(messages: Message[], fileBuffer?: ArrayBuffer, fileMime?: string): Promise<string> {
+  console.log('[getInitialAnalysis] Start with Gemini Flash 2.0 (internal)');
 
   const initialAnalysisPrompt = `
-You are an energy research query refiner. Reframe each query to optimize for search results.
+You are an energy research query refiner. Process any uploaded PDF or document and reframe each query to optimize for energy sector search results.
+
+If a file is provided, extract key text (max 10,000 characters) and summarize:
+- Identify energy transactions (e.g., solar M&A, oil trends, geothermal deals).
+- Extract dates, companies, amounts, and deal types.
 
 Format your response as:
 Original: [user's exact question]
+File Summary: [brief summary of file content, if any]
 Refined: [reframed query optimized for energy sector search]
 Terms: [3-5 key energy industry search terms]
 
-Keep it brief and search-focused.
-If query seems unrelated to energy, find relevant energy sector angles.
+Keep it brief, search-focused, and exclude file content from long-term storage (use only for analysis, not streamed to user).
+If query/file seems unrelated to energy, find relevant energy sector angles.
 `;
 
   const userMessage = getMostRecentUserMessage(messages);
@@ -120,18 +98,18 @@ If query seems unrelated to energy, find relevant energy sector angles.
   ];
 
   if (fileBuffer) {
-    console.log('[getInitialAnalysis] Attaching file part');
+    console.log('[getInitialAnalysis] Attaching file part, mime:', fileMime);
     contentParts.push({
       type: 'file',
       data: fileBuffer,
-      mimeType: fileMime || 'application/octet-stream',
+      mimeType: fileMime || 'application/pdf',
     });
   }
 
   try {
-    console.log('[getInitialAnalysis] Using generateText => gemini-2.0-flash');
+    console.log('[getInitialAnalysis] Using generateText => gemini-2.0-flash-02 (internal)');
     const { text } = await generateText({
-      model: google('gemini-2.0-flash', {
+      model: google('gemini-2.0-flash-02', {
         useSearchGrounding: true,
         structuredOutputs: false,
       }),
@@ -144,10 +122,10 @@ If query seems unrelated to energy, find relevant energy sector angles.
       ],
     });
 
-    console.log('[getInitialAnalysis] Gemini success');
+    console.log('[getInitialAnalysis] Gemini Flash 2.0 success (internal), text length:', text?.length || 0);
     return text;
   } catch (error) {
-    console.error('[getInitialAnalysis] Gemini error =>', error);
+    console.error('[getInitialAnalysis] Gemini Flash 2.0 error =>', error);
     throw error;
   }
 }
@@ -156,7 +134,7 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   console.log('[enhanceContext] Start');
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
-    console.log('[enhanceContext] aggregator success => got enhancedContext');
+    console.log('[enhanceContext] OpenAI/Perplexity success => got enhancedContext');
     return enhancedContext;
   } catch (err) {
     console.error('[enhanceContext] error =>', err);
@@ -182,16 +160,16 @@ export async function POST(request: Request) {
 
   let id = '';
   let messages: Message[] = [];
-  let selectedChatModel = 'default-model';
+  let selectedChatModel = 'openai(\'gpt-4o\')'; // Default to Vercel AI Chatbot model for compatibility
   let file: File | null = null;
 
   if (request.headers.get('content-type')?.includes('application/json')) {
     console.log('[POST] => Found JSON body');
     try {
       const json = await request.json();
-      id = json.id;
-      messages = json.messages;
-      selectedChatModel = json.selectedChatModel || 'default-model';
+      id = json.id || '';
+      messages = json.messages || [];
+      selectedChatModel = json.selectedChatModel || 'openai(\'gpt-4o\')'; // Default updated
 
       console.log('[POST] JSON parse =>', {
         id,
@@ -207,8 +185,8 @@ export async function POST(request: Request) {
     try {
       const formData = await request.formData();
       id = formData.get('id')?.toString() || '';
-      const messagesStr = formData.get('messages')?.toString() || '';
-      selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
+      const messagesStr = formData.get('messages')?.toString() || '[]';
+      selectedChatModel = formData.get('selectedChatModel')?.toString() || 'openai(\'gpt-4o\')'; // Default updated
       file = formData.get('file') as File | null;
 
       console.log('[POST] formData =>', {
@@ -229,7 +207,8 @@ export async function POST(request: Request) {
       return new Response('Invalid form data', { status: 400 });
     }
   }
-const userMessage = getMostRecentUserMessage(messages);
+
+  const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) {
     console.log('[POST] no user message => 400');
     return new Response('No user message found', { status: 400 });
@@ -244,9 +223,7 @@ const userMessage = getMostRecentUserMessage(messages);
   }
 
   console.log('[POST] saving user message => DB');
-  await saveMessages({
-    messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
-  });
+  await saveMessages({ messages: [{ ...userMessage, createdAt: new Date(), chatId: id }] });
 
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
@@ -255,6 +232,8 @@ const userMessage = getMostRecentUserMessage(messages);
     fileBuffer = await file.arrayBuffer();
     fileMime = file.type;
   }
+
+  let cachedContext = '';
 
   console.log('[POST] => createDataStreamResponse => multi-pass');
   return createDataStreamResponse({
@@ -265,18 +244,28 @@ const userMessage = getMostRecentUserMessage(messages);
     },
     execute: async (dataStream) => {
       try {
-        console.log('[EXECUTE] Step A => getInitialAnalysis');
-        const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-        console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
+        const isFollowUpQuery = isFollowUp(messages);
+        console.log('[EXECUTE] Is follow-up:', isFollowUpQuery);
 
-        console.log('[EXECUTE] Step B => enhanceContext');
-        const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
+        let initialAnalysis = '';
+        let enhancedContext = '';
+
+        if (isFollowUpQuery && cachedContext) {
+          console.log('[EXECUTE] Using cached context for follow-up');
+          initialAnalysis = `Follow-up: ${userMessage.content}\nPrior Context: ${cachedContext.slice(0, 1000)}`;
+          enhancedContext = cachedContext; // Skip Gemini and assistants.ts
+        } else {
+          console.log('[EXECUTE] Full analysis for new query');
+          initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
+          enhancedContext = await enhanceContext(initialAnalysis);
+          cachedContext = enhancedContext; // Cache for follow-ups
+        }
 
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
         const finalModel = myProvider.languageModel(selectedChatModel);
 
         let isFirstContent = true;
+        let reasoningStarted = false;
 
         try {
           const result = streamText({
@@ -287,9 +276,9 @@ const userMessage = getMostRecentUserMessage(messages);
             experimental_activeTools:
               selectedChatModel === 'chat-model-reasoning'
                 ? []
-                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions', 'fetch_energy_deals'],
             experimental_transform: smoothStream({
-              chunking: 'word',
+              chunking: 'sentence', // Faster, v0-like
             }),
             experimental_generateMessageId: generateUUID,
             tools: {
@@ -297,48 +286,109 @@ const userMessage = getMostRecentUserMessage(messages);
               createDocument: createDocument({ session, dataStream }),
               updateDocument: updateDocument({ session, dataStream }),
               requestSuggestions: requestSuggestions({ session, dataStream }),
+              fetch_energy_deals: {
+                description: 'Retrieve latest energy transaction deals (e.g., solar, oil, geothermal) from RAG database',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    query: { type: 'string', description: 'Energy sector or deal type (e.g., solar M&A, geothermal fundraising)' },
+                    limit: { type: 'number', default: 5 },
+                  },
+                },
+                execute: async ({ query, limit = 5 }) => {
+                  const queryEmbedding = await openai.embeddings.create({ input: query });
+                  const transactions = await openai.beta.vectorStores.files.search(process.env.OPENAI_VECTOR_STORE_ID, {
+                    query: queryEmbedding.data[0].embedding,
+                    limit,
+                  });
+                  return { deals: transactions.data.map(t => t.metadata) };
+                },
+              },
             },
             onChunk: async (event) => {
               const { chunk } = event;
 
               if (chunk.type === 'text-delta' && chunk.textDelta.trim() && isFirstContent) {
                 isFirstContent = false;
-                dataStream.writeData('workflow_stage:complete');
+                dataStream.writeData('workflow_stage:complete'); // Kept for potential debugging or UI
+              }
+
+              if (selectedChatModel === 'chat-model-reasoning' && chunk.type === 'reasoning') {
+                if (!reasoningStarted) {
+                  dataStream.writeMessageAnnotation({
+                    type: 'thinking',
+                    content: 'Let’s break this down…', // Grok 3-like
+                  });
+                  reasoningStarted = true;
+                }
+                dataStream.writeMessageAnnotation({
+                  type: 'reasoning',
+                  content: chunk.textDelta,
+                });
+              } else if (isLoading && !isFirstContent) {
+                dataStream.writeMessageAnnotation({
+                  type: 'progress',
+                  content: 'Analyzing energy data…', // v0-like
+                });
               }
 
               switch (chunk.type) {
-                case 'reasoning':
-                  dataStream.writeMessageAnnotation({
-                    type: 'reasoning',
-                    content: chunk.textDelta,
-                  });
-                  break;
-
                 case 'tool-call':
                 case 'tool-call-streaming-start':
                 case 'tool-call-delta':
                 case 'tool-result':
-                  // Keep thinking state during tool calls
                   break;
               }
             },
             onFinish: async ({ response, reasoning }) => {
               if (session.user?.id) {
                 try {
+                  let content = response.messages[response.messages.length - 1]?.content || '';
+                  const md = new markdownIt();
+                  const tokens = md.parse(content, {});
+                  const companyNames = [];
+
+                  tokens.forEach(token => {
+                    if (token.type === 'inline' && token.content) {
+                      const doc = compromise(token.content);
+                      const companies = doc.match('#Organization+').out('array');
+                      companyNames.push(...companies.filter(name => name.trim()));
+                    } else if (token.type === 'table_open') {
+                      const tableData = tokens
+                        .slice(tokens.indexOf(token), tokens.findIndex(t => t.type === 'table_close') + 1)
+                        .filter(t => t.type === 'inline' || t.type === 'table_cell');
+                      tableData.forEach(cell => {
+                        if (cell.content) {
+                          const doc = compromise(cell.content);
+                          const companies = doc.match('#Organization+').out('array');
+                          companyNames.push(...companies.filter(name => name.trim()));
+                        }
+                      });
+                    }
+                  });
+
+                  const uniqueCompanies = [...new Set(companyNames)];
+                  const logoMap = await inferDomains(uniqueCompanies); // Adjusted for in-memory caching
+
+                  // Replace company names with names + logos in markdown
+                  for (const [company, logoUrl] of Object.entries(logoMap)) {
+                    if (logoUrl !== 'unknown') {
+                      content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
+                    }
+                  }
+
                   const sanitizedResponseMessages = sanitizeResponseMessages({
-                    messages: response.messages,
+                    messages: response.messages.map(m => m.id === response.messages[response.messages.length - 1]?.id ? { ...m, content } : m),
                     reasoning,
                   });
 
-                  await saveMessages({
-                    messages: sanitizedResponseMessages.map((message) => ({
-                      id: message.id,
-                      chatId: id,
-                      role: message.role,
-                      content: message.content,
-                      createdAt: new Date(),
-                    })),
-                  });
+                  await saveMessages({ messages: sanitizedResponseMessages.map((message) => ({
+                    id: message.id,
+                    chatId: id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: new Date(),
+                  })) });
                 } catch (error) {
                   console.error('Failed to save chat', error);
                 }
@@ -361,7 +411,7 @@ const userMessage = getMostRecentUserMessage(messages);
               system: systemPrompt({ selectedChatModel }),
               messages,
               experimental_transform: smoothStream({
-                chunking: 'word',
+                chunking: 'sentence',
               }),
               experimental_generateMessageId: generateUUID,
             });
