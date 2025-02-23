@@ -2,7 +2,7 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { type Message, createDataStreamResponse, smoothStream, streamText } from 'ai';
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/(auth)/api/auth/[...nextauth]/route'; // Your original auth
+import { auth } from '@/app/(auth)/api/auth/[...nextauth]/route';
 import { systemPrompt } from '@/lib/ai/prompts';
 import { deleteChatById, getChatById, saveChat, saveMessages } from '@/lib/db/queries';
 import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
@@ -11,8 +11,8 @@ import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
-import { fetch_energy_deals } from '@/lib/ai/tools/fetch-energy-deals';
-import { inferDomains } from '@/lib/ai/tools/infer-domains';
+// import { fetch_energy_deals } from '@/lib/ai/tools/fetch-energy-deals'; // Temp commented
+// import { inferDomains } from '@/lib/ai/tools/infer-domains'; // Temp commented
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
@@ -132,6 +132,16 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   }
 }
 
+// Temp fallback for fetch_energy_deals
+async function fetch_energy_deals(): Promise<any> {
+  return { success: true, deals: ['Mock energy deal 1', 'Mock energy deal 2'] };
+}
+
+// Temp fallback for inferDomains
+async function inferDomains(companies: string[]): Promise<Record<string, string>> {
+  return companies.reduce((acc, company) => ({ ...acc, [company]: 'unknown' }), {});
+}
+
 export async function POST(request: Request) {
   console.log('[POST] /api/chat started');
   const session = await auth();
@@ -147,19 +157,19 @@ export async function POST(request: Request) {
 
   let id = '';
   let messages: Message[] = [];
-  let selectedChatModel: string | undefined; // No default, rely on client
+  let selectedChatModel: string | undefined;
   let file: File | null = null;
 
   if (request.headers.get('content-type')?.includes('application/json')) {
     const json = await request.json();
     id = json.id || '';
     messages = json.messages || [];
-    selectedChatModel = json.selectedChatModel; // Could be undefined
+    selectedChatModel = json.selectedChatModel;
   } else {
     const formData = await request.formData();
     id = formData.get('id')?.toString() || '';
     const messagesStr = formData.get('messages')?.toString() || '[]';
-    selectedChatModel = formData.get('selectedChatModel')?.toString(); // Could be undefined
+    selectedChatModel = formData.get('selectedChatModel')?.toString();
     file = formData.get('file') as File | null;
     messages = JSON.parse(messagesStr);
   }
@@ -170,7 +180,6 @@ export async function POST(request: Request) {
     return new Response('No user message found', { status: 400 });
   }
 
-  // Require selectedChatModel from client since we have a separate selector
   if (!selectedChatModel) {
     console.log('[POST] No chat model selected');
     return new Response('Chat model not specified', { status: 400 });
@@ -210,7 +219,6 @@ export async function POST(request: Request) {
         cachedContext = enhancedContext;
       }
 
-      // Parse selectedChatModel dynamically
       const finalModel = selectedChatModel.startsWith('openai')
         ? openai(selectedChatModel.replace('openai("', '').replace('")', ''))
         : selectedChatModel.startsWith('google')
@@ -243,7 +251,7 @@ export async function POST(request: Request) {
           createDocument: createDocument({ session, dataStream }),
           updateDocument: updateDocument({ session, dataStream }),
           requestSuggestions: requestSuggestions({ session, dataStream }),
-          fetch_energy_deals,
+          fetch_energy_deals, // Inline fallback
         },
         onChunk: async (event) => {
           const { chunk } = event;
@@ -283,7 +291,7 @@ export async function POST(request: Request) {
           });
 
           const uniqueCompanies = [...new Set(companyNames)];
-          const logoMap = await inferDomains(uniqueCompanies);
+          const logoMap = await inferDomains(uniqueCompanies); // Inline fallback
 
           for (const [company, logoUrl] of Object.entries(logoMap)) {
             if (logoUrl !== 'unknown') {
