@@ -90,6 +90,23 @@ const assistantsEnhancer = createAssistantsEnhancer(
 );
 
 /**
+ * Helper to convert message content (which may be an array of parts) to a string.
+ */
+function convertContentToString(content: any): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item.text === 'string') return item.text;
+        return '';
+      })
+      .join('');
+  }
+  return '';
+}
+
+/**
  * For the initial analysis we use generateText (the older approach) to get a complete text result.
  */
 async function getInitialAnalysis(
@@ -326,9 +343,11 @@ export async function POST(request: Request) {
               }
             },
             onFinish: async ({ response }) => {
-              let content = response.messages[response.messages.length - 1]?.content || '';
+              // Convert content to string since it might be an array of parts.
+              const rawContent = response.messages[response.messages.length - 1]?.content || '';
+              const contentStr = convertContentToString(rawContent);
               const md = new markdownIt();
-              const tokens = md.parse(content, {});
+              const tokens = md.parse(contentStr, {});
               const companyNames: string[] = [];
 
               tokens.forEach(token => {
@@ -342,6 +361,7 @@ export async function POST(request: Request) {
               const uniqueCompanies = [...new Set(companyNames)];
               const logoMap = await inferDomains(uniqueCompanies);
 
+              let content = contentStr;
               for (const [company, logoUrl] of Object.entries(logoMap)) {
                 if (logoUrl !== 'unknown') {
                   content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
