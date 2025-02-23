@@ -11,8 +11,7 @@ import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
-// import { fetch_energy_deals } from '@/lib/ai/tools/fetch-energy-deals'; // Temp commented
-// import { inferDomains } from '@/lib/ai/tools/infer-domains'; // Temp commented
+import { inferDomains } from '@/lib/ai/tools/infer-domains';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
@@ -132,16 +131,6 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   }
 }
 
-// Temp fallback for fetch_energy_deals
-async function fetch_energy_deals(): Promise<any> {
-  return { success: true, deals: ['Mock energy deal 1', 'Mock energy deal 2'] };
-}
-
-// Temp fallback for inferDomains
-async function inferDomains(companies: string[]): Promise<Record<string, string>> {
-  return companies.reduce((acc, company) => ({ ...acc, [company]: 'unknown' }), {});
-}
-
 export async function POST(request: Request) {
   console.log('[POST] /api/chat started');
   const session = await auth();
@@ -242,7 +231,6 @@ export async function POST(request: Request) {
           'createDocument',
           'updateDocument',
           'requestSuggestions',
-          'fetch_energy_deals',
         ],
         experimental_transform: smoothStream({ chunking: 'sentence' }),
         experimental_generateMessageId: generateUUID,
@@ -251,7 +239,6 @@ export async function POST(request: Request) {
           createDocument: createDocument({ session, dataStream }),
           updateDocument: updateDocument({ session, dataStream }),
           requestSuggestions: requestSuggestions({ session, dataStream }),
-          fetch_energy_deals, // Inline fallback
         },
         onChunk: async (event) => {
           const { chunk } = event;
@@ -291,7 +278,7 @@ export async function POST(request: Request) {
           });
 
           const uniqueCompanies = [...new Set(companyNames)];
-          const logoMap = await inferDomains(uniqueCompanies); // Inline fallback
+          const logoMap = await inferDomains(uniqueCompanies);
 
           for (const [company, logoUrl] of Object.entries(logoMap)) {
             if (logoUrl !== 'unknown') {
