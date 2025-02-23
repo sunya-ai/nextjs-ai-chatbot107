@@ -3,6 +3,7 @@ import {
   createDataStreamResponse,
   smoothStream,
   streamText,
+  generateText,
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
@@ -88,6 +89,9 @@ const assistantsEnhancer = createAssistantsEnhancer(
   process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
 );
 
+/**
+ * For the initial analysis we now use generateText (the older approach) to get a complete text result.
+ */
 async function getInitialAnalysis(
   messages: Message[],
   fileBuffer?: ArrayBuffer,
@@ -135,9 +139,11 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
   }
 
   try {
-    // Await the streamText call directly; it now returns a string.
-    const text = await streamText({
-      model: google('gemini-2.0-flash'),
+    const { text } = await generateText({
+      model: google('gemini-2.0-flash', {
+        useSearchGrounding: true,
+        structuredOutputs: false,
+      }),
       system: initialAnalysisPrompt,
       messages: [{ role: 'user', content: contentParts }],
     });
