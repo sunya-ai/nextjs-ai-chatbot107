@@ -31,6 +31,10 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
+import { serialize } from '@mdx-js/mdx'; // For MDX serialization
+import remarkGfm from 'remark-gfm'; // For GitHub-flavored Markdown
+import rehypeHighlight from 'rehype-highlight'; // For code highlighting
+import rehypeRaw from 'rehype-raw'; // For raw HTML in MDX
 
 export const maxDuration = 240;
 
@@ -104,7 +108,7 @@ const assistantsEnhancer = createAssistantsEnhancer(
 );
 
 /**
- * Helper to convert message content (which may be an array of parts) to a string.
+ * Helper to convert message content (which may be an array of parts) to a string for MDX serialization.
  */
 function convertContentToString(content: any): string {
   if (typeof content === 'string') return content;
@@ -121,7 +125,7 @@ function convertContentToString(content: any): string {
 }
 
 /**
- * For the initial analysis we use generateText (the older approach) to get a complete text result.
+ * For the initial analysis we use generateText (the older approach) to get a complete text result, serialized as MDX.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -179,7 +183,16 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
       messages: [{ role: 'user', content: contentParts }],
     });
     console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
-    return text;
+
+    // Serialize to MDX for best Markdown rendering
+    const mdxContent = await serialize(text, {
+      mdxOptions: {
+        remarkPlugins: [remarkGfm],
+        rehypePlugins: [rehypeHighlight, rehypeRaw],
+      },
+      format: 'mdx',
+    });
+    return JSON.stringify(mdxContent); // Store as string for DB, parse in components
   } catch (error) {
     console.error('[getInitialAnalysis] Error:', error);
     throw error;
@@ -191,10 +204,19 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
     console.log('[enhanceContext] Enhanced context received');
-    return enhancedContext;
+
+    // Serialize enhanced context to MDX if it's a string
+    const mdxContent = await serialize(enhancedContext, {
+      mdxOptions: {
+        remarkPlugins: [remarkGfm],
+        rehypePlugins: [rehypeHighlight, rehypeRaw],
+      },
+      format: 'mdx',
+    });
+    return JSON.stringify(mdxContent); // Store as string for DB, parse in components
   } catch (err) {
     console.error('[enhanceContext] Error:', err);
-    return initialAnalysis; // fallback
+    return initialAnalysis; // Fallback (string or MDX JSON)
   }
 }
 
@@ -309,7 +331,16 @@ export async function POST(request: Request) {
         console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-        const finalModel = myProvider.languageModel(selectedChatModel);
+        let finalModel;
+        if (selectedChatModel.startsWith('openai')) {
+          finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
+        } else if (selectedChatModel.startsWith('google')) {
+          finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
+        } else if (selectedChatModel === 'chat-model-reasoning') {
+          finalModel = myProvider.languageModel('chat-model-reasoning');
+        } else {
+          finalModel = myProvider.languageModel(selectedChatModel) || google('gemini-2.0-flash');
+        }
 
         let isFirstContent = true;
         let reasoningStarted = false; // For Grok 3 thinking
@@ -367,17 +398,67 @@ export async function POST(request: Request) {
             onFinish: async ({ response, reasoning }) => {
               if (session.user?.id) {
                 try {
-                  const sanitizedResponseMessages = sanitizeResponseMessages({
-                    messages: response.messages,
-                    reasoning,
+                  let content = response.messages[response.messages.length - 1]?.content || '';
+                  const md = new markdownIt();
+                  const tokens = md.parse(content, {});
+                  const companyNames = [];
+                  const sources: { id: string; url: string }[] = [];
+
+                  tokens.forEach(token => {
+                    if (token.type === 'inline' && token.content) {
+                      const doc = compromise(token.content);
+                      const companies = doc.match('#Organization+').out('array');
+                      companyNames.push(...companies.filter(name => name.trim()));
+
+                      // Parse citations for sources (e.g., [1, 2])
+                      const citationRegex = /\[\d+(,\s*\d+)*\]/g;
+                      let match;
+                      while ((match = citationRegex.exec(token.content)) !== null) {
+                        const citationIds = match[0]
+                          .replace(/[\[\]]/g, '')
+                          .split(',')
+                          .map((id) => id.trim())
+                          .map(Number);
+                        citationIds.forEach((id) => {
+                          // Simulate a source URL (replace with actual logic or API call)
+                          sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
+                        });
+                      }
+                    }
+                  });
+
+                  const uniqueCompanies = [...new Set(companyNames)];
+                  const logoMap = await inferDomains(uniqueCompanies);
+
+                  for (const [company, logoUrl] of Object.entries(logoMap)) {
+                    if (logoUrl !== 'unknown') {
+                      content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
+                    }
+                  }
+
+                  // Serialize to MDX for best Markdown rendering
+                  const mdxContent = await serialize(content, {
+                    mdxOptions: {
+                      remarkPlugins: [remarkGfm],
+                      rehypePlugins: [rehypeHighlight, rehypeRaw],
+                    },
+                    format: 'mdx',
+                  });
+
+                  const sanitizedMessages = sanitizeResponseMessages({
+                    messages: response.messages.map(m => 
+                      m.id === response.messages[response.messages.length - 1]?.id 
+                        ? { ...m, content: mdxContent, sources: [...new Set(sources)], reasoning } // Pass MDX content, sources, and reasoning
+                        : m
+                    ),
                   });
 
                   await saveMessages({
-                    messages: sanitizedResponseMessages.map((message) => ({
+                    messages: sanitizedMessages.map((message) => ({
                       id: message.id,
                       chatId: id,
                       role: message.role,
-                      content: message.content,
+                      content: JSON.stringify(message.content), // Store MDX as JSON string for DB
                       createdAt: new Date(),
                     })),
                   });
