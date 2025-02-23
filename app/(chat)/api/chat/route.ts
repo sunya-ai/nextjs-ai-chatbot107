@@ -90,7 +90,7 @@ const assistantsEnhancer = createAssistantsEnhancer(
 );
 
 /**
- * For the initial analysis we now use generateText (the older approach) to get a complete text result.
+ * For the initial analysis we use generateText (the older approach) to get a complete text result.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -302,7 +302,7 @@ export async function POST(request: Request) {
               selectedChatModel === 'chat-model-reasoning'
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ chunking: 'sentence' }),
+            experimental_transform: smoothStream({ chunking: 'line' }),
             experimental_generateMessageId: generateUUID,
             tools: {
               getWeather,
@@ -385,7 +385,7 @@ export async function POST(request: Request) {
               model: finalModel,
               system: systemPrompt({ selectedChatModel }),
               messages,
-              experimental_transform: smoothStream({ chunking: 'sentence' }),
+              experimental_transform: smoothStream({ chunking: 'line' }),
               experimental_generateMessageId: generateUUID,
             });
 
