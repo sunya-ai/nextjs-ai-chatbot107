@@ -1,28 +1,30 @@
-"use client"
+'use client';
 
-import type React from "react"
+import type React from 'react';
+import type { ChatRequestOptions, Message } from 'ai';
+import cx from 'classnames';
+import { AnimatePresence, motion } from 'framer-motion';
+import { memo, useState } from 'react';
+import type { Vote } from '@/lib/db/schema';
+import { DocumentToolCall, DocumentToolResult } from './document';
+import { PencilEditIcon, SparklesIcon } from './icons';
+import { Markdown } from './markdown'; // Your updated Markdown component
+import { MessageActions } from './message-actions';
+import { PreviewAttachment } from './preview-attachment';
+import { Weather } from './weather';
+import equal from 'fast-deep-equal';
+import { cn } from '@/lib/utils';
+import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { MessageEditor } from './message-editor';
+import { DocumentPreview } from './document-preview';
+import { MessageReasoning } from './message-reasoning';
+import { useTheme } from 'next-themes'; // For theme-aware rendering
 
-import type { ChatRequestOptions, Message } from "ai"
-import cx from "classnames"
-import { AnimatePresence, motion } from "framer-motion"
-import { memo, useState } from "react"
-
-import type { Vote } from "@/lib/db/schema"
-
-import { DocumentToolCall, DocumentToolResult } from "./document"
-import { PencilEditIcon, SparklesIcon } from "./icons"
-import { Markdown } from "./markdown"
-import { MessageActions } from "./message-actions"
-import { PreviewAttachment } from "./preview-attachment"
-import { Weather } from "./weather"
-import equal from "fast-deep-equal"
-import { cn } from "@/lib/utils"
-import { Button } from "./ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
-import { MessageEditor } from "./message-editor"
-import { DocumentPreview } from "./document-preview"
-import { MessageReasoning } from "./message-reasoning"
-import { WorkflowStatus, type WorkflowFile } from "./WorkflowStatus"
+type MessageProps = Message & {
+  sources?: { id: string; url: string }[]; // For v0-style source previews
+  isThinking?: boolean; // For Grok 3 thinking state
+};
 
 const PurePreviewMessage = ({
   chatId,
@@ -33,15 +35,26 @@ const PurePreviewMessage = ({
   reload,
   isReadonly,
 }: {
-  chatId: string
-  message: Message
-  vote: Vote | undefined
-  isLoading: boolean
-  setMessages: (messages: Message[] | ((messages: Message[]) => Message[])) => void
-  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>
-  isReadonly: boolean
+  chatId: string;
+  message: MessageProps;
+  vote: Vote | undefined;
+  isLoading: boolean;
+  setMessages: (messages: Message[] | ((messages: Message[]) => Message[])) => void;
+  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
+  isReadonly: boolean;
 }) => {
-  const [mode, setMode] = useState<"view" | "edit">("view")
+  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const { theme } = useTheme();
+
+  // Parse Clearbit logos from content (assumes markdown links like [Company](logo:https://logo.clearbit.com/domain))
+  const parseLogos = (text: string) => {
+    const logoRegex = /\[([^\]]+)\]\(logo:([^)]+)\)/g;
+    return text.replace(logoRegex, (match, company, logoUrl) => {
+      return `<img src="${logoUrl}" alt="${company} logo" className="inline h-6 w-auto mr-2" />${company}`;
+    });
+  };
+
+  const renderedContent = typeof message.content === 'string' ? parseLogos(message.content) : message.content;
 
   return (
     <AnimatePresence>
@@ -53,17 +66,17 @@ const PurePreviewMessage = ({
       >
         <div
           className={cn(
-            "flex gap-4 w-full group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl",
+            'flex gap-4 w-full group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl',
             {
-              "w-full": mode === "edit",
-              "group-data-[role=user]/message:w-fit": mode !== "edit",
+              'w-full': mode === 'edit',
+              'group-data-[role=user]/message:w-fit': mode !== 'edit',
             },
           )}
         >
-          {message.role === "assistant" && (
+          {message.role === 'assistant' && (
             <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
               <div className="translate-y-px">
-                <SparklesIcon size={14} />
+                <SparklesIcon className="size-3" /> {/* Updated to size-3 */}
               </div>
             </div>
           )}
@@ -79,19 +92,17 @@ const PurePreviewMessage = ({
 
             {message.reasoning && <MessageReasoning isLoading={isLoading} reasoning={message.reasoning} />}
 
-            {(message.content || message.reasoning) && mode === "view" && (
+            {(message.content || message.reasoning) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
-                {message.role === "user" && !isReadonly && (
+                {message.role === 'user' && !isReadonly && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
-                        onClick={() => {
-                          setMode("edit")
-                        }}
+                        onClick={() => setMode('edit')}
                       >
-                        <PencilEditIcon />
+                        <PencilEditIcon className="size-3" /> {/* Updated to size-3 */}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Edit message</TooltipContent>
@@ -99,16 +110,16 @@ const PurePreviewMessage = ({
                 )}
 
                 <div
-                  className={cn("flex flex-col gap-4", {
-                    "bg-primary text-primary-foreground px-3 py-2 rounded-xl": message.role === "user",
+                  className={cn('flex flex-col gap-4', {
+                    'bg-primary text-primary-foreground px-3 py-2 rounded-xl': message.role === 'user',
                   })}
                 >
-                  <Markdown>{message.content as string}</Markdown>
+                  <Markdown>{renderedContent}</Markdown>
                 </div>
               </div>
             )}
 
-            {message.content && mode === "edit" && (
+            {message.content && mode === 'edit' && (
               <div className="flex flex-row gap-2 items-start">
                 <div className="size-8" />
 
@@ -125,45 +136,45 @@ const PurePreviewMessage = ({
             {message.toolInvocations && message.toolInvocations.length > 0 && (
               <div className="flex flex-col gap-4">
                 {message.toolInvocations.map((toolInvocation) => {
-                  const { toolName, toolCallId, state, args } = toolInvocation
+                  const { toolName, toolCallId, state, args } = toolInvocation;
 
-                  if (state === "result") {
-                    const { result } = toolInvocation
+                  if (state === 'result') {
+                    const { result } = toolInvocation;
 
                     return (
                       <div key={toolCallId}>
-                        {toolName === "getWeather" ? (
+                        {toolName === 'getWeather' ? (
                           <Weather weatherAtLocation={result} />
-                        ) : toolName === "createDocument" ? (
+                        ) : toolName === 'createDocument' ? (
                           <DocumentPreview isReadonly={isReadonly} result={result} />
-                        ) : toolName === "updateDocument" ? (
+                        ) : toolName === 'updateDocument' ? (
                           <DocumentToolResult type="update" result={result} isReadonly={isReadonly} />
-                        ) : toolName === "requestSuggestions" ? (
+                        ) : toolName === 'requestSuggestions' ? (
                           <DocumentToolResult type="request-suggestions" result={result} isReadonly={isReadonly} />
                         ) : (
                           <pre>{JSON.stringify(result, null, 2)}</pre>
                         )}
                       </div>
-                    )
+                    );
                   }
                   return (
                     <div
                       key={toolCallId}
                       className={cx({
-                        skeleton: ["getWeather"].includes(toolName),
+                        skeleton: ['getWeather'].includes(toolName),
                       })}
                     >
-                      {toolName === "getWeather" ? (
+                      {toolName === 'getWeather' ? (
                         <Weather />
-                      ) : toolName === "createDocument" ? (
+                      ) : toolName === 'createDocument' ? (
                         <DocumentPreview isReadonly={isReadonly} args={args} />
-                      ) : toolName === "updateDocument" ? (
+                      ) : toolName === 'updateDocument' ? (
                         <DocumentToolCall type="update" args={args} isReadonly={isReadonly} />
-                      ) : toolName === "requestSuggestions" ? (
+                      ) : toolName === 'requestSuggestions' ? (
                         <DocumentToolCall type="request-suggestions" args={args} isReadonly={isReadonly} />
                       ) : null}
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
@@ -177,30 +188,37 @@ const PurePreviewMessage = ({
                 isLoading={isLoading}
               />
             )}
+            {message.sources && message.sources.length > 0 && (
+              <div className="mt-4">
+                <Markdown>{`Sources: ${message.sources.map((s, i) => `[${i + 1}](${s.url})`).join(', ')}`}</Markdown>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
     </AnimatePresence>
-  )
-}
+  );
+};
+
+PurePreviewMessage.displayName = 'PreviewMessage';
 
 export const PreviewMessage = memo(PurePreviewMessage, (prevProps, nextProps) => {
-  if (prevProps.isLoading !== nextProps.isLoading) return false
-  if (prevProps.message.reasoning !== nextProps.message.reasoning) return false
-  if (prevProps.message.content !== nextProps.message.content) return false
-  if (!equal(prevProps.message.toolInvocations, nextProps.message.toolInvocations)) return false
-  if (!equal(prevProps.vote, nextProps.vote)) return false
+  if (prevProps.isLoading !== nextProps.isLoading) return false;
+  if (prevProps.message.reasoning !== nextProps.message.reasoning) return false;
+  if (prevProps.message.content !== nextProps.message.content) return false;
+  if (!equal(prevProps.message.toolInvocations, nextProps.message.toolInvocations)) return false;
+  if (!equal(prevProps.vote, nextProps.vote)) return false;
+  if (!equal(prevProps.message.sources, nextProps.message.sources)) return false; // Add sources comparison
 
-  return true
-})
+  return true;
+});
 
 interface ThinkingMessageProps {
-  currentMessage?: string
-  files?: WorkflowFile[] // Keep for backwards compatibility but don't use it
+  currentMessage?: string;
 }
 
 export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage }) => {
-  const role = "assistant"
+  const role = 'assistant';
 
   return (
     <motion.div
@@ -211,21 +229,25 @@ export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage
     >
       <div
         className={cx(
-          "flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl",
+          'flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl',
           {
-            "group-data-[role=user]/message:bg-muted": true,
+            'group-data-[role=user]/message:bg-muted': true,
           },
         )}
       >
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
-          <SparklesIcon size={14} />
+        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
+          <SparklesIcon className="size-3" /> {/* Updated to size-3 */}
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <WorkflowStatus isLoading={true} currentMessage={currentMessage} />
+          <div className="text-zinc-500 dark:text-zinc-400 animate-pulse flex items-center gap-2">
+            <span>Thinking</span>
+            <span className="thinking-dots" />
+            <span className="thinking-dots" />
+            <span className="thinking-dots" />
+          </div>
         </div>
       </div>
     </motion.div>
-  )
-}
-
+  );
+};
