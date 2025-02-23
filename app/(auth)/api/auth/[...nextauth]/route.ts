@@ -1,14 +1,17 @@
 import NextAuth from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-export const authOptions = {
+const authOptions = {
   providers: [
-    CredentialsProvider({
+    {
+      id: 'credentials',
       name: 'Credentials',
-      credentials: { email: { label: 'Email', type: 'text' }, password: { label: 'Password', type: 'password' } },
+      credentials: {
+        email: { label: 'Email', type: 'text' },
+        password: { label: 'Password', type: 'password' },
+      },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
         const [userRecord] = await db.select().from(user).where(eq(user.email, credentials.email));
@@ -17,10 +20,12 @@ export const authOptions = {
         }
         return null;
       },
-    }),
+    },
   ],
   session: { strategy: 'jwt' },
   pages: { signIn: '/auth/signin' }, // Optional: Customize sign-in page if needed
 };
 
-export default NextAuth(authOptions);
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };
