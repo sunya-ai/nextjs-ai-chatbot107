@@ -24,7 +24,7 @@ import { ArtifactKind } from '@/components/artifact';
 
 // biome-ignore lint: Forbidden non-null assertion.
 const client = postgres(process.env.POSTGRES_URL!);
-const db = drizzle(client);
+const db = drizzle(client); // Remove this line if using lib/db/index.ts
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
