@@ -4,10 +4,10 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { FinanceEditor } from '@/components/FinanceEditor'; // Placeholder for now
+import { FinanceEditor } from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
-import { PlusIcon } from '@heroicons/react/24/outline';
-import { Chat } from '@/components/chat'; // Updated from ChatComponent to match your repo
+import { PlusIcon } from '@heroicons/react/outline'; // Updated to correct Heroicons import
+import { Chat } from '@/components/chat';
 import {
   LineChart,
   Line,
@@ -89,7 +89,6 @@ export default function Home() {
 
   const handleFileDrop = async (file: File) => {
     if (!file) return;
-    // Placeholder for Vercel Blob or file upload logic (implement in FinanceEditor or route.ts)
     const formData = new FormData();
     formData.append('file', file);
     formData.append('messages', JSON.stringify(messages));
