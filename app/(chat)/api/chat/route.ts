@@ -298,7 +298,7 @@ export async function POST(request: Request) {
 
   console.log('[POST] saving user message => DB');
   await saveMessages({
-    messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
+    messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }], // Add default metadata
   });
 
   let fileBuffer: ArrayBuffer | undefined;
