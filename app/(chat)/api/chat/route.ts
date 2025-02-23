@@ -85,6 +85,20 @@ function rateLimiter(userId: string): boolean {
   return true;
 }
 
+function isFollowUp(messages: Message[]): boolean {
+  const userMessage = getMostRecentUserMessage(messages);
+  if (!userMessage) return false;
+  const prevMessage = messages[messages.length - 2];
+  if (!prevMessage || prevMessage.role !== 'assistant') return false;
+  const content = userMessage.content.toLowerCase();
+  return (
+    content.includes('this') ||
+    content.includes('that') ||
+    content.includes('more') ||
+    !!content.match(/^\w+$/)
+  );
+}
+
 const assistantsEnhancer = createAssistantsEnhancer(
   process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
 );
@@ -239,13 +253,13 @@ export async function POST(request: Request) {
 
       try {
         messages = JSON.parse(messagesStr);
-        console.log('[POST] Parsed messages => count:', messages.length);
+        console.log('[POST] parsed messages => count:', messages.length);
       } catch (err) {
-        console.error('[POST] Invalid messages JSON =>', err);
+        console.error('[POST] invalid messages JSON =>', err);
         return new Response('Invalid messages JSON', { status: 400 });
       }
     } catch (err) {
-      console.error('[POST] Invalid form data =>', err);
+      console.error('[POST] invalid form data =>', err);
       return new Response('Invalid form data', { status: 400 });
     }
   }
@@ -256,15 +270,15 @@ export async function POST(request: Request) {
     return new Response('No user message found', { status: 400 });
   }
 
-  console.log('[POST] Checking chat =>', id);
+  console.log('[POST] checking chat =>', id);
   const chat = await getChatById({ id });
   if (!chat) {
-    console.log('[POST] No chat found => creating new');
+    console.log('[POST] no chat => creating new');
     const title = await generateTitleFromUserMessage({ message: userMessage });
     await saveChat({ id, userId: session.user.id, title });
   }
 
-  console.log('[POST] Saving user message => DB');
+  console.log('[POST] saving user message => DB');
   await saveMessages({
     messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
   });
@@ -272,13 +286,12 @@ export async function POST(request: Request) {
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
   if (file) {
-    console.log('[POST] File found => reading as arrayBuffer');
+    console.log('[POST] file found => read as arrayBuffer');
     fileBuffer = await file.arrayBuffer();
     fileMime = file.type;
   }
 
-  let cachedContext = '';
-
+  console.log('[POST] => createDataStreamResponse => multi-pass');
   return createDataStreamResponse({
     status: 200,
     statusText: 'OK',
@@ -289,25 +302,17 @@ export async function POST(request: Request) {
       try {
         console.log('[EXECUTE] Step A => getInitialAnalysis');
         const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-        console.log('[EXECUTE] Initial analysis length:', initialAnalysis.length);
+        console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
 
         console.log('[EXECUTE] Step B => enhanceContext');
         const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log('[EXECUTE] Enhanced context (first 100 chars):', enhancedContext.slice(0, 100));
+        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
 
         console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-        let finalModel;
-        if (selectedChatModel.startsWith('openai')) {
-          finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
-        } else if (selectedChatModel.startsWith('google')) {
-          finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
-        } else if (selectedChatModel === 'chat-model-reasoning') {
-          finalModel = myProvider.languageModel('chat-model-reasoning');
-        } else {
-          finalModel = myProvider.languageModel(selectedChatModel) || google('gemini-2.0-flash');
-        }
+        const finalModel = myProvider.languageModel(selectedChatModel);
 
         let isFirstContent = true;
+        let reasoningStarted = false; // For Grok 3 thinking
 
         try {
           const result = await streamText({
@@ -319,7 +324,7 @@ export async function POST(request: Request) {
               selectedChatModel === 'chat-model-reasoning'
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ chunking: 'line' }),
+            experimental_transform: smoothStream({ chunking: 'line' }), // Updated from 'word' for better UX
             experimental_generateMessageId: generateUUID,
             tools: {
               getWeather,
@@ -335,57 +340,51 @@ export async function POST(request: Request) {
                 dataStream.writeData('workflow_stage:complete');
               }
 
+              if (chunk.type === 'reasoning' && !reasoningStarted) {
+                reasoningStarted = true;
+                dataStream.writeMessageAnnotation({
+                  type: 'thinking',
+                  content: 'Let’s break this down…', // Grok 3 style
+                });
+              }
+
               if (chunk.type === 'reasoning') {
                 dataStream.writeMessageAnnotation({
                   type: 'reasoning',
                   content: chunk.textDelta,
                 });
               }
+
+              switch (chunk.type) {
+                case 'tool-call':
+                case 'tool-call-streaming-start':
+                case 'tool-call-delta':
+                case 'tool-result':
+                  // Keep thinking state during tool calls
+                  break;
+              }
             },
-            onFinish: async ({ response }) => {
-              // Convert content to string since it might be an array of parts.
-              const rawContent = response.messages[response.messages.length - 1]?.content || '';
-              const contentStr = convertContentToString(rawContent);
-              const md = new markdownIt();
-              const tokens = md.parse(contentStr, {});
-              const companyNames: string[] = [];
+            onFinish: async ({ response, reasoning }) => {
+              if (session.user?.id) {
+                try {
+                  const sanitizedResponseMessages = sanitizeResponseMessages({
+                    messages: response.messages,
+                    reasoning,
+                  });
 
-              tokens.forEach(token => {
-                if (token.type === 'inline' && token.content) {
-                  const doc = compromise(token.content);
-                  // Explicitly type the filter parameter as string
-                  const companies = doc.match('#Organization+').out('array');
-                  companyNames.push(...companies.filter((name: string) => name.trim()));
-                }
-              });
-
-              const uniqueCompanies = [...new Set(companyNames)];
-              const logoMap = await inferDomains(uniqueCompanies);
-
-              let content = contentStr;
-              for (const [company, logoUrl] of Object.entries(logoMap)) {
-                if (logoUrl !== 'unknown') {
-                  content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
+                  await saveMessages({
+                    messages: sanitizedResponseMessages.map((message) => ({
+                      id: message.id,
+                      chatId: id,
+                      role: message.role,
+                      content: message.content,
+                      createdAt: new Date(),
+                    })),
+                  });
+                } catch (error) {
+                  console.error('Failed to save chat', error);
                 }
               }
-
-              const sanitizedMessages = sanitizeResponseMessages({
-                messages: response.messages.map(m =>
-                  m.id === response.messages[response.messages.length - 1]?.id
-                    ? { ...m, content }
-                    : m
-                ),
-              });
-
-              await saveMessages({
-                messages: sanitizedMessages.map((message) => ({
-                  id: message.id,
-                  chatId: id,
-                  role: message.role,
-                  content: message.content,
-                  createdAt: new Date(),
-                })),
-              });
             },
             experimental_telemetry: {
               isEnabled: true,
@@ -437,13 +436,13 @@ export async function DELETE(request: Request) {
   const id = searchParams.get('id');
 
   if (!id) {
-    console.log('[DELETE] No id => 404');
+    console.log('[DELETE] no id => 404');
     return new Response('Not Found', { status: 404 });
   }
 
   const session = await auth();
   if (!session?.user) {
-    console.log('[DELETE] Unauthorized => 401');
+    console.log('[DELETE] unauthorized => 401');
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -451,15 +450,15 @@ export async function DELETE(request: Request) {
     console.log('[DELETE] Checking chat =>', id);
     const chat = await getChatById({ id });
     if (!chat || chat.userId !== session.user.id) {
-      console.log('[DELETE] Not found/owned => 401');
+      console.log('[DELETE] not found/owned => 401');
       return new Response('Unauthorized', { status: 401 });
     }
 
-    console.log('[DELETE] Deleting chat =>', id);
+    console.log('[DELETE] Deleting =>', id);
     await deleteChatById({ id });
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
-    console.error('[DELETE] Error:', error);
+    console.error('[DELETE] Error =>', error);
     return new Response('An error occurred while processing your request', {
       status: 500,
     });
