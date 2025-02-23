@@ -353,8 +353,9 @@ export async function POST(request: Request) {
               tokens.forEach(token => {
                 if (token.type === 'inline' && token.content) {
                   const doc = compromise(token.content);
+                  // Explicitly type the filter parameter as string
                   const companies = doc.match('#Organization+').out('array');
-                  companyNames.push(...companies.filter(name => name.trim()));
+                  companyNames.push(...companies.filter((name: string) => name.trim()));
                 }
               });
 
