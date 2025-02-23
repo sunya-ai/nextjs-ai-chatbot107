@@ -1,10 +1,9 @@
 import {
-  type Message,
+  type Message, // Use the exported Message type
   createDataStreamResponse,
   smoothStream,
   streamText,
   generateText,
-  type ResponseMessage, // Import ResponseMessage type explicitly
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
@@ -450,13 +449,13 @@ export async function POST(request: Request) {
                     rehypePlugins: [rehypeHighlight, rehypeRaw],
                   });
 
-                  // Ensure the message conforms to ResponseMessage type, storing custom data in metadata
+                  // Ensure the message conforms to Message type, storing custom data in metadata
                   const lastMessageIndex = response.messages.length - 1;
                   const sanitizedMessages = sanitizeResponseMessages({
                     messages: response.messages.map((m, index) => {
                       if (index === lastMessageIndex) {
-                        // Create a ResponseMessage that matches the SDK type, preserving only SDK-required fields
-                        const baseMessage: ResponseMessage = {
+                        // Create a Message that matches the SDK type, preserving only SDK-required fields
+                        const baseMessage: Message = {
                           ...m,
                           content: compiledMdx.toString(), // Update content with MDX
                           role: m.role, // Ensure role matches (e.g., "assistant" or "tool")
@@ -464,7 +463,7 @@ export async function POST(request: Request) {
                         };
                         return baseMessage;
                       }
-                      return m as ResponseMessage;
+                      return m as Message;
                     }),
                   });
 
