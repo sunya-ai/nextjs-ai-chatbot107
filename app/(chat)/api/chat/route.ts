@@ -1,23 +1,35 @@
-import { google } from '@ai-sdk/google';
-import { openai } from '@ai-sdk/openai';
-import { type Message, createDataStreamResponse, smoothStream, streamText } from 'ai';
+import {
+  type Message,
+  createDataStreamResponse,
+  smoothStream,
+  streamText,
+} from 'ai';
 import { NextResponse } from 'next/server';
-import getServerSession from 'next-auth'; // Changed to default import for v5
-import { authOptions } from '@/app/(auth)/api/auth/[...nextauth]/route'; // Import authOptions from your auth file
+import { auth } from '@/app/(auth)/auth'; // Keep your original auth import
+import { myProvider } from '@/lib/ai/models';
 import { systemPrompt } from '@/lib/ai/prompts';
-import { deleteChatById, getChatById, saveChat, saveMessages } from '@/lib/db/queries';
-import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
+import {
+  deleteChatById,
+  getChatById,
+  saveChat,
+  saveMessages,
+} from '@/lib/db/queries';
+import {
+  generateUUID,
+  getMostRecentUserMessage,
+  sanitizeResponseMessages,
+} from '@/lib/utils';
 import { generateTitleFromUserMessage } from '@/app/(chat)/actions';
 import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
-import { inferDomains } from '@/lib/ai/tools/infer-domains';
-import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
+import { inferDomains } from '@/lib/ai/tools/infer-domains'; // For Clearbit logos
+import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants'; // For enhanced context
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
 
-export const maxDuration = 240;
+export const maxDuration = 240; // Increased for longer operations
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
@@ -67,7 +79,7 @@ function isFollowUp(messages: Message[]): boolean {
     content.includes('this') ||
     content.includes('that') ||
     content.includes('more') ||
-    !!content.match(/^\w+$/) // Ensure match returns boolean
+    !!content.match(/^\w+$/) // Fixed type error: Ensure match returns boolean
   );
 }
 
@@ -138,12 +150,11 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
 }
 
 export async function POST(request: Request) {
-  console.log('[POST] /api/chat started');
+  const { id, messages, selectedChatModel }: { id: string; messages: Array<Message>; selectedChatModel: string } = await request.json();
 
-  // Use getServerSession for authentication
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    console.log('[POST] Unauthorized');
+  const session = await auth();
+
+  if (!session || !session.user || !session.user.id) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -152,56 +163,39 @@ export async function POST(request: Request) {
     return new Response('Too Many Requests', { status: 429 });
   }
 
-  let id = '';
-  let messages: Message[] = [];
-  let selectedChatModel: string | undefined;
-  let file: File | null = null;
-
-  if (request.headers.get('content-type')?.includes('application/json')) {
-    const json = await request.json();
-    id = json.id || '';
-    messages = json.messages || [];
-    selectedChatModel = json.selectedChatModel;
-  } else {
-    const formData = await request.formData();
-    id = formData.get('id')?.toString() || '';
-    const messagesStr = formData.get('messages')?.toString() || '[]';
-    selectedChatModel = formData.get('selectedChatModel')?.toString();
-    file = formData.get('file') as File | null;
-    messages = JSON.parse(messagesStr);
-  }
-
   const userMessage = getMostRecentUserMessage(messages);
+
   if (!userMessage) {
-    console.log('[POST] No user message');
     return new Response('No user message found', { status: 400 });
   }
 
-  if (!selectedChatModel) {
-    console.log('[POST] No chat model selected');
-    return new Response('Chat model not specified', { status: 400 });
-  }
-
   const chat = await getChatById({ id });
+
   if (!chat) {
     const title = await generateTitleFromUserMessage({ message: userMessage });
     await saveChat({ id, userId: session.user.id, title });
   }
 
-  await saveMessages({ messages: [{ ...userMessage, createdAt: new Date(), chatId: id }] });
+  await saveMessages({
+    messages: [{ ...userMessage, createdAt: new Date(), chatId: id }],
+  });
 
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
-  if (file) {
-    fileBuffer = await file.arrayBuffer();
-    fileMime = file.type;
+
+  // Handle file upload (optional, if you want to keep file support)
+  if (request.headers.get('content-type')?.includes('multipart/form-data')) {
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    if (file) {
+      fileBuffer = await file.arrayBuffer();
+      fileMime = file.type;
+    }
   }
 
   let cachedContext = '';
 
   return createDataStreamResponse({
-    status: 200,
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     execute: async (dataStream) => {
       const isFollowUpQuery = isFollowUp(messages);
       let initialAnalysis = '';
@@ -216,13 +210,12 @@ export async function POST(request: Request) {
         cachedContext = enhancedContext;
       }
 
-      const finalModel = selectedChatModel.startsWith('openai')
-        ? openai(selectedChatModel.replace('openai("', '').replace('")', ''))
-        : selectedChatModel.startsWith('google')
-        ? google(selectedChatModel.replace('google("', '').replace('")', ''))
-        : null;
-
-      if (!finalModel) {
+      let finalModel;
+      if (selectedChatModel.startsWith('openai')) {
+        finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
+      } else if (selectedChatModel.startsWith('google')) {
+        finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
+      } else {
         throw new Error(`Unsupported chat model: ${selectedChatModel}`);
       }
 
@@ -234,13 +227,11 @@ export async function POST(request: Request) {
         system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
         messages,
         maxSteps: 5,
-        experimental_activeTools: [
-          'getWeather',
-          'createDocument',
-          'updateDocument',
-          'requestSuggestions',
-        ],
-        experimental_transform: smoothStream({ chunking: 'sentence' }),
+        experimental_activeTools:
+          selectedChatModel === 'chat-model-reasoning'
+            ? []
+            : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+        experimental_transform: smoothStream({ chunking: 'sentence' }), // Updated to 'sentence' for better UX
         experimental_generateMessageId: generateUUID,
         tools: {
           getWeather,
@@ -302,15 +293,19 @@ export async function POST(request: Request) {
             ),
           });
 
-          await saveMessages({ 
-            messages: sanitizedMessages.map(m => ({
-              id: m.id,
+          await saveMessages({
+            messages: sanitizedMessages.map((message) => ({
+              id: message.id,
               chatId: id,
-              role: m.role,
-              content: m.content,
+              role: message.role,
+              content: message.content,
               createdAt: new Date(),
-            }))
+            })),
           });
+        },
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: 'stream-text',
         },
       });
 
@@ -321,21 +316,12 @@ export async function POST(request: Request) {
     },
     onError: (error) => {
       console.error('[createDataStreamResponse] Error:', error);
-      return error instanceof Error ? error.message : 'An error occurred';
+      return error instanceof Error ? error.message : 'Oops, an error occurred!';
     },
   });
 }
 
 export async function DELETE(request: Request) {
-  console.log('[DELETE] /api/chat started');
-
-  // Use getServerSession for authentication
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    console.log('[DELETE] Unauthorized');
-    return new Response('Unauthorized', { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
@@ -343,11 +329,25 @@ export async function DELETE(request: Request) {
     return new Response('Not Found', { status: 404 });
   }
 
-  const chat = await getChatById({ id });
-  if (!chat || chat.userId !== session.user.id) {
+  const session = await auth();
+
+  if (!session || !session.user) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  await deleteChatById({ id });
-  return new Response('Chat deleted', { status: 200 });
+  try {
+    const chat = await getChatById({ id });
+
+    if (chat.userId !== session.user.id) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    await deleteChatById({ id });
+
+    return new Response('Chat deleted', { status: 200 });
+  } catch (error) {
+    return new Response('An error occurred while processing your request', {
+      status: 500,
+    });
+  }
 }
