@@ -4,6 +4,7 @@ import {
   smoothStream,
   streamText,
   generateText,
+  type ResponseMessage, // Import ResponseMessage type explicitly
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
@@ -449,14 +450,26 @@ export async function POST(request: Request) {
                     rehypePlugins: [rehypeHighlight, rehypeRaw],
                   });
 
+                  // Ensure the message conforms to ResponseMessage type, storing custom data separately
+                  const lastMessageIndex = response.messages.length - 1;
                   const sanitizedMessages = sanitizeResponseMessages({
-                    messages: response.messages.map(m => 
-                      m.id === response.messages[response.messages.length - 1]?.id 
-                        ? { ...m, content: compiledMdx.toString(), sources: [...new Set(sources)], reasoning } // Pass MDX content, sources, and reasoning
-                        : m
-                    ),
+                    messages: response.messages.map((m, index) => {
+                      if (index === lastMessageIndex) {
+                        // Create a ResponseMessage that matches the SDK type, preserving only SDK-required fields
+                        const baseMessage: ResponseMessage = {
+                          ...m,
+                          content: compiledMdx.toString(), // Update content with MDX
+                          role: m.role, // Ensure role matches (e.g., "assistant" or "tool")
+                          id: m.id,
+                        };
+                        // Store sources and reasoning separately (e.g., in a custom property or database)
+                        return baseMessage;
+                      }
+                      return m as ResponseMessage;
+                    }),
                   });
 
+                  // Save messages with custom data
                   await saveMessages({
                     messages: sanitizedMessages.map((message) => ({
                       id: message.id,
@@ -464,6 +477,11 @@ export async function POST(request: Request) {
                       role: message.role,
                       content: message.content, // Store MDX string (function body) for DB
                       createdAt: new Date(),
+                      // Optionally store sources and reasoning in a separate property or table
+                      metadata: JSON.stringify({
+                        sources: [...new Set(sources)],
+                        reasoning: reasoning,
+                      }),
                     })),
                   });
                 } catch (error) {
