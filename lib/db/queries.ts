@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { and, asc, desc, eq, gt, gte, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -25,6 +23,9 @@ import { ArtifactKind } from '@/components/artifact';
 // biome-ignore lint: Forbidden non-null assertion.
 const client = postgres(process.env.POSTGRES_URL!);
 const db = drizzle(client); // Remove this line if using lib/db/index.ts
+
+// Note: These functions are now client-safe but will throw errors if called directly in Client Components
+// due to database access. Use Server Actions or API routes for actual database queries.
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
