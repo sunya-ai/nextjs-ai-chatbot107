@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import React, { memo } from 'react';
-import { MDXRemote, MDXRemoteSerializeResult } from '@mdx-js/react';
-import { serialize } from '@mdx-js/mdx';
+import { MDXContent } from '@mdx-js/react'; // Updated to MDXContent
+import { compile } from '@mdx-js/mdx'; // For MDX compilation
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight'; // For code highlighting
 import rehypeRaw from 'rehype-raw'; // For raw HTML in MDX
@@ -196,24 +196,23 @@ const collectSources = (content: string): { id: string; url: string }[] => {
   return [...new Set(sources)]; // Remove duplicates
 };
 
-// Serialize MDX content asynchronously
-const serializeMDX = async (content: string): Promise<MDXRemoteSerializeResult> => {
-  return await serialize(content, {
-    mdxOptions: {
-      remarkPlugins: [remarkGfm],
-      rehypePlugins: [rehypeHighlight, rehypeRaw],
-    },
-    format: 'mdx',
+// Compile MDX content asynchronously
+const compileMDX = async (content: string): Promise<string> => {
+  const compiled = await compile(content, {
+    outputFormat: 'function-body',
+    remarkPlugins: [remarkGfm],
+    rehypePlugins: [rehypeHighlight, rehypeRaw],
   });
+  return compiled.toString(); // Return MDX as a string (function body)
 };
 
 const NonMemoizedMarkdown = async ({ children: initialContent }: { children: string }) => {
   const sources = collectSources(initialContent);
-  const mdxContent = await serializeMDX(initialContent);
+  const mdxContent = await compileMDX(initialContent);
 
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
-      <MDXRemote {...mdxContent} components={components} />
+      <MDXContent components={components}>{mdxContent}</MDXContent>
       <SourcePreview sources={sources} />
     </div>
   );
