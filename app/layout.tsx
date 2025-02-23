@@ -20,8 +20,7 @@ export const viewport = {
 
 const LIGHT_THEME_COLOR = 'hsl(0 0% 100%)';
 const DARK_THEME_COLOR = 'hsl(240deg 10% 3.92%)';
-const THEME_COLOR_SCRIPT = `\
-(function() {
+const THEME_COLOR_SCRIPT = `(function() {
   var html = document.documentElement;
   var meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) {
@@ -36,7 +35,7 @@ const THEME_COLOR_SCRIPT = `\
   var observer = new MutationObserver(updateThemeColor);
   observer.observe(html, { attributes: true, attributeFilter: ['class'] });
   updateThemeColor();
-})();
+})();`;
 
 export default function RootLayout({
   children,
@@ -44,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={GeistSans.className} suppressHydrationWarning> {/* Removed Inter, prioritize Neue Montreal */}
+    <html lang="en" className={GeistSans.className} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -58,7 +57,7 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
-          themes={['light', 'dark']} // Explicit themes for consistency
+          themes={['light', 'dark']}
         >
           <main className="flex flex-col items-center justify-center p-4 md:p-6">
             {children}
