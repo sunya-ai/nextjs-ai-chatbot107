@@ -407,13 +407,13 @@ export async function POST(request: Request) {
 
                   const md = new markdownIt();
                   const tokens = md.parse(contentString, {});
-                  const companyNames = [];
+                  const companyNames: string[] = []; // Explicitly typed as string[]
                   const sources: { id: string; url: string }[] = [];
 
                   tokens.forEach(token => {
                     if (token.type === 'inline' && token.content) {
                       const doc = compromise(token.content);
-                      const companies = doc.match('#Organization+').out('array');
+                      const companies = doc.match('#Organization+').out('array') as string[]; // Ensure companies is typed as string[]
                       companyNames.push(...companies.filter(name => name.trim()));
 
                       // Parse citations for sources (e.g., [1, 2])
