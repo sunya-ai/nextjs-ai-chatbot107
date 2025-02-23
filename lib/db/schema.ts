@@ -41,6 +41,7 @@ export const message = pgTable('Message', {
   role: varchar('role').notNull(),
   content: json('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
+  metadata: json('metadata'), // Optional JSON field for sources and reasoning
 });
 
 export type Message = InferSelectModel<typeof message>;
