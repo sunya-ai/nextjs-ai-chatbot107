@@ -6,7 +6,7 @@ import { auth } from '@/app/(auth)/api/auth/[...nextauth]/route';
 import { systemPrompt } from '@/lib/ai/prompts';
 import { deleteChatById, getChatById, saveChat, saveMessages } from '@/lib/db/queries';
 import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
-import { generateTitleFromUserMessage } from '@/app/actions';
+import { generateTitleFromUserMessage } from '@/app/(chat)/actions'; // Updated path
 import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
