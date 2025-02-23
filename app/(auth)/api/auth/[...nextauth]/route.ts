@@ -1,11 +1,12 @@
-import NextAuth, { NextAuthOptions } from 'next-auth';
+import NextAuth from 'next-auth';
+import type { NextAuthConfig } from 'next-auth'; // Changed import for NextAuthOptions
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-// Define authOptions with proper NextAuthOptions type
-const authOptions: NextAuthOptions = {
+// Define authOptions with proper NextAuthConfig type
+const authOptions: NextAuthConfig = {
   providers: [
     {
       id: 'credentials',
