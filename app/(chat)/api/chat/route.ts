@@ -31,7 +31,7 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
-import { serialize } from '@mdx-js/mdx'; // For MDX serialization
+import { compile } from '@mdx-js/mdx'; // Updated to use compile instead of serialize
 import remarkGfm from 'remark-gfm'; // For GitHub-flavored Markdown
 import rehypeHighlight from 'rehype-highlight'; // For code highlighting
 import rehypeRaw from 'rehype-raw'; // For raw HTML in MDX
@@ -108,7 +108,7 @@ const assistantsEnhancer = createAssistantsEnhancer(
 );
 
 /**
- * Helper to convert message content (which may be an array of parts) to a string for MDX serialization.
+ * Helper to convert message content (which may be an array of parts) to a string for MDX compilation.
  */
 function convertContentToString(content: any): string {
   if (typeof content === 'string') return content;
@@ -125,7 +125,7 @@ function convertContentToString(content: any): string {
 }
 
 /**
- * For the initial analysis we use generateText (the older approach) to get a complete text result, serialized as MDX.
+ * For the initial analysis we use generateText (the older approach) to get a complete text result, compiled as MDX.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -184,15 +184,13 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
     });
     console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
 
-    // Serialize to MDX for best Markdown rendering
-    const mdxContent = await serialize(text, {
-      mdxOptions: {
-        remarkPlugins: [remarkGfm],
-        rehypePlugins: [rehypeHighlight, rehypeRaw],
-      },
-      format: 'mdx',
+    // Compile to MDX for best Markdown rendering
+    const compiledMdx = await compile(text, {
+      outputFormat: 'function-body',
+      remarkPlugins: [remarkGfm],
+      rehypePlugins: [rehypeHighlight, rehypeRaw],
     });
-    return JSON.stringify(mdxContent); // Store as string for DB, parse in components
+    return compiledMdx.toString(); // Store as a string (function body) for DB, parse in components
   } catch (error) {
     console.error('[getInitialAnalysis] Error:', error);
     throw error;
@@ -205,18 +203,16 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
     console.log('[enhanceContext] Enhanced context received');
 
-    // Serialize enhanced context to MDX if it's a string
-    const mdxContent = await serialize(enhancedContext, {
-      mdxOptions: {
-        remarkPlugins: [remarkGfm],
-        rehypePlugins: [rehypeHighlight, rehypeRaw],
-      },
-      format: 'mdx',
+    // Compile enhanced context to MDX if it's a string
+    const compiledMdx = await compile(enhancedContext, {
+      outputFormat: 'function-body',
+      remarkPlugins: [remarkGfm],
+      rehypePlugins: [rehypeHighlight, rehypeRaw],
     });
-    return JSON.stringify(mdxContent); // Store as string for DB, parse in components
+    return compiledMdx.toString(); // Store as a string (function body) for DB, parse in components
   } catch (err) {
     console.error('[enhanceContext] Error:', err);
-    return initialAnalysis; // Fallback (string or MDX JSON)
+    return initialAnalysis; // Fallback (string or MDX string)
   }
 }
 
@@ -436,19 +432,17 @@ export async function POST(request: Request) {
                     }
                   }
 
-                  // Serialize to MDX for best Markdown rendering
-                  const mdxContent = await serialize(content, {
-                    mdxOptions: {
-                      remarkPlugins: [remarkGfm],
-                      rehypePlugins: [rehypeHighlight, rehypeRaw],
-                    },
-                    format: 'mdx',
+                  // Compile to MDX for best Markdown rendering
+                  const compiledMdx = await compile(content, {
+                    outputFormat: 'function-body',
+                    remarkPlugins: [remarkGfm],
+                    rehypePlugins: [rehypeHighlight, rehypeRaw],
                   });
 
                   const sanitizedMessages = sanitizeResponseMessages({
                     messages: response.messages.map(m => 
                       m.id === response.messages[response.messages.length - 1]?.id 
-                        ? { ...m, content: mdxContent, sources: [...new Set(sources)], reasoning } // Pass MDX content, sources, and reasoning
+                        ? { ...m, content: compiledMdx.toString(), sources: [...new Set(sources)], reasoning } // Pass MDX content, sources, and reasoning
                         : m
                     ),
                   });
@@ -458,7 +452,7 @@ export async function POST(request: Request) {
                       id: message.id,
                       chatId: id,
                       role: message.role,
-                      content: JSON.stringify(message.content), // Store MDX as JSON string for DB
+                      content: message.content, // Store MDX string (function body) for DB
                       createdAt: new Date(),
                     })),
                   });
