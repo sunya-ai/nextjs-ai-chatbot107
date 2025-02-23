@@ -5,8 +5,8 @@ import {
   streamText,
 } from 'ai';
 import { NextResponse } from 'next/server';
-import { auth } from '@/app/(auth)/auth'; // Keep your original auth import
-import { myProvider } from '@/lib/ai/models';
+import { auth } from '@/app/(auth)/auth'; // Keep your original auth
+import { myProvider } from '@/lib/ai/models'; // Use your custom provider
 import { systemPrompt } from '@/lib/ai/prompts';
 import {
   deleteChatById,
@@ -26,6 +26,7 @@ import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { inferDomains } from '@/lib/ai/tools/infer-domains'; // For Clearbit logos
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants'; // For enhanced context
+import google from '@ai-sdk/google'; // Added for Gemini models
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
 
@@ -79,7 +80,7 @@ function isFollowUp(messages: Message[]): boolean {
     content.includes('this') ||
     content.includes('that') ||
     content.includes('more') ||
-    !!content.match(/^\w+$/) // Fixed type error: Ensure match returns boolean
+    !!content.match(/^\w+$/) // Ensure match returns boolean
   );
 }
 
@@ -124,7 +125,7 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
 
   try {
     const { text } = await streamText({
-      model: google('gemini-2.0-flash-02'),
+      model: google('gemini-2.0-flash'), // Updated to match your models.ts
       system: initialAnalysisPrompt,
       messages: [{ role: 'user', content: contentParts }],
     }).then(async result => ({ text: await result.text() }));
@@ -183,7 +184,7 @@ export async function POST(request: Request) {
   let fileBuffer: ArrayBuffer | undefined;
   let fileMime: string | undefined;
 
-  // Handle file upload (optional, if you want to keep file support)
+  // Handle file upload (optional, remove if not needed)
   if (request.headers.get('content-type')?.includes('multipart/form-data')) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -215,8 +216,10 @@ export async function POST(request: Request) {
         finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
       } else if (selectedChatModel.startsWith('google')) {
         finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
+      } else if (selectedChatModel === 'chat-model-reasoning') {
+        finalModel = myProvider.languageModel('chat-model-reasoning');
       } else {
-        throw new Error(`Unsupported chat model: ${selectedChatModel}`);
+        finalModel = myProvider.languageModel(selectedChatModel) || google('gemini-2.0-flash'); // Fallback to Gemini Flash
       }
 
       let isFirstContent = true;
@@ -231,7 +234,7 @@ export async function POST(request: Request) {
           selectedChatModel === 'chat-model-reasoning'
             ? []
             : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-        experimental_transform: smoothStream({ chunking: 'sentence' }), // Updated to 'sentence' for better UX
+        experimental_transform: smoothStream({ chunking: 'sentence' }),
         experimental_generateMessageId: generateUUID,
         tools: {
           getWeather,
