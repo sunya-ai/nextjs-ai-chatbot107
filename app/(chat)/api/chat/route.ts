@@ -26,8 +26,8 @@ import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { inferDomains } from '@/lib/ai/tools/infer-domains'; // For Clearbit logos
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
-import { google } from '@ai-sdk/google'; // Use named import for callable functionality
-import { openai } from '@ai-sdk/openai'; // Import OpenAI for openai branch
+import { google } from '@ai-sdk/google'; // Named import for callable functionality
+import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
 
@@ -135,12 +135,12 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
   }
 
   try {
-    const { text } = await streamText({
+    const result = await streamText({
       model: google('gemini-2.0-flash'),
       system: initialAnalysisPrompt,
       messages: [{ role: 'user', content: contentParts }],
-    }).then(async result => ({ text: await result.text() }));
-
+    });
+    const text = await result.text();
     console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
     return text;
   } catch (error) {
