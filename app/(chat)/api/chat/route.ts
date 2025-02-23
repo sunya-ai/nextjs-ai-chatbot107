@@ -2,7 +2,7 @@ import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { type Message, createDataStreamResponse, smoothStream, streamText } from 'ai';
 import { NextResponse } from 'next/server';
-import { GET, POST } from '@/app/(auth)/auth'; // Use handlers instead of auth
+import { auth } from 'next-auth'; // Use NextAuth's auth() for sessions
 import { systemPrompt } from '@/lib/ai/prompts';
 import { deleteChatById, getChatById, saveChat, saveMessages } from '@/lib/db/queries';
 import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
@@ -134,22 +134,8 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
 export async function POST(request: Request) {
   console.log('[POST] /api/chat started');
 
-  // Use POST handler for authentication
-  const response = await POST(request);
-  if (!response.ok) {
-    return response;
-  }
-
-  // Assume session data is in request or response; parse manually if needed
-  let session;
-  try {
-    const sessionData = await response.json();
-    session = sessionData.session || null; // Adjust based on your NextAuth setup
-  } catch (error) {
-    console.log('[POST] Unauthorized - no session');
-    return new Response('Unauthorized', { status: 401 });
-  }
-
+  // Use NextAuth's auth() to get session
+  const session = await auth();
   if (!session?.user?.id) {
     console.log('[POST] Unauthorized');
     return new Response('Unauthorized', { status: 401 });
@@ -335,10 +321,13 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  // Use GET handler for authentication (optional, adjust as needed)
-  const authResponse = await GET(request);
-  if (!authResponse.ok) {
-    return authResponse;
+  console.log('[DELETE] /api/chat started');
+
+  // Use NextAuth's auth() for session
+  const session = await auth();
+  if (!session?.user) {
+    console.log('[DELETE] Unauthorized');
+    return new Response('Unauthorized', { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -346,20 +335,6 @@ export async function DELETE(request: Request) {
 
   if (!id) {
     return new Response('Not Found', { status: 404 });
-  }
-
-  // Assume session data; parse manually if needed
-  let session;
-  try {
-    const sessionData = await authResponse.json();
-    session = sessionData.session || null; // Adjust based on your NextAuth setup
-  } catch (error) {
-    console.log('[DELETE] Unauthorized - no session');
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  if (!session?.user) {
-    return new Response('Unauthorized', { status: 401 });
   }
 
   const chat = await getChatById({ id });
