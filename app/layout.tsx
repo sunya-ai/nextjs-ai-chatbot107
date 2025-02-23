@@ -1,14 +1,17 @@
 import type { Metadata } from 'next';
 import { Toaster } from 'sonner';
-
-import { ThemeProvider } from '@/components/theme-provider';
-
-import './globals.css';
+import { Analytics } from '@vercel/analytics/react';
+import { ThemeProvider } from '@/components/theme-provider'; // Use your custom ThemeProvider
+import { GeistSans } from 'geist/font/sans';
+import './globals.css'; // Includes Neue Montreal, Tailwind, and energy branding
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://sidekick.sunya.ai/'),
-  title: 'Sunya Sidekick',
-  description: 'Sunya Sidekick',
+  title: 'Sunya Sidekick - Energy Insights',
+  description: 'An advanced AI chatbot for energy research and analysis',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export const viewport = {
@@ -33,22 +36,15 @@ const THEME_COLOR_SCRIPT = `\
   var observer = new MutationObserver(updateThemeColor);
   observer.observe(html, { attributes: true, attributeFilter: ['class'] });
   updateThemeColor();
-})();`;
+})();
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      // `next-themes` injects an extra classname to the body element to avoid
-      // visual flicker before hydration. Hence the `suppressHydrationWarning`
-      // prop is necessary to avoid the React hydration mismatch warning.
-      // https://github.com/pacocoursey/next-themes?tab=readme-ov-file#with-app
-      suppressHydrationWarning
-    >
+    <html lang="en" className={GeistSans.className} suppressHydrationWarning> {/* Removed Inter, prioritize Neue Montreal */}
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -56,15 +52,19 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased">
+      <body className="bg-background text-foreground antialiased min-h-screen">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
+          themes={['light', 'dark']} // Explicit themes for consistency
         >
+          <main className="flex flex-col items-center justify-center p-4 md:p-6">
+            {children}
+          </main>
           <Toaster position="top-center" />
-          {children}
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>
