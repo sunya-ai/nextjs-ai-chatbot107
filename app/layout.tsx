@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Toaster } from 'sonner';
 import { Analytics } from '@vercel/analytics/react';
 import { ThemeProvider } from '@/components/theme-provider'; // Use your custom ThemeProvider
-import { GeistSans } from 'geist/font/sans';
+import { GeistSans } from 'geist/font'; // Updated import path
 import './globals.css'; // Includes Neue Montreal, Tailwind, and energy branding
 
 export const metadata: Metadata = {
