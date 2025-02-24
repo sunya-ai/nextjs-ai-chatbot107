@@ -132,6 +132,55 @@ export default function Home() {
     );
   }
 
+  const handleSave = (newDocumentId: string) => {
+    console.log('Saved document ID:', newDocumentId);
+  };
+
+  const handleDataChange = (newData: SpreadsheetData) => {
+    setSpreadsheetData(newData);
+  };
+
+  const handleFileDrop = async (file: File) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('messages', JSON.stringify(initialMessages));
+    formData.append('selectedChatModel', selectedChatModel);
+    formData.append('id', documentId);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error('Upload failed');
+      const newMessage: ExtendedMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: `Uploaded ${file.name}`,
+        metadata: null,
+      };
+      setInitialMessages(prev => [...prev, newMessage]);
+    } catch (error) {
+      console.error('File upload error:', error);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    handleFileDrop(e.dataTransfer.files[0]);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleSpreadsheetDataUpdate = (data: SpreadsheetData, chatDocumentId: string) => {
+    setSpreadsheetData(data);
+    setSheetOpen(true);
+    console.log('Spreadsheet updated from chat, document ID:', chatDocumentId);
+  };
+
   const saveSpreadsheet = async () => {
     // Type guard to ensure session.user is defined, using local typing
     if (!session || !session.user) {
@@ -160,7 +209,7 @@ export default function Home() {
             const fileName = `${newDocumentId}.csv`;
             put(fileName, blobData, { access: 'public' }).then(({ url }) => {
               console.log('Spreadsheet saved to Vercel Blob:', url);
-              handleSave(newDocumentId);
+              handleSave(newDocumentId); // Use handleSave from the outer scope
             }).catch(error => {
               console.error('Failed to save to Vercel Blob:', error);
               setIsSaving(false);
@@ -176,7 +225,7 @@ export default function Home() {
             const fileName = `${newDocumentId}.csv`;
             put(fileName, blobData, { access: 'public' }).then(({ url }) => {
               console.log('Spreadsheet saved to Vercel Blob:', url);
-              handleSave(newDocumentId);
+              handleSave(newDocumentId); // Use handleSave from the outer scope
             }).catch(error => {
               console.error('Failed to save to Vercel Blob:', error);
               setIsSaving(false);
