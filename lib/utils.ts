@@ -6,7 +6,6 @@ import type {
   TextStreamPart,
   ToolInvocation,
   ToolSet,
-  // Removed ResponseMessage since it's defined locally
 } from 'ai';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -26,9 +25,7 @@ export const fetcher = async (url: string) => {
   const res = await fetch(url);
 
   if (!res.ok) {
-    const error = new Error(
-      'An error occurred while fetching the data.',
-    ) as ApplicationError;
+    const error = new Error('An error occurred while fetching the data.') as ApplicationError;
 
     error.info = await res.json();
     error.status = res.status;
@@ -125,7 +122,7 @@ export function convertToUIMessages(
       id: message.id,
       role: message.role as Message['role'],
       content: textContent,
-      reasoning, // Include reasoning as an optional property
+      reasoning,
       toolInvocations,
     });
 
@@ -133,15 +130,18 @@ export function convertToUIMessages(
   }, []);
 }
 
-type ResponseMessageWithoutId = CoreToolMessage | CoreAssistantMessage;
-type ResponseMessage = ResponseMessageWithoutId & { id: string };
+// Define ResponseMessage with reasoning as an optional property across the union
+type ResponseMessage = (CoreToolMessage | CoreAssistantMessage) & {
+  id: string;
+  reasoning?: string; // Added here to cover all cases
+};
 
 export function sanitizeResponseMessages({
   messages,
   reasoning,
 }: {
   messages: Array<ResponseMessage>;
-  reasoning?: string; // Made optional to handle cases where reasoning might not be provided
+  reasoning?: string;
 }): ResponseMessage[] {
   const toolResultIds: Array<string> = [];
 
@@ -162,7 +162,7 @@ export function sanitizeResponseMessages({
       return {
         ...message,
         content: message.content,
-        reasoning, // Add reasoning as a separate property, not as a content part
+        reasoning, // Add reasoning if provided
       };
     }
 
@@ -170,20 +170,23 @@ export function sanitizeResponseMessages({
       content.type === 'tool-call'
         ? toolResultIds.includes(content.toolCallId)
         : content.type === 'text'
-          ? content.text.length > 0
-          : true,
+        ? content.text.length > 0
+        : true,
     );
 
-    // Add reasoning as a separate property if provided, not as a content part (due to WIP in SDK)
     return {
       ...message,
       content: sanitizedContent,
-      reasoning, // Store reasoning separately in the message object
+      reasoning, // Add reasoning if provided
     };
   });
 
   return sanitizedMessages.filter(
-    (message) => message.content.length > 0 || (message.reasoning && message.reasoning.length > 0),
+    (message) =>
+      (typeof message.content === 'string'
+        ? message.content.length > 0
+        : message.content.length > 0) ||
+      (message.reasoning && message.reasoning.length > 0),
   );
 }
 
@@ -231,7 +234,7 @@ export function getDocumentTimestampByIndex(
   index: number,
 ) {
   if (!documents) return new Date();
-  if (index > documents.length - 1) return new Date(); // Adjust to handle index out of bounds
+  if (index > documents.length - 1) return new Date();
 
   return documents[index].createdAt;
 }
