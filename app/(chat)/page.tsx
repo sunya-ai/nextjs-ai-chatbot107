@@ -32,15 +32,15 @@ import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions
 import { put } from '@vercel/blob'; // Ensure Vercel Blob import is present
 import { Button } from '@/components/ui/button'; // Ensure Button import is present
 
-// Define types for better type safety
+// Define local types for better type safety within this file
 type SpreadsheetRow = [string, string, number]; // Example: [Date, Deal Type, Amount]
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
-// Type for session.user from next-auth
-interface SessionUser {
+// Local type for session.user, assuming id exists when authenticated
+interface LocalSessionUser {
   id: string;
-  // Add other properties as needed (e.g., name, email, image)
+  // Add other properties as needed (e.g., name, email) based on your auth.ts
 }
 
 export default function Home() {
@@ -225,11 +225,14 @@ export default function Home() {
   }
 
   const saveSpreadsheet = async () => {
-    // Type guard to ensure session.user is defined
-    if (!session || !session.user || !session.user.id) {
-      console.error('User session or user ID is undefined');
+    // Type guard to ensure session.user is defined, using local typing
+    if (!session || !session.user) {
+      console.error('User session is undefined or not authenticated');
       return;
     }
+
+    // Assert session.user as LocalSessionUser to ensure id exists
+    const user = session.user as LocalSessionUser;
 
     setIsSaving(true);
     try {
@@ -238,7 +241,7 @@ export default function Home() {
           title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
           content: unparse(spreadsheetData || []),
           kind: 'sheet' as const,
-          userId: session.user.id, // Safe because of the type guard above
+          userId: user.id, // Safe because of the type assertion
         };
 
         let newDocumentId: string;
