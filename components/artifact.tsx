@@ -28,15 +28,16 @@ import { useSidebar } from './ui/sidebar';
 import { useArtifact } from '@/hooks/use-artifact';
 import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
-import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
+import { SheetEditor } from './sheet-editor'; // Updated to use Handsontable-based component
 import equal from 'fast-deep-equal';
+import { cn } from '@/lib/utils';
 
 export const artifactDefinitions = [
   textArtifact,
   codeArtifact,
   imageArtifact,
-  sheetArtifact,
+  { kind: 'sheet' as const, content: SheetEditor }, // Updated to use SheetEditor
 ];
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
@@ -460,25 +461,21 @@ function PureArtifact({
             </div>
 
             <div className="dark:bg-muted bg-background h-full overflow-y-scroll !max-w-full items-center">
-              <artifactDefinition.content
-                title={artifact.title}
-                content={
-                  isCurrentVersion
-                    ? artifact.content
-                    : getDocumentContentById(currentVersionIndex)
-                }
-                mode={mode}
-                status={artifact.status}
-                currentVersionIndex={currentVersionIndex}
-                suggestions={[]}
-                onSaveContent={saveContent}
-                isInline={false}
-                isCurrentVersion={isCurrentVersion}
-                getDocumentContentById={getDocumentContentById}
-                isLoading={isDocumentsFetching && !artifact.content}
-                metadata={metadata}
-                setMetadata={setMetadata}
-              />
+              {artifactDefinition.content({
+                title: artifact.title,
+                content: isCurrentVersion ? artifact.content : getDocumentContentById(currentVersionIndex),
+                mode,
+                status: artifact.status,
+                currentVersionIndex,
+                suggestions: [],
+                onSaveContent: saveContent,
+                isInline: false,
+                isCurrentVersion,
+                getDocumentContentById,
+                isLoading: isDocumentsFetching && !artifact.content,
+                metadata,
+                setMetadata,
+              })}
 
               <AnimatePresence>
                 {isCurrentVersion && (
