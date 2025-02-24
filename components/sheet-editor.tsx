@@ -116,7 +116,7 @@ export default function SheetEditor({
       // Save to Vercel Blob for file storage
       const blobData = new Blob([unparse(data)], { type: 'text/csv' });
       const fileName = `${newDocumentId}.csv`;
-      const { url } = await put(fileName, blobData, { access: 'private' });
+      const { url } = await put(fileName, blobData, { access: 'public' }); // Changed from 'private' to 'public'
       console.log('Spreadsheet saved to Vercel Blob:', url);
 
       // Update content with document ID and timestamp for artifact tracking
