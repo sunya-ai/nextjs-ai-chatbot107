@@ -4,7 +4,8 @@ import { useSession, signIn } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { Chat } from '@/components/chat';
 import { useChat } from 'ai/react';
-import { Message, ExtendedMessage } from 'ai';
+import { Message } from 'ai';
+import { ExtendedMessage } from '@/lib/types'; // Import ExtendedMessage from lib/types.ts
 import { cn, generateUUID } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
@@ -32,17 +33,14 @@ export default function Home() {
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Stable chat ID for useChat
   const [stableChatId] = useState(() => generateUUID());
 
-  // Safe initial welcome message
   const initialWelcomeMessage: Message = {
     id: crypto.randomUUID(),
     role: 'assistant',
     content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
   };
 
-  // Use useChat with safe initialization
   const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading } = useChat({
     api: '/api/chat',
     id: stableChatId,
@@ -55,13 +53,13 @@ export default function Home() {
     },
   });
 
-  // Handle file drop with error checking
+  // Safe file drop handler using ExtendedMessage
   const handleFileDrop = async (file: File) => {
     if (!file || !session?.user?.id) return;
     const formData = new FormData();
     formData.append('file', file);
     formData.append('messages', JSON.stringify(messages));
-    formData.append('selectedChatModel', 'google("gemini-2.0-flash")'); // Use a default model
+    formData.append('selectedChatModel', 'google("gemini-2.0-flash")');
     formData.append('id', documentId);
 
     try {
@@ -69,16 +67,20 @@ export default function Home() {
         method: 'POST',
         body: formData,
       });
+      if (!response) {
+        console.error('No response from /api/chat');
+        return; // Prevent further processing if response is undefined
+      }
       if (!response.ok) {
         console.error('Upload failed, status:', response.status);
         throw new Error('File upload failed');
       }
       const data = await response.json();
-      const newMessage: ExtendedMessage = {
+      const newMessage: ExtendedMessage = { // Use ExtendedMessage for metadata support
         id: crypto.randomUUID(),
         role: 'user',
         content: `Uploaded ${file.name}`,
-        metadata: null,
+        metadata: null, // Optional metadata
       };
       setMessages(prev => [...prev, newMessage]);
     } catch (error) {
@@ -242,7 +244,7 @@ export default function Home() {
           <Chat
             id={documentId}
             initialMessages={messages}
-            selectedChatModel={'google("gemini-2.0-flash")'} // Explicitly set a model
+            selectedChatModel={'google("gemini-2.0-flash")'}
             selectedVisibilityType="private"
             isReadonly={false}
             onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
