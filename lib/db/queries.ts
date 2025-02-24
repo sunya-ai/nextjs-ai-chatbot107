@@ -191,10 +191,15 @@ export async function updateDocument(data: { id: string; title: string; content:
   }
 }
 
-export async function saveDocument(data: { title: string; content: string; kind: ArtifactKind; userId: string }) {
+export async function saveDocument(data: { id?: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
   try {
-    // Assuming saveDocument creates a new document or updates an existing one
-    return await createDocument(data); // You can modify this to handle updates or provide a different logic
+    if (data.id) {
+      // Update existing document
+      return await updateDocument(data);
+    } else {
+      // Create new document
+      return await createDocument(data);
+    }
   } catch (error) {
     console.error('Failed to save document in database');
     throw error;
