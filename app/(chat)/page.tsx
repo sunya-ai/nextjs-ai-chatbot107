@@ -29,7 +29,8 @@ import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { parse, unparse } from 'papaparse'; // Ensure papaparse imports are present
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Ensure Server Actions are imported
-import { put } from '@vercel/blob'; // Add this import for Vercel Blob
+import { put } from '@vercel/blob'; // Ensure Vercel Blob import is present
+import { Button } from '@/components/ui/button'; // Add this import for the Button component
 
 export default function Home() {
   const { data: session, status } = useSession();
