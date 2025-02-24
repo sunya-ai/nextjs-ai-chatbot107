@@ -95,7 +95,7 @@ export default function FinanceEditor({
       const documentData = {
         title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
         content: unparse(data),
-        kind: 'sheet' as const, // Changed from 'finance' to 'sheet'
+        kind: 'sheet' as const,
         userId: session.user.id,
       };
 
@@ -105,7 +105,7 @@ export default function FinanceEditor({
         newDocumentId = documentId;
       } else {
         const result = await createDocumentAction(documentData);
-        newDocumentId = result.id; // Adjust based on your Server Action return type
+        newDocumentId = result[0].id; // Access id from the first returned row
       }
 
       // Save to Vercel Blob
