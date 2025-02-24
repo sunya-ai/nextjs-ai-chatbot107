@@ -3,8 +3,8 @@
 
 import Link from 'next/link';
 import React, { memo } from 'react';
-import { MDXRemote } from 'next-mdx-remote'; // Correct import
-import { serialize } from 'next-mdx-remote/serialize'; // For client-side serialization
+import { MDXRemote } from 'next-mdx-remote';
+import { serialize } from 'next-mdx-remote/serialize';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -18,10 +18,10 @@ import {
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Define CodeBlockProps explicitly
+// Define CodeBlockProps explicitly, matching code-block.tsx
 interface CodeBlockProps {
   node?: any;
-  inline?: boolean;
+  inline?: boolean; // Optional, can be undefined
   className?: string;
   children: React.ReactNode;
   [key: string]: any;
@@ -204,7 +204,6 @@ const collectSources = (content: string): { id: string; url: string }[] => {
   return [...new Set(sources)];
 };
 
-// Client-side rendering with next-mdx-remote
 export const Markdown = memo(
   async ({ children: initialContent }: { children: string }) => {
     const sources = collectSources(initialContent);
