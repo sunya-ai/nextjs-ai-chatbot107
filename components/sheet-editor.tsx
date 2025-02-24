@@ -19,8 +19,6 @@ const font = GeistSans;
 // Register all Handsontable modules
 registerAllModules();
 
-const font = GeistSans;
-
 type SheetEditorProps = {
   content: string;
   saveContent: (content: string, isCurrentVersion: boolean) => void;
