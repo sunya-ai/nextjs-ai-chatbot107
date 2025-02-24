@@ -4,7 +4,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import FinanceEditor from '@/components/FinanceEditor'; // Updated import for default export
+import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
@@ -26,6 +26,7 @@ import {
 import { useTheme } from 'next-themes';
 import { GeistSans } from 'geist/font/sans';
 import { cn } from '@/lib/utils';
+import { Message } from 'ai'; // Import Vercel AI SDK's Message type
 
 const font = GeistSans;
 
@@ -35,8 +36,8 @@ export default function Home() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<any>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
-  const [chartType, setChartType] = useState<string>('bar'); // Default to bar chart for energy visualizations
-  const [selectedChatModel, setSelectedChatModel] = useState<string>('openai("gpt-4o")'); // Default to Vercel AI Chatbot model
+  const [chartType, setChartType] = useState<string>('bar');
+  const [selectedChatModel, setSelectedChatModel] = useState<string>('openai("gpt-4o")');
 
   const {
     messages,
@@ -53,13 +54,18 @@ export default function Home() {
     onResponse: (response) => {
       if (response.status === 429) {
         alert('Too many requests. Please try again later.');
+        return;
       }
       const reader = response.body?.getReader();
-      if (reader) {
-        reader.read().then(({ done, value }) => {
-          if (!done) {
-            const text = new TextDecoder().decode(value);
-            const jsonData = JSON.parse(text);
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      let accumulatedData = '';
+
+      const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
+        if (done) {
+          try {
+            const jsonData = JSON.parse(accumulatedData);
             if (jsonData.spreadsheetData) {
               setSpreadsheetData(jsonData.spreadsheetData);
               setDocumentId(jsonData.documentId);
@@ -69,9 +75,15 @@ export default function Home() {
               setDocumentId(jsonData.documentId);
               setSheetOpen(true);
             }
+          } catch (e) {
+            console.error('Error parsing response:', e);
           }
-        });
-      }
+          return;
+        }
+        accumulatedData += decoder.decode(value, { stream: true });
+        reader.read().then(processStream);
+      };
+      reader.read().then(processStream);
     },
   });
 
@@ -89,7 +101,7 @@ export default function Home() {
     formData.append('file', file);
     formData.append('messages', JSON.stringify(messages));
     formData.append('selectedChatModel', selectedChatModel);
-    formData.append('id', documentId || 'new-chat'); // Use documentId or default
+    formData.append('id', documentId || 'new-chat');
 
     try {
       const response = await fetch('/api/chat', {
@@ -97,7 +109,15 @@ export default function Home() {
         body: formData,
       });
       if (!response.ok) throw new Error('Upload failed');
-      setMessages(prev => [...prev, { role: 'user', content: `Uploaded ${file.name}`, metadata: null }]); // Match route.ts Message type
+      setMessages(prev => [
+        ...prev,
+        {
+          id: crypto.randomUUID(), // Generate unique ID
+          role: 'user',
+          content: `Uploaded ${file.name}`,
+          metadata: null,
+        } as Message, // Type assertion to match Vercel AI SDK's Message
+      ]);
     } catch (error) {
       console.error('File upload error:', error);
     }
@@ -114,7 +134,14 @@ export default function Home() {
 
   useEffect(() => {
     if (messages.length === 0 && session) {
-      setMessages([{ role: 'assistant', content: 'Welcome! Ask about energy deals (e.g., solar M&A) or upload PDFs.', metadata: null }]); // Match route.ts Message type
+      setMessages([
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Welcome! Ask about energy deals (e.g., solar M&A) or upload PDFs.',
+          metadata: null,
+        } as Message,
+      ]);
     }
   }, [session, messages, setMessages]);
 
@@ -138,13 +165,11 @@ export default function Home() {
     });
 
     const chartData = Object.values(groupedData).filter((item: any) => item.name !== 'Unknown');
-    // Sort for bar charts (largest to smallest total value)
-    const sortedData = chartData.sort((a: any, b: any) => {
+    return chartData.sort((a: any, b: any) => {
       const totalA = a.solar + a.oil + a.geothermal;
       const totalB = b.solar + b.oil + b.geothermal;
-      return totalB - totalA; // Descending order (largest to smallest)
+      return totalB - totalA; // Largest to smallest
     });
-    return sortedData;
   };
 
   const renderChart = () => {
@@ -188,7 +213,7 @@ export default function Home() {
               outerRadius={80}
               fill="#8884d8"
             >
-              {convertToChartData(spreadsheetData).map((entry, index) => (
+              {convertToChartData(spreadsheetData).map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -207,14 +232,14 @@ export default function Home() {
         <div className="text-center max-w-2xl">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Energy Research Chat</h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 mb-4">Unleash powerful insights for energy transactions—solar, oil, geothermal, and more.</p>
-          <Button
+          <button
             aria-label="Sign in to start"
             onClick={() => signIn()}
             className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded flex items-center gap-2 mx-auto hover:from-green-600 hover:to-emerald-700 text-lg shadow-lg transition-colors"
           >
             <PlusIcon className="h-5 w-5" />
             Get Started
-          </Button>
+          </button>
         </div>
         <div className="flex gap-4 overflow-x-auto">
           {['Solar', 'Oil', 'Geothermal'].map(sector => (
@@ -233,10 +258,7 @@ export default function Home() {
     <div
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className={cn(
-        'min-h-screen bg-gray-100 dark:bg-gray-950 flex',
-        font.className,
-      )}
+      className={cn('min-h-screen bg-gray-100 dark:bg-gray-950 flex', font.className)}
     >
       <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
         <MDXProvider components={{}}>
