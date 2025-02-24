@@ -31,6 +31,7 @@ import { parse, unparse } from 'papaparse'; // Ensure papaparse imports are pres
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Ensure Server Actions are imported
 import { put } from '@vercel/blob'; // Ensure Vercel Blob import is present
 import { Button } from '@/components/ui/button'; // Ensure Button import is present
+import Image from 'next/image'; // Added for Next.js image optimization
 
 // Define local types for better type safety within this file
 type SpreadsheetRow = [string, string, number]; // Example: [Date, Deal Type, Amount]
@@ -54,62 +55,9 @@ export default function Home() {
   const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Defer rendering until session is loaded and authenticated to prevent hydration mismatches
-  if (status === 'loading' || !session) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
-  const handleSave = (newDocumentId: string) => {
-    console.log('Saved document ID:', newDocumentId);
-  };
-
-  const handleDataChange = (newData: SpreadsheetData) => {
-    setSpreadsheetData(newData);
-  };
-
-  const handleFileDrop = async (file: File) => {
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('messages', JSON.stringify(initialMessages));
-    formData.append('selectedChatModel', selectedChatModel);
-    formData.append('id', documentId);
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!response.ok) throw new Error('Upload failed');
-      const newMessage: ExtendedMessage = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: `Uploaded ${file.name}`,
-        metadata: null,
-      };
-      setInitialMessages(prev => [...prev, newMessage]);
-    } catch (error) {
-      console.error('File upload error:', error);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    handleFileDrop(e.dataTransfer.files[0]);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
-  const handleSpreadsheetDataUpdate = (data: SpreadsheetData, chatDocumentId: string) => {
-    setSpreadsheetData(data);
-    setSheetOpen(true);
-    console.log('Spreadsheet updated from chat, document ID:', chatDocumentId);
-  };
-
+  // Always call hooks at the top level, before any conditionals
   useEffect(() => {
-    if (status === 'authenticated' && session.user) {
+    if (status === 'authenticated' && session?.user) {
       setInitialMessages([
         {
           id: crypto.randomUUID(),
@@ -145,57 +93,10 @@ export default function Home() {
       .sort((a: any, b: any) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
   }, [spreadsheetData]);
 
-  const renderChart = () => {
-    const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
-    switch (chartType) {
-      case 'line':
-        return (
-          <LineChart data={convertToChartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis dataKey="name" stroke="gray" className="text-xs" />
-            <YAxis stroke="gray" className="text-xs" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
-            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
-            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
-          </LineChart>
-        );
-      case 'bar':
-        return (
-          <BarChart data={convertToChartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis dataKey="name" stroke="gray" className="text-xs" />
-            <YAxis stroke="gray" className="text-xs" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-            <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
-            <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
-            <Bar dataKey="geothermal" fill="#ef4444" name="Geothermal Deals" />
-          </BarChart>
-        );
-      case 'pie':
-        return (
-          <PieChart>
-            <Pie
-              data={convertToChartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              fill="#8884d8"
-            >
-              {convertToChartData.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-          </PieChart>
-        );
-    }
-  };
+  // Defer rendering until session is loaded and authenticated to prevent hydration mismatches
+  if (status === 'loading' || !session) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   if (status !== 'authenticated') {
     return (
@@ -208,14 +109,20 @@ export default function Home() {
             onClick={() => signIn()} // Specify your provider here, e.g., signIn('github')
             className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded flex items-center gap-2 mx-auto hover:from-green-600 hover:to-emerald-700 text-lg shadow-lg transition-colors"
           >
-            <PlusIcon className="h-5 w-5" />
+            <PlusIcon className="size-5" /> {/* Updated to use Tailwind size-5 shorthand */}
             Get Started
           </button>
         </div>
         <div className="flex gap-4 overflow-x-auto">
           {['Solar', 'Oil', 'Geothermal'].map(sector => (
             <div key={sector} className="min-w-[200px] p-2 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-              <img src={`/icon-${sector.toLowerCase()}.png`} alt={sector} className="h-12 w-12 mx-auto animate-shimmer" />
+              <Image
+                src={`/icon-${sector.toLowerCase()}.png`}
+                alt={sector}
+                width={48} // Adjust width as needed
+                height={48} // Adjust height as needed
+                className="mx-auto animate-shimmer size-12" // Updated to use Tailwind size-12 shorthand
+              />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{sector} Insights</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Explore the latest deals and trends.</p>
             </div>
@@ -319,7 +226,7 @@ export default function Home() {
             <option value="pie">Pie Chart</option>
           </select>
           <Button
-            onClick={() => startTransition(saveSpreadsheet)} // Removed debouncing to fix build error
+            onClick={() => startTransition(saveSpreadsheet)}
             disabled={isSaving}
             className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
           >
