@@ -29,7 +29,8 @@ import { useArtifact } from '@/hooks/use-artifact';
 import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
 import { textArtifact } from '@/artifacts/text/client';
-import { SheetEditor } from './sheet-editor'; // Updated import (assuming default export)
+import SheetEditor from './sheet-editor'; // Updated import for default export
+import { SpreadsheetEditor } from './sheet-editor'; // Updated import for named export
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 
