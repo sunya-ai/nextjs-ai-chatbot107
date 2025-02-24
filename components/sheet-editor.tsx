@@ -1,12 +1,12 @@
 'use client';
 
 import React, { memo, useEffect, useMemo, useState } from 'react';
-import DataGrid, { textEditor } from 'react-data-grid';
+import { DataGrid, type Column, textEditor } from 'react-data-grid'; // Updated import for react-data-grid v7
 import { parse, unparse } from 'papaparse';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 
-import 'react-data-grid/lib/styles.css';
+import 'react-data-grid/dist/react-data-grid.css'; // Updated CSS import for react-data-grid v7
 
 type SheetEditorProps = {
   content: string;
