@@ -29,7 +29,7 @@ import { useArtifact } from '@/hooks/use-artifact';
 import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
 import { textArtifact } from '@/artifacts/text/client';
-import { SheetEditor } from './sheet-editor'; // Updated to use Handsontable-based component
+import { SheetEditor } from './sheet-editor'; // Updated import
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 
