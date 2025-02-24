@@ -78,7 +78,7 @@
     "prosemirror-state": "^1.4.3",
     "prosemirror-view": "^1.34.3",
     "react": "19.0.0-rc-603e6108-20241029",
-    "react-data-grid": "7.0.0", // Re-added for sheet-editor.tsx compatibility
+    "react-data-grid": "7.0.0",
     "react-dom": "19.0.0-rc-603e6108-20241029",
     "react-markdown": "^9.0.1",
     "@mdx-js/react": "3.0.1",
