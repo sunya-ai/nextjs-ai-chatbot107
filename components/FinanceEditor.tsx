@@ -111,7 +111,7 @@ export default function FinanceEditor({
       // Save to Vercel Blob
       const blobData = new Blob([unparse(data)], { type: 'text/csv' });
       const fileName = `${newDocumentId}.csv`;
-      const { url } = await put(fileName, blobData, { access: 'private' });
+      const { url } = await put(fileName, blobData, { access: 'public' }); // Changed to 'public'
       console.log('Spreadsheet saved to Vercel Blob:', url);
 
       onSave(newDocumentId);
