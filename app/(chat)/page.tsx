@@ -54,7 +54,7 @@ export default function Home() {
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Use Vercel AI SDK's useChat for chat state management
+  // Use Vercel AI SDK's useChat for chat state management, but we'll let Chat component manage its state
   const { messages, input, handleInputChange, handleSubmit, setMessages, status: chatStatus } = useChat({
     api: '/api/chat',
     id: session?.user?.id || generateUUID(),
@@ -290,10 +290,6 @@ export default function Home() {
           <Chat
             id={documentId}
             initialMessages={messages}
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={handleSubmit}
-            setMessages={setMessages}
             selectedChatModel={selectedChatModel}
             selectedVisibilityType="private"
             isReadonly={false}
