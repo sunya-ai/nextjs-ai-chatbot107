@@ -12,7 +12,7 @@ import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { parse, unparse } from 'papaparse';
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
-import { inferDomains } from '@/lib/ai/tools/infer-domains'; // Added import
+import { inferDomains } from '@/lib/ai/tools/infer-domains';
 import { GeistSans } from 'geist/font/sans';
 
 // Register all Handsontable modules
@@ -67,7 +67,7 @@ export default function FinanceEditor({
     { data: 0, title: 'Date', width: 150 },
     { data: 1, title: 'Deal Type', width: 150, renderer: (instance: any, td: HTMLElement, row: number, col: number, prop: string | number, value: any) => {
       const company = value?.split(' ')[0];
-      td.innerHTML = `<div class="flex items-center gap-2"><span>${value || ''}</span>${company && companyLogos[company] ? `<img src="${companyLogos[company]}" alt="${company}" class Woman's-4 w-4 rounded-full" />` : ''}</div>`;
+      td.innerHTML = `<div class="flex items-center gap-2"><span>${value || ''}</span>${company && companyLogos[company] ? `<img src="${companyLogos[company]}" alt="${company}" className="h-4 w-4 rounded-full" />` : ''}</div>`;
       td.className = 'htLeft htMiddle text-zinc-900 dark:text-zinc-100';
       if (row === 0) td.className += ' htHeader';
     }},
@@ -95,7 +95,7 @@ export default function FinanceEditor({
       const documentData = {
         title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
         content: unparse(data),
-        kind: 'finance' as const,
+        kind: 'sheet' as const, // Changed from 'finance' to 'sheet'
         userId: session.user.id,
       };
 
