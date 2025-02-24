@@ -27,6 +27,7 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
+import { inferDomains } from '@/lib/ai/tools/infer-domains'; // Added import for inferDomains
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
@@ -459,7 +460,7 @@ export async function POST(request: Request) {
                         id: m.id || generateUUID(),
                         role: 'assistant',
                         content: compiledMdx.toString(), // Update content with MDX
-                      }) as CoreAssistantMessage & { id: string }), // Use CoreAssistantMessage & { id: string } instead of ResponseMessage
+                      }) as CoreAssistantMessage & { id: string }), // Use CoreAssistantMessage & { id: string }
                     reasoning: reasoning || 'Generated reasoning for assistant response',
                   });
 
