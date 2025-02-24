@@ -3,8 +3,9 @@
 
 import Link from 'next/link';
 import React, { memo } from 'react';
-import { MDXRemote } from 'next-mdx-remote';
-import { serialize } from 'next-mdx-remote/serialize';
+import { compile } from '@mdx-js/mdx'; // Use @mdx-js/mdx directly
+import { run } from '@mdx-js/mdx'; // For runtime evaluation
+import * as runtime from 'react/jsx-runtime'; // JSX runtime for MDX
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -18,10 +19,9 @@ import {
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Define CodeBlockProps explicitly, matching code-block.tsx
 interface CodeBlockProps {
   node?: any;
-  inline?: boolean; // Optional, can be undefined
+  inline?: boolean;
   className?: string;
   children: React.ReactNode;
   [key: string]: any;
@@ -51,7 +51,6 @@ const SourcePreview = ({ sources }: { sources: { id: string; url: string }[] }) 
   );
 };
 
-// MDX components with explicit types
 const components = {
   code: ({ node, inline, className, children, ...props }: CodeBlockProps) => (
     <CodeBlock node={node} inline={inline} className={className} {...props}>
@@ -207,16 +206,16 @@ const collectSources = (content: string): { id: string; url: string }[] => {
 export const Markdown = memo(
   async ({ children: initialContent }: { children: string }) => {
     const sources = collectSources(initialContent);
-    const mdxSource = await serialize(initialContent, {
-      mdxOptions: {
-        remarkPlugins: [remarkGfm],
-        rehypePlugins: [rehypeHighlight, rehypeRaw],
-      },
+    const code = await compile(initialContent, {
+      outputFormat: 'function-body',
+      remarkPlugins: [remarkGfm],
+      rehypePlugins: [rehypeHighlight, rehypeRaw],
     });
+    const { default: MDXContent } = await run(code, runtime);
 
     return (
       <div className="prose prose-zinc dark:prose-invert max-w-none">
-        <MDXRemote source={mdxSource} components={components} />
+        <MDXContent components={components} />
         <SourcePreview sources={sources} />
       </div>
     );
