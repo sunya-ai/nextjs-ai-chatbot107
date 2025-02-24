@@ -189,7 +189,7 @@ export default function Home() {
           <p className="text-lg text-gray-600 dark:text-gray-300 mb-4">Unleash powerful insights for energy transactions—solar, oil, geothermal, and more.</p>
           <button
             aria-label="Sign in to start"
-            onClick={() => signIn()}
+            onClick={() => signIn()} // Specify your provider here, e.g., signIn('github')
             className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded flex items-center gap-2 mx-auto hover:from-green-600 hover:to-emerald-700 text-lg shadow-lg transition-colors"
           >
             <PlusIcon className="h-5 w-5" />
