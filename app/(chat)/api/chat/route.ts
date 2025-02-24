@@ -5,7 +5,6 @@ import {
   smoothStream,
   streamText,
   generateText,
-  type ResponseMessage,
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
@@ -294,7 +293,7 @@ export async function POST(request: Request) {
   if (!chat) {
     console.log('[POST] no chat => creating new');
     const title = await generateTitleFromUserMessage({ message: userMessage });
-    await saveChat({ id, userId: session.user.id, title: title || 'New Chat' }); // Handle potential undefined title
+    await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
   }
 
   console.log('[POST] saving user message => DB');
@@ -352,7 +351,7 @@ export async function POST(request: Request) {
               selectedChatModel === 'chat-model-reasoning'
                 ? []
                 : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ chunking: 'line' }), // Updated from 'word' for better UX
+            experimental_transform: smoothStream({ chunking: 'line' }),
             experimental_generateMessageId: generateUUID,
             tools: {
               getWeather,
@@ -408,13 +407,13 @@ export async function POST(request: Request) {
 
                   const md = new markdownIt();
                   const tokens = md.parse(contentString, {});
-                  const companyNames: string[] = []; // Explicitly typed as string[]
+                  const companyNames: string[] = [];
                   const sources: { id: string; url: string }[] = [];
 
                   tokens.forEach(token => {
                     if (token.type === 'inline' && token.content) {
                       const doc = compromise(token.content);
-                      const companies = doc.match('#Organization+').out('array') as string[]; // Ensure companies is typed as string[]
+                      const companies = doc.match('#Organization+').out('array') as string[];
                       companyNames.push(...companies.filter(name => name.trim()));
 
                       // Parse citations for sources (e.g., [1, 2])
@@ -450,25 +449,18 @@ export async function POST(request: Request) {
                     rehypePlugins: [rehypeHighlight, rehypeRaw],
                   });
 
-                  // Ensure the message conforms to ResponseMessage type, filtering for assistant messages
+                  // Ensure the message conforms to the expected type, filtering for assistant messages
                   const lastMessageIndex = response.messages.length - 1;
                   const sanitizedMessages = sanitizeResponseMessages({
                     messages: response.messages
                       .filter(m => m.role === 'assistant') // Filter to only assistant messages
-                      .map((m, index) => {
-                        if (index === response.messages.filter(mm => mm.role === 'assistant').length - 1) {
-                          // Create a ResponseMessage for the last assistant message
-                          const baseMessage: CoreAssistantMessage & { id: string } = {
-                            ...m,
-                            content: compiledMdx.toString(), // Update content with MDX
-                            role: 'assistant', // Explicitly set role to "assistant"
-                            id: m.id || generateUUID(), // Ensure an ID is present
-                          };
-                          return baseMessage as ResponseMessage; // Cast to ResponseMessage for type safety
-                        }
-                        return m as ResponseMessage; // Cast to ResponseMessage for type safety
-                      }),
-                    reasoning: reasoning || 'Generated reasoning for assistant response', // Provide default reasoning
+                      .map((m, index) => ({
+                        ...m,
+                        id: m.id || generateUUID(),
+                        role: 'assistant',
+                        content: compiledMdx.toString(), // Update content with MDX
+                      }) as CoreAssistantMessage & { id: string }), // Use CoreAssistantMessage & { id: string } instead of ResponseMessage
+                    reasoning: reasoning || 'Generated reasoning for assistant response',
                   });
 
                   // Save messages with custom data in metadata
