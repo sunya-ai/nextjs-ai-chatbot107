@@ -4,7 +4,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { FinanceEditor } from '@/components/FinanceEditor'; // Updated import
+import { FinanceEditor } from '@/components/FinanceEditor'; // Updated import (assuming default export)
 import { MDXProvider } from '@mdx-js/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
