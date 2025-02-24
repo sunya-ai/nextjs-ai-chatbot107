@@ -25,7 +25,7 @@ import {
 } from 'recharts';
 import { useTheme } from 'next-themes';
 import { cn, generateUUID } from '@/lib/utils';
-import { ExtendedMessage } from '@/lib/types';
+import { ExtendedMessage, Message } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { parse, unparse } from 'papaparse';
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
@@ -62,23 +62,21 @@ export default function Home() {
   // We'll create a stable ID for the chat that doesn't change on initial render
   const [stableChatId] = useState(() => generateUUID());
   
-  // Set up initialMessages in a way that doesn't cause errors during loading
-  const initialWelcomeMessage = {
+  // Set up initialMessages with correct types
+  const initialWelcomeMessage: Message = {
     id: crypto.randomUUID(),
-    role: 'assistant',
+    role: 'assistant', // This must be one of: "user", "system", "assistant", or "data"
     content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
   };
 
   // Use Vercel AI SDK's useChat with safe session handling
-  const chatConfig = {
+  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat({
     api: '/api/chat',
     // Use a stable ID that doesn't change on initial render
     id: stableChatId,
     // Only include initial messages when authenticated
-    initialMessages: status === 'authenticated' ? [initialWelcomeMessage] : [],
-  };
-  
-  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat(chatConfig);
+    initialMessages: status === 'authenticated' ? [initialWelcomeMessage] : []
+  });
 
   // Define all handlers BEFORE any conditional returns
   const handleSave = (newDocumentId: string) => {
