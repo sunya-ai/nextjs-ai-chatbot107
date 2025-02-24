@@ -1,3 +1,6 @@
+// artifacts/sheet/client.tsx
+'use client';
+
 import { Artifact } from '@/components/create-artifact';
 import {
   CopyIcon,
@@ -6,7 +9,7 @@ import {
   SparklesIcon,
   UndoIcon,
 } from '@/components/icons';
-import { SheetEditor } from '@/components/sheet-editor'; // Updated to use Handsontable-based component
+import SheetEditor from '@/components/sheet-editor'; // Changed to default import
 import { parse, unparse } from 'papaparse';
 import { toast } from 'sonner';
 
@@ -54,7 +57,6 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
         if (currentVersionIndex === 0) {
           return true;
         }
-
         return false;
       },
     },
@@ -68,7 +70,6 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
         if (isCurrentVersion) {
           return true;
         }
-
         return false;
       },
     },
@@ -77,13 +78,10 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
       description: 'Copy as .csv',
       onClick: ({ content }) => {
         const parsed = parse<string[]>(content, { skipEmptyLines: true, header: true });
-
         const nonEmptyRows = parsed.data.filter((row) =>
           row.some((cell) => cell.trim() !== ''),
         );
-
         const cleanedCsv = unparse(nonEmptyRows);
-
         navigator.clipboard.writeText(cleanedCsv);
         toast.success('Copied csv to clipboard!');
       },
