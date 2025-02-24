@@ -1,8 +1,8 @@
 // app/(chat)/page.tsx
 'use client';
 
-import { useSession, signIn, signOut } from 'next-auth/react';
-import { useState, useEffect, startTransition } from 'react';
+import { useSession, signIn } from 'next-auth/react';
+import { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
@@ -45,7 +45,13 @@ interface LocalSessionUser {
 }
 
 export default function Home() {
-  const { data: session, status } = useSession();
+  // Use useSession with required session and early redirect
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      signIn(); // Redirect to sign-in if no session
+    },
+  });
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null);
@@ -54,10 +60,10 @@ export default function Home() {
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Use Vercel AI SDK's useChat for chat state management
-  const { messages, input, handleInputChange, handleSubmit, setMessages, status: chatStatus } = useChat({
+  // Use Vercel AI SDK's useChat with safe session handling
+  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat({
     api: '/api/chat',
-    id: session?.user?.id || generateUUID(),
+    id: session?.user?.id || generateUUID(), // Fallback to generateUUID if session.user.id is undefined
     initialMessages: status === 'authenticated' && session?.user
       ? [
           {
@@ -69,13 +75,14 @@ export default function Home() {
       : [],
   });
 
+  // Ensure session is fully loaded before client-side logic
   useEffect(() => {
-    // Ensure session is fully loaded before proceeding with client-side logic
     if (status === 'authenticated' && session?.user) {
-      // Additional client-side setup if needed (e.g., syncing with chat state)
+      // Sync chat state or perform client-side setup
     }
   }, [session, status]);
 
+  // Chart data conversion function (unchanged for functionality)
   const convertToChartData = () => {
     if (!spreadsheetData || !Array.isArray(spreadsheetData) || spreadsheetData.length < 2) return [];
     const headers = spreadsheetData[0];
@@ -159,41 +166,7 @@ export default function Home() {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // Handle unauthenticated state
-  if (!session || status !== 'authenticated') {
-    return (
-      <div className="min-h-screen p-2 flex flex-col items-center justify-center gap-4">
-        <div className="text-center max-w-2xl">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Energy Research Chat</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 mb-4">Unleash powerful insights for energy transactions—solar, oil, geothermal, and more.</p>
-          <button
-            aria-label="Sign in to start"
-            onClick={() => signIn()} // Add provider if needed, e.g., signIn('github')
-            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded flex items-center gap-2 mx-auto hover:from-green-600 hover:to-emerald-700 text-lg shadow-lg transition-colors"
-          >
-            <PlusIcon className="size-5" />
-            Get Started
-          </button>
-        </div>
-        <div className="flex gap-4 overflow-x-auto">
-          {['Solar', 'Oil', 'Geothermal'].map(sector => (
-            <div key={sector} className="min-w-[200px] p-2 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-              <Image
-                src={`/icon-${sector.toLowerCase()}.png`}
-                alt={sector}
-                width={48}
-                height={48}
-                className="mx-auto animate-shimmer size-12"
-              />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{sector} Insights</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Explore the latest deals and trends.</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+  // Handle unauthenticated state (covered by useSession.required)
   const handleSave = (newDocumentId: string) => {
     console.log('Saved document ID:', newDocumentId);
   };
@@ -244,7 +217,7 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    if (!session || !session.user) {
+    if (!session?.user) {
       console.error('User session is undefined or not authenticated');
       return;
     }
@@ -252,30 +225,28 @@ export default function Home() {
 
     setIsSaving(true);
     try {
-      startTransition(async () => {
-        const documentData = {
-          title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
-          content: unparse(spreadsheetData || []),
-          kind: 'sheet' as const,
-          userId: user.id,
-        };
+      const documentData = {
+        title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
+        content: unparse(spreadsheetData || []),
+        kind: 'sheet' as const,
+        userId: user.id,
+      };
 
-        let newDocumentId: string;
-        if (documentId) {
-          await updateDocumentAction({ id: documentId, ...documentData });
-          newDocumentId = documentId;
-        } else {
-          const result = await createDocumentAction(documentData);
-          newDocumentId = result.id;
-        }
+      let newDocumentId: string;
+      if (documentId) {
+        await updateDocumentAction({ id: documentId, ...documentData });
+        newDocumentId = documentId;
+      } else {
+        const result = await createDocumentAction(documentData);
+        newDocumentId = result.id;
+      }
 
-        const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
-        const fileName = `${newDocumentId}.csv`;
-        const { url } = await put(fileName, blobData, { access: 'public' });
-        console.log('Spreadsheet saved to Vercel Blob:', url);
-        handleSave(newDocumentId);
-        setIsSaving(false);
-      });
+      const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
+      const fileName = `${newDocumentId}.csv`;
+      const { url } = await put(fileName, blobData, { access: 'public' });
+      console.log('Spreadsheet saved to Vercel Blob:', url);
+      handleSave(newDocumentId);
+      setIsSaving(false);
     } catch (error) {
       console.error('Error in saveSpreadsheet:', error);
       setIsSaving(false);
