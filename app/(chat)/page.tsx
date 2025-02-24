@@ -2,7 +2,7 @@
 'use client';
 
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { useState, useEffect, startTransition, useMemo } from 'react'; // Added useMemo to imports
+import { useState, useEffect, startTransition, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
@@ -36,6 +36,12 @@ import { Button } from '@/components/ui/button'; // Ensure Button import is pres
 type SpreadsheetRow = [string, string, number]; // Example: [Date, Deal Type, Amount]
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
+
+// Type for session.user from next-auth
+interface SessionUser {
+  id: string;
+  // Add other properties as needed (e.g., name, email, image)
+}
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -219,24 +225,26 @@ export default function Home() {
   }
 
   const saveSpreadsheet = async () => {
-    if (!session?.user?.id) return;
+    // Type guard to ensure session.user is defined
+    if (!session || !session.user || !session.user.id) {
+      console.error('User session or user ID is undefined');
+      return;
+    }
 
     setIsSaving(true);
     try {
       startTransition(() => {
-        // Wrap the state update in startTransition for non-blocking behavior
         const documentData = {
           title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
           content: unparse(spreadsheetData || []),
           kind: 'sheet' as const,
-          userId: session.user.id,
+          userId: session.user.id, // Safe because of the type guard above
         };
 
         let newDocumentId: string;
         if (documentId) {
           updateDocumentAction({ id: documentId, ...documentData }).then(() => {
             newDocumentId = documentId;
-            // Save to Vercel Blob after updating the document
             const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
             const fileName = `${newDocumentId}.csv`;
             put(fileName, blobData, { access: 'public' }).then(({ url }) => {
@@ -244,16 +252,15 @@ export default function Home() {
               handleSave(newDocumentId);
             }).catch(error => {
               console.error('Failed to save to Vercel Blob:', error);
-              setIsSaving(false); // Ensure isSaving is reset on error
+              setIsSaving(false);
             });
           }).catch(error => {
             console.error('Failed to update document:', error);
-            setIsSaving(false); // Ensure isSaving is reset on error
+            setIsSaving(false);
           });
         } else {
           createDocumentAction(documentData).then(result => {
             newDocumentId = result.id;
-            // Save to Vercel Blob after creating the document
             const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
             const fileName = `${newDocumentId}.csv`;
             put(fileName, blobData, { access: 'public' }).then(({ url }) => {
@@ -261,17 +268,17 @@ export default function Home() {
               handleSave(newDocumentId);
             }).catch(error => {
               console.error('Failed to save to Vercel Blob:', error);
-              setIsSaving(false); // Ensure isSaving is reset on error
+              setIsSaving(false);
             });
           }).catch(error => {
             console.error('Failed to create document:', error);
-            setIsSaving(false); // Ensure isSaving is reset on error
+            setIsSaving(false);
           });
         }
       });
     } catch (error) {
       console.error('Unexpected error in saveSpreadsheet:', error);
-      setIsSaving(false); // Ensure isSaving is reset on error
+      setIsSaving(false);
     }
   };
 
