@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Toaster } from 'sonner';
 import { Analytics } from '@vercel/analytics/react';
 import { ThemeProvider } from '@/components/theme-provider'; // Use your custom ThemeProvider
-import { GeistSans } from 'geist/font/sans'; // Updated import path
 import './globals.css'; // Includes Neue Montreal, Tailwind, and energy branding
 
 export const metadata: Metadata = {
@@ -43,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={GeistSans.className} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
