@@ -3,9 +3,9 @@
 
 interface CodeBlockProps {
   node?: any;
-  inline?: boolean; // Already optional, matches MDXRemote's type
+  inline?: boolean;
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode; // Changed to optional
   [key: string]: any;
 }
 
@@ -16,7 +16,7 @@ export function CodeBlock({
   children,
   ...props
 }: CodeBlockProps) {
-  if (!inline) { // Handles undefined as falsy, rendering as block
+  if (!inline) {
     return (
       <div className="not-prose flex flex-col">
         <pre
