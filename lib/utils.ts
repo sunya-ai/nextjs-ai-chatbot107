@@ -5,6 +5,7 @@ import type {
   TextStreamPart,
   ToolInvocation,
   ToolSet,
+  ResponseMessage,
 } from 'ai';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -123,7 +124,7 @@ export function convertToUIMessages(
       id: message.id,
       role: message.role as Message['role'],
       content: textContent,
-      reasoning,
+      reasoning, // Include reasoning as an optional property
       toolInvocations,
     });
 
@@ -139,8 +140,8 @@ export function sanitizeResponseMessages({
   reasoning,
 }: {
   messages: Array<ResponseMessage>;
-  reasoning: string | undefined;
-}) {
+  reasoning?: string; // Made optional to handle cases where reasoning might not be provided
+}): ResponseMessage[] {
   const toolResultIds: Array<string> = [];
 
   for (const message of messages) {
@@ -153,10 +154,16 @@ export function sanitizeResponseMessages({
     }
   }
 
-  const messagesBySanitizedContent = messages.map((message) => {
+  const sanitizedMessages = messages.map((message) => {
     if (message.role !== 'assistant') return message;
 
-    if (typeof message.content === 'string') return message;
+    if (typeof message.content === 'string') {
+      return {
+        ...message,
+        content: message.content,
+        reasoning, // Add reasoning as a separate property, not as a content part
+      };
+    }
 
     const sanitizedContent = message.content.filter((content) =>
       content.type === 'tool-call'
@@ -166,19 +173,16 @@ export function sanitizeResponseMessages({
           : true,
     );
 
-    if (reasoning) {
-      // @ts-expect-error: reasoning message parts in sdk is wip
-      sanitizedContent.push({ type: 'reasoning', reasoning });
-    }
-
+    // Add reasoning as a separate property if provided, not as a content part (due to WIP in SDK)
     return {
       ...message,
       content: sanitizedContent,
+      reasoning, // Store reasoning separately in the message object
     };
   });
 
-  return messagesBySanitizedContent.filter(
-    (message) => message.content.length > 0,
+  return sanitizedMessages.filter(
+    (message) => message.content.length > 0 || (message.reasoning && message.reasoning.length > 0),
   );
 }
 
@@ -211,7 +215,8 @@ export function sanitizeUIMessages(messages: Array<Message>): Array<Message> {
   return messagesBySanitizedToolInvocations.filter(
     (message) =>
       message.content.length > 0 ||
-      (message.toolInvocations && message.toolInvocations.length > 0),
+      (message.toolInvocations && message.toolInvocations.length > 0) ||
+      (message.reasoning && message.reasoning.length > 0),
   );
 }
 
@@ -225,7 +230,7 @@ export function getDocumentTimestampByIndex(
   index: number,
 ) {
   if (!documents) return new Date();
-  if (index > documents.length) return new Date();
+  if (index > documents.length - 1) return new Date(); // Adjust to handle index out of bounds
 
   return documents[index].createdAt;
 }
