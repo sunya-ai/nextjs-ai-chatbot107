@@ -1,8 +1,8 @@
+// app/(chat)/actions.ts
 'use server';
 
 import { generateText, Message } from 'ai';
 import { cookies } from 'next/headers';
-
 import {
   deleteMessagesByChatIdAfterTimestamp,
   getMessageById,
@@ -14,7 +14,16 @@ import { VisibilityType } from '@/components/visibility-selector';
 import { myProvider } from '@/lib/ai/models';
 import { ArtifactKind } from '@/components/artifact';
 
-export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }) {
+// Define the expected shape of a document
+type Document = {
+  id: string;
+  title: string;
+  content: string;
+  kind: ArtifactKind;
+  userId: string;
+};
+
+export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }): Promise<Document[]> {
   return await createDocument(data);
 }
 
@@ -44,7 +53,7 @@ export async function generateTitleFromUserMessage({
         - You will generate a short title based on the first message a user begins a conversation with.
         - Ensure it is not more than 80 characters long.
         - The title should be a summary of the user's message.
-        - Do not use quotes or colons.`,
+        - Do not use quotes or colons`,
       prompt: JSON.stringify(message),
     });
 
