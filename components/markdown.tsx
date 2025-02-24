@@ -3,9 +3,8 @@
 
 import Link from 'next/link';
 import React, { memo } from 'react';
-import { compile } from '@mdx-js/mdx'; // Use @mdx-js/mdx directly
-import { run } from '@mdx-js/mdx'; // For runtime evaluation
-import * as runtime from 'react/jsx-runtime'; // JSX runtime for MDX
+import { compile, run } from '@mdx-js/mdx';
+import * as runtime from 'react/jsx-runtime';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -23,7 +22,7 @@ interface CodeBlockProps {
   node?: any;
   inline?: boolean;
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode; // Optional to match MDXComponents
   [key: string]: any;
 }
 
@@ -51,13 +50,13 @@ const SourcePreview = ({ sources }: { sources: { id: string; url: string }[] }) 
   );
 };
 
-const components = {
+const components: { [key: string]: React.ComponentType<any> } = {
   code: ({ node, inline, className, children, ...props }: CodeBlockProps) => (
     <CodeBlock node={node} inline={inline} className={className} {...props}>
       {children}
     </CodeBlock>
   ),
-  pre: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   ol: ({ children, ...props }: React.ComponentProps<'ol'>) => (
     <ol className="list-decimal list-outside ml-4 space-y-4 font-semibold [counter-reset:list-item]" {...props}>
       {children}
