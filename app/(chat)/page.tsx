@@ -1,3 +1,4 @@
+// app/(chat)/page.tsx
 'use client';
 
 import { useSession, signIn, signOut } from 'next-auth/react';
@@ -25,8 +26,8 @@ import {
 import { useTheme } from 'next-themes';
 import { GeistSans } from 'geist/font/sans';
 import { cn, generateUUID } from '@/lib/utils';
-import { Message } from 'ai';
-import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models'; // Ensure this exists or adjust
+import { ExtendedMessage } from '@/lib/types'; // Import extended type
+import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 
 const font = GeistSans;
 
@@ -35,18 +36,17 @@ export default function Home() {
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<any>(null);
-  const [documentId] = useState<string>(generateUUID()); // Static ID
+  const [documentId] = useState<string>(generateUUID());
   const [chartType, setChartType] = useState<string>('bar');
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
-  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+  const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
 
   const handleSave = (newDocumentId: string) => {
-    console.log('Saved document ID:', newDocumentId); // Log for now
+    console.log('Saved document ID:', newDocumentId);
   };
 
   const handleDataChange = (newData: any) => {
     setSpreadsheetData(newData);
-    // Optionally, propagate changes back to chat if needed
   };
 
   const handleFileDrop = async (file: File) => {
@@ -63,7 +63,7 @@ export default function Home() {
         body: formData,
       });
       if (!response.ok) throw new Error('Upload failed');
-      const newMessage: Message = {
+      const newMessage: ExtendedMessage = {
         id: crypto.randomUUID(),
         role: 'user',
         content: `Uploaded ${file.name}`,
@@ -221,7 +221,7 @@ export default function Home() {
             id={documentId}
             initialMessages={initialMessages}
             selectedChatModel={selectedChatModel}
-            selectedVisibilityType="private" // Consistent with template
+            selectedVisibilityType="private"
             isReadonly={false}
             onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
           />
