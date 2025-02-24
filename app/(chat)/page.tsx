@@ -24,12 +24,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useTheme } from 'next-themes';
-import { GeistSans } from 'geist/font/sans';
 import { cn, generateUUID } from '@/lib/utils';
 import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
-
-const font = GeistSans;
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -211,7 +208,7 @@ export default function Home() {
     <div
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className={cn('min-h-screen bg-gray-100 dark:bg-gray-950 flex', font.className)}
+      className={cn('min-h-screen bg-gray-100 dark:bg-gray-950 flex')}
     >
       <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
         <MDXProvider components={{}}>
