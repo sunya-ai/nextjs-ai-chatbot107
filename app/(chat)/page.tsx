@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useTheme } from 'next-themes';
-import { GeistSans } from 'geist/font';
+import { GeistSans } from 'geist/font/sans';
 import { cn, generateUUID } from '@/lib/utils';
 import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
