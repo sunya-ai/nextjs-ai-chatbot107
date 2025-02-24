@@ -2,13 +2,13 @@
 'use client';
 
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { useState, useEffect, startTransition } from 'react'; // Removed useMemo for simplicity from template
+import { useState, useEffect, startTransition } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
-import { useChat } from 'ai/react'; // Vercel AI SDK useChat hook
+import { useChat } from 'ai/react';
 import {
   LineChart,
   Line,
@@ -56,8 +56,8 @@ export default function Home() {
 
   // Use Vercel AI SDK's useChat for chat state management
   const { messages, input, handleInputChange, handleSubmit, setMessages, status: chatStatus } = useChat({
-    api: '/api/chat', // Match with your API route
-    id: session?.user?.id || generateUUID(), // Unique chat ID tied to user session
+    api: '/api/chat',
+    id: session?.user?.id || generateUUID(),
     initialMessages: status === 'authenticated' && session?.user
       ? [
           {
@@ -73,7 +73,6 @@ export default function Home() {
     // No need to set initial messages here; useChat handles it
   }, [session, status]);
 
-  // Simplified chart data for demonstration (remove useMemo to align with template simplicity)
   const convertToChartData = () => {
     if (!spreadsheetData || !Array.isArray(spreadsheetData) || spreadsheetData.length < 2) return [];
     const headers = spreadsheetData[0];
@@ -204,7 +203,7 @@ export default function Home() {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('messages', JSON.stringify(messages)); // Use messages from useChat
+    formData.append('messages', JSON.stringify(messages));
     formData.append('selectedChatModel', selectedChatModel);
     formData.append('id', documentId);
 
@@ -220,7 +219,7 @@ export default function Home() {
         content: `Uploaded ${file.name}`,
         metadata: null,
       };
-      setMessages(prev => [...prev, newMessage]); // Update messages via useChat
+      setMessages(prev => [...prev, newMessage]);
     } catch (error) {
       console.error('File upload error:', error);
     }
@@ -290,11 +289,11 @@ export default function Home() {
         <MDXProvider components={{}}>
           <Chat
             id={documentId}
-            messages={messages} // Pass messages from useChat
+            initialMessages={messages}
             input={input}
             handleInputChange={handleInputChange}
             handleSubmit={handleSubmit}
-            setMessages={setMessages} // Pass setMessages for custom updates
+            setMessages={setMessages}
             selectedChatModel={selectedChatModel}
             selectedVisibilityType="private"
             isReadonly={false}
