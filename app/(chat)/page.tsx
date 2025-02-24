@@ -6,7 +6,7 @@ import { useChat } from 'ai/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { FinanceEditor } from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
-import { PlusIcon } from '@heroicons/react/outline'; // Updated to correct Heroicons import
+import { PlusIcon } from '@heroicons/react/24/outline'; // Confirmed Heroicons v2 import
 import { Chat } from '@/components/chat';
 import {
   LineChart,
