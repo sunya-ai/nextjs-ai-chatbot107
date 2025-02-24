@@ -13,6 +13,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { MDXProvider } from '@mdx-js/react';
+import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Added import for updateDocumentAction and createDocumentAction
 
 type SpreadsheetRow = [string, string, number]; // [Date, Deal Type, Amount]
 type SpreadsheetData = SpreadsheetRow[] | null;
