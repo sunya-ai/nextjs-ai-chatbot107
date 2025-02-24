@@ -24,7 +24,8 @@ type Document = {
 };
 
 export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }): Promise<Document> {
-  return await createDocument(data); // Changed to return Promise<Document>
+  const results = await createDocument(data); // Returns array-like structure
+  return results[0]; // Take the first document (assumes at least one result)
 }
 
 export async function updateDocumentAction(data: { id: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
