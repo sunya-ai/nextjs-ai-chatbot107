@@ -8,7 +8,7 @@ import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
-import { useChat } from 'ai/react'; // Added Vercel AI SDK useChat hook
+import { useChat } from 'ai/react'; // Vercel AI SDK useChat hook
 import {
   LineChart,
   Line,
@@ -64,7 +64,6 @@ export default function Home() {
             id: crypto.randomUUID(),
             role: 'assistant',
             content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
-            metadata: null,
           },
         ]
       : [],
