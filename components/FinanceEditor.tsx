@@ -105,13 +105,13 @@ export default function FinanceEditor({
         newDocumentId = documentId;
       } else {
         const result = await createDocumentAction(documentData);
-        newDocumentId = result[0].id; // Access id from the first returned row
+        newDocumentId = result.id; // Fixed: removed [0] since result is a single Document
       }
 
       // Save to Vercel Blob
       const blobData = new Blob([unparse(data)], { type: 'text/csv' });
       const fileName = `${newDocumentId}.csv`;
-      const { url } = await put(fileName, blobData, { access: 'public' }); // Changed to 'public'
+      const { url } = await put(fileName, blobData, { access: 'public' });
       console.log('Spreadsheet saved to Vercel Blob:', url);
 
       onSave(newDocumentId);
