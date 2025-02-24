@@ -23,14 +23,14 @@ export function Chat({
   selectedChatModel,
   selectedVisibilityType,
   isReadonly,
-  onSpreadsheetDataUpdate, // Added prop
+  onSpreadsheetDataUpdate, 
 }: {
   id: string;
   initialMessages: Array<Message>;
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
-  onSpreadsheetDataUpdate?: (data: any, documentId: string) => void; // Optional callback
+  onSpreadsheetDataUpdate?: (data: any, documentId: string) => void;
 }) {
   const { mutate } = useSWRConfig();
 
@@ -141,6 +141,9 @@ export function Chat({
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
 
+  // Provide fallback for votes to prevent null reference errors
+  const safeVotes = votes || [];
+
   return (
     <>
       <div className="flex flex-col min-w-0 h-dvh bg-background">
@@ -154,7 +157,7 @@ export function Chat({
         <Messages
           chatId={id}
           isLoading={isLoading}
-          votes={votes || []} {/* Add fallback for votes */}
+          votes={safeVotes}
           messages={messages}
           setMessages={setMessages}
           reload={reload}
@@ -194,7 +197,7 @@ export function Chat({
         messages={messages}
         setMessages={setMessages}
         reload={reload}
-        votes={votes || []} {/* Add fallback for votes */}
+        votes={safeVotes}
         isReadonly={isReadonly}
       />
     </>
