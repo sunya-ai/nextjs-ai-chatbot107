@@ -59,20 +59,26 @@ export default function Home() {
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [isSaving, setIsSaving] = useState(false);
 
+  // We'll create a stable ID for the chat that doesn't change on initial render
+  const [stableChatId] = useState(() => generateUUID());
+  
+  // Set up initialMessages in a way that doesn't cause errors during loading
+  const initialWelcomeMessage = {
+    id: crypto.randomUUID(),
+    role: 'assistant',
+    content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
+  };
+
   // Use Vercel AI SDK's useChat with safe session handling
-  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat({
+  const chatConfig = {
     api: '/api/chat',
-    id: session?.user?.id || generateUUID(), // Fallback to UUID if session.user.id is undefined
-    initialMessages: status === 'authenticated' && session?.user
-      ? [
-          {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
-          },
-        ]
-      : [],
-  });
+    // Use a stable ID that doesn't change on initial render
+    id: stableChatId,
+    // Only include initial messages when authenticated
+    initialMessages: status === 'authenticated' ? [initialWelcomeMessage] : [],
+  };
+  
+  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat(chatConfig);
 
   // Define all handlers BEFORE any conditional returns
   const handleSave = (newDocumentId: string) => {
