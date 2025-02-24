@@ -1,62 +1,81 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { ArtifactKind } from '@/components/artifact';
 import {
   deleteDocumentsByIdAfterTimestamp,
   getDocumentsById,
   saveDocument,
-} from '@/lib/db/queries';
+} from '@/lib/db/queries'; // Verified import
+import { Document } from '@/lib/db/schema'; // Import Document type for type safety
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
-
-  if (!id) {
-    return new Response('Missing id', { status: 400 });
-  }
-
-  const session = await auth();
-
-  if (!session || !session.user) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const documents = await getDocumentsById({ id });
-
-  const [document] = documents;
-
-  if (!document) {
-    return new Response('Not Found', { status: 404 });
-  }
-
-  if (document.userId !== session.user.id) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  return Response.json(documents, { status: 200 });
+// Type for the request body in POST
+interface DocumentRequestBody {
+  content: string;
+  title: string;
+  kind: ArtifactKind;
 }
 
-export async function POST(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+// Type for the PATCH request body
+interface PatchRequestBody {
+  timestamp: string;
+}
 
-  if (!id) {
-    return new Response('Missing id', { status: 400 });
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
+
+    const session = await auth();
+
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const documents = await getDocumentsById({ id });
+
+    if (!documents.length) {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+    }
+
+    const [document] = documents;
+
+    if (document.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    return NextResponse.json(documents, { status: 200 });
+  } catch (error) {
+    console.error('Failed to fetch documents:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
 
-  const session = await auth();
+export async function POST(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
 
-  if (!session) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
 
-  const {
-    content,
-    title,
-    kind,
-  }: { content: string; title: string; kind: ArtifactKind } =
-    await request.json();
+    const session = await auth();
 
-  if (session.user?.id) {
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body: DocumentRequestBody = await request.json();
+    const { content, title, kind } = body;
+
+    if (!content || !title || !kind) {
+      return NextResponse.json({ error: 'Missing required fields (content, title, kind)' }, { status: 400 });
+    }
+
     const document = await saveDocument({
       id,
       content,
@@ -65,39 +84,55 @@ export async function POST(request: Request) {
       userId: session.user.id,
     });
 
-    return Response.json(document, { status: 200 });
+    return NextResponse.json({ document }, { status: 201 });
+  } catch (error) {
+    console.error('Failed to save document:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-  return new Response('Unauthorized', { status: 401 });
 }
 
-export async function PATCH(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+export async function PATCH(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
 
-  const { timestamp }: { timestamp: string } = await request.json();
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
 
-  if (!id) {
-    return new Response('Missing id', { status: 400 });
+    const session = await auth();
+
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body: PatchRequestBody = await request.json();
+    const { timestamp } = body;
+
+    if (!timestamp) {
+      return NextResponse.json({ error: 'Missing timestamp' }, { status: 400 });
+    }
+
+    const documents = await getDocumentsById({ id });
+
+    if (!documents.length) {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+    }
+
+    const [document] = documents;
+
+    if (document.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await deleteDocumentsByIdAfterTimestamp({
+      id,
+      timestamp: new Date(timestamp),
+    });
+
+    return NextResponse.json({ message: 'Deleted' }, { status: 200 });
+  } catch (error) {
+    console.error('Failed to delete documents:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const session = await auth();
-
-  if (!session || !session.user) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const documents = await getDocumentsById({ id });
-
-  const [document] = documents;
-
-  if (document.userId !== session.user.id) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  await deleteDocumentsByIdAfterTimestamp({
-    id,
-    timestamp: new Date(timestamp),
-  });
-
-  return new Response('Deleted', { status: 200 });
 }
