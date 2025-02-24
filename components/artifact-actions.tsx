@@ -1,22 +1,24 @@
+// components/artifact-actions.tsx
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { artifactDefinitions, UIArtifact } from './artifact';
 import { Dispatch, memo, SetStateAction, useState } from 'react';
-import { ArtifactActionContext } from './create-artifact';
+import { Artifact, ArtifactActionContext } from './create-artifact'; // Import Artifact type
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-interface ArtifactActionsProps {
+// Use Artifact type with generic kind and metadata
+interface ArtifactActionsProps<K extends string, M = any> {
   artifact: UIArtifact;
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
   currentVersionIndex: number;
   isCurrentVersion: boolean;
   mode: 'edit' | 'diff';
-  metadata: any;
-  setMetadata: Dispatch<SetStateAction<any>>;
+  metadata: M;
+  setMetadata: Dispatch<SetStateAction<M>>;
 }
 
-function PureArtifactActions({
+function PureArtifactActions<K extends string, M>({
   artifact,
   handleVersionChange,
   currentVersionIndex,
@@ -24,12 +26,12 @@ function PureArtifactActions({
   mode,
   metadata,
   setMetadata,
-}: ArtifactActionsProps) {
+}: ArtifactActionsProps<K, M>) {
   const [isLoading, setIsLoading] = useState(false);
 
   const artifactDefinition = artifactDefinitions.find(
     (definition) => definition.kind === artifact.kind,
-  );
+  ) as Artifact<K, M> | undefined; // Assert it's an Artifact or undefined
 
   if (!artifactDefinition) {
     throw new Error('Artifact definition not found!');
@@ -58,7 +60,6 @@ function PureArtifactActions({
               })}
               onClick={async () => {
                 setIsLoading(true);
-
                 try {
                   await Promise.resolve(action.onClick(actionContext));
                 } catch (error) {
@@ -71,8 +72,8 @@ function PureArtifactActions({
                 isLoading || artifact.status === 'streaming'
                   ? true
                   : action.isDisabled
-                    ? action.isDisabled(actionContext)
-                    : false
+                  ? action.isDisabled(actionContext)
+                  : false
               }
             >
               {action.icon}
@@ -90,11 +91,9 @@ export const ArtifactActions = memo(
   PureArtifactActions,
   (prevProps, nextProps) => {
     if (prevProps.artifact.status !== nextProps.artifact.status) return false;
-    if (prevProps.currentVersionIndex !== nextProps.currentVersionIndex)
-      return false;
+    if (prevProps.currentVersionIndex !== nextProps.currentVersionIndex) return false;
     if (prevProps.isCurrentVersion !== nextProps.isCurrentVersion) return false;
     if (prevProps.artifact.content !== nextProps.artifact.content) return false;
-
     return true;
   },
 );
