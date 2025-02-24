@@ -27,7 +27,8 @@ import { useTheme } from 'next-themes';
 import { cn, generateUUID } from '@/lib/utils';
 import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
-import { parse, unparse } from 'papaparse'; // Import papaparse functions
+import { parse, unparse } from 'papaparse'; // Ensure papaparse imports are present
+import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Add updateDocumentAction to the import
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -289,21 +290,21 @@ export default function Home() {
           <ResponsiveContainer width="100%" height={300}>
             {renderChart()}
           </ResponsiveContainer>
-          </div>
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetContent side="right" className="w-full max-w-2xl bg-gray-50 dark:bg-gray-900">
-              <SheetHeader>
-                <SheetTitle className="text-2xl font-semibold text-gray-900 dark:text-white">Generated Spreadsheet</SheetTitle>
-              </SheetHeader>
-              <FinanceEditor
-                initialData={spreadsheetData || [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]]}
-                documentId={documentId}
-                onSave={handleSave}
-                onDataChange={handleDataChange}
-              />
-            </SheetContent>
-          </Sheet>
         </div>
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+          <SheetContent side="right" className="w-full max-w-2xl bg-gray-50 dark:bg-gray-900">
+            <SheetHeader>
+              <SheetTitle className="text-2xl font-semibold text-gray-900 dark:text-white">Generated Spreadsheet</SheetTitle>
+            </SheetHeader>
+            <FinanceEditor
+              initialData={spreadsheetData || [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]]}
+              documentId={documentId}
+              onSave={handleSave}
+              onDataChange={handleDataChange}
+            />
+          </SheetContent>
+        </Sheet>
       </div>
-    );
-  }
+    </div>
+  );
+}
