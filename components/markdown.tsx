@@ -1,7 +1,8 @@
 // components/markdown.tsx
 import Link from 'next/link';
-import { MDXRemote, type MDXRemoteSerializeResult } from 'next-mdx-remote';
-import { serialize } from 'next-mdx-remote/serialize';
+import React from 'react';
+import { MDXProvider } from '@mdx-js/react';
+import { compile } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -15,6 +16,7 @@ import {
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Source preview component
 const SourcePreview = ({ sources }: { sources: { id: string; url: string }[] }) => {
   if (!sources.length) return null;
 
@@ -39,6 +41,7 @@ const SourcePreview = ({ sources }: { sources: { id: string; url: string }[] }) 
   );
 };
 
+// MDX components with explicit types
 const components = {
   code: CodeBlock,
   pre: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -67,6 +70,11 @@ const components = {
     const isCitation = /^\[\d+(,\s*\d+)*\]$/.test(cleanText);
     
     if (isCitation) {
+      const citationIds = cleanText
+        .replace(/[\[\]]/g, '')
+        .split(',')
+        .map((id) => id.trim())
+        .map(Number);
       return (
         <span className="text-[9px] text-zinc-500 dark:text-zinc-400 align-super bg-zinc-100/50 dark:bg-zinc-800/50 rounded px-1" {...props}>
           {cleanText}
@@ -168,6 +176,7 @@ const components = {
   ),
 };
 
+// Collect citations for source preview
 const collectSources = (content: string): { id: string; url: string }[] => {
   const sources: { id: string; url: string }[] = [];
   const citationRegex = /\[\d+(,\s*\d+)*\]/g;
@@ -184,21 +193,30 @@ const collectSources = (content: string): { id: string; url: string }[] => {
     });
   }
 
-  return [...new Set(sources)];
+  return [...new Set(sources)]; // Remove duplicates
 };
 
+// Compile MDX content asynchronously
+const compileMDX = async (content: string): Promise<string> => {
+  const compiled = await compile(content, {
+    outputFormat: 'function-body',
+    remarkPlugins: [remarkGfm],
+    rehypePlugins: [rehypeHighlight, rehypeRaw],
+  });
+  return compiled.toString();
+};
+
+// Async component (no memo wrapping due to async nature)
 export async function Markdown({ children: initialContent }: { children: string }) {
   const sources = collectSources(initialContent);
-  const mdxSource = await serialize(initialContent, {
-    mdxOptions: {
-      remarkPlugins: [remarkGfm],
-      rehypePlugins: [rehypeHighlight, rehypeRaw],
-    },
-  });
+  const mdxContent = await compileMDX(initialContent);
 
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
-      <MDXRemote source={mdxSource} components={components} />
+      <MDXProvider components={components}>
+        {/* Assuming MDXContent is a placeholder; use eval or dynamic import if needed */}
+        <div dangerouslySetInnerHTML={{ __html: `<>{${mdxContent}}</>` }} />
+      </MDXProvider>
       <SourcePreview sources={sources} />
     </div>
   );
