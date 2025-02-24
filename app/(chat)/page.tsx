@@ -2,98 +2,66 @@
 
 import { useSession, signIn } from 'next-auth/react';
 import { useState, useEffect } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import FinanceEditor from '@/components/FinanceEditor';
-import { MDXProvider } from '@mdx-js/react';
-import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
 import { useChat } from 'ai/react';
-import { Message } from 'ai'; // Import Message from ai directly
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-} from 'recharts';
-import { useTheme } from 'next-themes';
+import { Message, ExtendedMessage } from 'ai';
 import { cn, generateUUID } from '@/lib/utils';
-import { ExtendedMessage } from '@/lib/types';
-import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
-import { parse, unparse } from 'papaparse';
-import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
-import { put } from '@vercel/blob';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import FinanceEditor from '@/components/FinanceEditor';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
+import { MDXProvider } from '@mdx-js/react';
 
-// Define local types for type safety
 type SpreadsheetRow = [string, string, number]; // [Date, Deal Type, Amount]
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
-interface LocalSessionUser {
-  id: string; // Ensure this is required and non-null
-}
-
 export default function Home() {
-  // Use useSession with required: true to enforce authentication
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       signIn(); // Redirect to sign-in if no session
     },
   });
-  
+
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null);
   const [documentId] = useState<string>(generateUUID());
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
-  const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [isSaving, setIsSaving] = useState(false);
 
-  // We'll create a stable ID for the chat that doesn't change on initial render
+  // Stable chat ID for useChat
   const [stableChatId] = useState(() => generateUUID());
-  
-  // Set up initialMessages with correct types
+
+  // Safe initial welcome message
   const initialWelcomeMessage: Message = {
     id: crypto.randomUUID(),
-    role: 'assistant', // This must be one of: "user", "system", "assistant", or "data"
+    role: 'assistant',
     content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
   };
 
-  // Use Vercel AI SDK's useChat with safe session handling
-  const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat({
+  // Use useChat with safe initialization
+  const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading } = useChat({
     api: '/api/chat',
-    // Use a stable ID that doesn't change on initial render
     id: stableChatId,
-    // Only include initial messages when authenticated
-    initialMessages: status === 'authenticated' ? [initialWelcomeMessage] : []
+    initialMessages: [initialWelcomeMessage], // Always include a valid initial message
+    onError: (error) => {
+      console.error('useChat error on load:', error);
+    },
+    onResponse: (response) => {
+      console.log('useChat initial response:', response);
+    },
   });
 
-  // Define all handlers BEFORE any conditional returns
-  const handleSave = (newDocumentId: string) => {
-    console.log('Saved document ID:', newDocumentId);
-  };
-
-  const handleDataChange = (newData: SpreadsheetData) => {
-    setSpreadsheetData(newData);
-  };
-
+  // Handle file drop with error checking
   const handleFileDrop = async (file: File) => {
-    if (!file) return;
+    if (!file || !session?.user?.id) return;
     const formData = new FormData();
     formData.append('file', file);
     formData.append('messages', JSON.stringify(messages));
-    formData.append('selectedChatModel', selectedChatModel);
+    formData.append('selectedChatModel', 'google("gemini-2.0-flash")'); // Use a default model
     formData.append('id', documentId);
 
     try {
@@ -101,7 +69,11 @@ export default function Home() {
         method: 'POST',
         body: formData,
       });
-      if (!response.ok) throw new Error('Upload failed');
+      if (!response.ok) {
+        console.error('Upload failed, status:', response.status);
+        throw new Error('File upload failed');
+      }
+      const data = await response.json();
       const newMessage: ExtendedMessage = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -130,7 +102,6 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    // Safe guard to prevent errors if session is not yet loaded
     if (!session?.user?.id) {
       console.error('User session or ID is undefined');
       return;
@@ -140,7 +111,7 @@ export default function Home() {
     try {
       const documentData = {
         title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
-        content: unparse(spreadsheetData || []),
+        content: JSON.stringify(spreadsheetData || []),
         kind: 'sheet' as const,
         userId: session.user.id,
       };
@@ -154,11 +125,7 @@ export default function Home() {
         newDocumentId = result.id;
       }
 
-      const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
-      const fileName = `${newDocumentId}.csv`;
-      const { url } = await put(fileName, blobData, { access: 'public' });
-      console.log('Spreadsheet saved to Vercel Blob:', url);
-      handleSave(newDocumentId);
+      console.log('Spreadsheet saved, document ID:', newDocumentId);
     } catch (error) {
       console.error('Error in saveSpreadsheet:', error);
     } finally {
@@ -193,12 +160,11 @@ export default function Home() {
   const renderChart = () => {
     const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
     const chartData = convertToChartData();
-    
-    // Return an empty div if no data
+
     if (!chartData || chartData.length === 0) {
       return <div className="flex items-center justify-center h-full">No chart data available</div>;
     }
-    
+
     switch (chartType) {
       case 'line':
         return (
@@ -251,30 +217,20 @@ export default function Home() {
     }
   };
 
-  // Now use a single return with conditional rendering
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // For debugging - you can remove this in production
-  if (!session?.user?.id) {
+  if (!session) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="bg-red-50 border border-red-200 rounded p-4 max-w-md">
-          <h2 className="text-lg font-semibold text-red-700">Authentication Error</h2>
-          <p className="text-sm text-red-600">User ID is undefined, cannot proceed.</p>
-          <button 
-            onClick={() => signIn()}
-            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Sign In Again
-          </button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <button onClick={() => signIn()} className="bg-blue-500 text-white p-2 rounded">
+          Sign In
+        </button>
       </div>
     );
   }
 
-  // Main component render
   return (
     <div
       onDrop={handleDrop}
@@ -286,7 +242,7 @@ export default function Home() {
           <Chat
             id={documentId}
             initialMessages={messages}
-            selectedChatModel={selectedChatModel}
+            selectedChatModel={'google("gemini-2.0-flash")'} // Explicitly set a model
             selectedVisibilityType="private"
             isReadonly={false}
             onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
@@ -328,8 +284,8 @@ export default function Home() {
             <FinanceEditor
               initialData={spreadsheetData || [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]]}
               documentId={documentId}
-              onSave={handleSave}
-              onDataChange={handleDataChange}
+              onSave={() => console.log('Saved spreadsheet')}
+              onDataChange={setSpreadsheetData}
             />
           </SheetContent>
         </Sheet>
