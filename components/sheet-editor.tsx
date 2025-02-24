@@ -151,3 +151,14 @@ export default function SheetEditor({
     </div>
   );
 }
+
+// Add SpreadsheetEditor as a named export if needed by document-preview.tsx
+export function SpreadsheetEditor({
+  content,
+  saveContent,
+  status,
+  isCurrentVersion,
+  currentVersionIndex,
+}: SheetEditorProps) {
+  return <SheetEditor content={content} saveContent={saveContent} status={status} isCurrentVersion={isCurrentVersion} currentVersionIndex={currentVersionIndex} />;
+}
