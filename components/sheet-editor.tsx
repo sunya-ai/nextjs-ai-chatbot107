@@ -1,3 +1,4 @@
+// components/sheet-editor.tsx
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -108,8 +109,8 @@ export default function SheetEditor({
         await updateDocumentAction({ id: docId, ...documentData });
         newDocumentId = docId;
       } else {
-        const result = await createDocumentAction(documentData);
-        newDocumentId = result.id; // Adjust based on your Server Action return type
+        const result = await createDocumentAction(documentData); // Type now matches: Promise<Document>
+        newDocumentId = result.id;
       }
 
       // Save to Vercel Blob for file storage
@@ -152,7 +153,6 @@ export default function SheetEditor({
   );
 }
 
-// Add SpreadsheetEditor as a named export if needed by document-preview.tsx
 export function SpreadsheetEditor({
   content,
   saveContent,
