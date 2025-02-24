@@ -1,10 +1,11 @@
 import {
-  type Message, // Use the exported Message type
-  type CoreAssistantMessage, // Import CoreAssistantMessage for type safety
+  type Message,
+  type CoreAssistantMessage,
   createDataStreamResponse,
   smoothStream,
   streamText,
   generateText,
+  type ResponseMessage,
 } from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
@@ -26,16 +27,15 @@ import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
-import { inferDomains } from '@/lib/ai/tools/infer-domains';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
 import compromise from 'compromise';
-import { compile } from '@mdx-js/mdx'; // Updated to use compile for MDX
-import remarkGfm from 'remark-gfm'; // For GitHub-flavored Markdown
-import rehypeHighlight from 'rehype-highlight'; // For code highlighting
-import rehypeRaw from 'rehype-raw'; // For raw HTML in MDX
+import { compile } from '@mdx-js/mdx';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeRaw from 'rehype-raw';
 
 export const maxDuration = 240;
 
@@ -294,7 +294,7 @@ export async function POST(request: Request) {
   if (!chat) {
     console.log('[POST] no chat => creating new');
     const title = await generateTitleFromUserMessage({ message: userMessage });
-    await saveChat({ id, userId: session.user.id, title });
+    await saveChat({ id, userId: session.user.id, title: title || 'New Chat' }); // Handle potential undefined title
   }
 
   console.log('[POST] saving user message => DB');
@@ -462,12 +462,13 @@ export async function POST(request: Request) {
                             ...m,
                             content: compiledMdx.toString(), // Update content with MDX
                             role: 'assistant', // Explicitly set role to "assistant"
-                            id: m.id,
+                            id: m.id || generateUUID(), // Ensure an ID is present
                           };
-                          return baseMessage;
+                          return baseMessage as ResponseMessage; // Cast to ResponseMessage for type safety
                         }
-                        return m as CoreAssistantMessage & { id: string }; // Ensure type safety
+                        return m as ResponseMessage; // Cast to ResponseMessage for type safety
                       }),
+                    reasoning: reasoning || 'Generated reasoning for assistant response', // Provide default reasoning
                   });
 
                   // Save messages with custom data in metadata
@@ -480,7 +481,7 @@ export async function POST(request: Request) {
                       createdAt: new Date(),
                       metadata: JSON.stringify({
                         sources: [...new Set(sources)],
-                        reasoning: reasoning,
+                        reasoning: reasoning || 'No reasoning provided',
                       }), // Store sources and reasoning in JSON
                     })),
                   });
