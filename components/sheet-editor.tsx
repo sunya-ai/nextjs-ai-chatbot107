@@ -109,7 +109,7 @@ export default function SheetEditor({
         await updateDocumentAction({ id: docId, ...documentData });
         newDocumentId = docId;
       } else {
-        const result = await createDocumentAction(documentData); // Type now matches: Promise<Document>
+        const result = await createDocumentAction(documentData);
         newDocumentId = result.id;
       }
 
