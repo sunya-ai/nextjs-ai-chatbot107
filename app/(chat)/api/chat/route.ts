@@ -193,7 +193,7 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
     return compiledMdx.toString();
   } catch (error) {
     console.error('[getInitialAnalysis] Error:', error);
-    throw error;
+    return ''; // Return empty string on error to prevent breaking the chain
   }
 }
 
@@ -211,7 +211,7 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
     return compiledMdx.toString();
   } catch (err) {
     console.error('[enhanceContext] Error:', err);
-    return initialAnalysis;
+    return initialAnalysis; // Fallback to initial analysis on error
   }
 }
 
@@ -251,300 +251,240 @@ Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']]
 }
 
 export async function POST(request: Request) {
-  console.log('[POST] Enter => /api/chat');
-  const session = await auth();
-  if (!session?.user?.id) {
-    console.log('[POST] Unauthorized => 401');
-    return new Response('Unauthorized', { status: 401 });
-  }
-  console.log('[POST] userId =', session.user.id);
-
-  if (!rateLimiter(session.user.id)) {
-    console.log('[POST] Rate limit exceeded');
-    return new Response('Too Many Requests', { status: 429 });
-  }
-
-  console.log('[POST] Checking content-type =>', request.headers.get('content-type'));
-
-  let id = '';
-  let messages: Message[] = [];
-  let selectedChatModel = 'default-model';
-  let file: File | null = null;
-  let currentData: any; // For spreadsheet data from formData
-
-  if (request.headers.get('content-type')?.includes('application/json')) {
-    console.log('[POST] => Found JSON body');
-    try {
-      const json = await request.json();
-      id = json.id;
-      messages = json.messages;
-      selectedChatModel = json.selectedChatModel || 'default-model';
-      currentData = json.currentData; // Extract current spreadsheet data if provided
-
-      console.log('[POST] JSON parse =>', {
-        id,
-        selectedChatModel,
-        messagesCount: messages.length,
-        hasCurrentData: !!currentData,
-      });
-    } catch (err) {
-      console.error('[POST] Invalid JSON =>', err);
-      return new Response('Invalid JSON', { status: 400 });
+  console.log('[POST] Initial load or chat request received');
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      console.log('[POST] Unauthorized => 401');
+      return new Response('Unauthorized', { status: 401 });
     }
-  } else {
-    console.log('[POST] => Attempting formData parse...');
-    try {
+
+    if (!rateLimiter(session.user.id)) {
+      console.log('[POST] Rate limit exceeded');
+      return new Response('Too Many Requests', { status: 429 });
+    }
+
+    const contentType = request.headers.get('content-type');
+    let body: any;
+
+    if (contentType?.includes('application/json')) {
+      body = await request.json().catch(() => ({ messages: [] }));
+    } else {
       const formData = await request.formData();
-      id = formData.get('id')?.toString() || '';
-      const messagesStr = formData.get('messages')?.toString() || '';
-      selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
-      file = formData.get('file') as File | null;
-      currentData = formData.get('currentData') ? JSON.parse(formData.get('currentData') as string) : undefined;
-
-      console.log('[POST] formData =>', {
-        id,
-        selectedChatModel,
-        hasFile: !!file,
-        hasCurrentData: !!currentData,
-      });
-
-      try {
-        messages = JSON.parse(messagesStr);
-        console.log('[POST] parsed messages => count:', messages.length);
-      } catch (err) {
-        console.error('[POST] invalid messages JSON =>', err);
-        return new Response('Invalid messages JSON', { status: 400 });
-      }
-    } catch (err) {
-      console.error('[POST] invalid form data =>', err);
-      return new Response('Invalid form data', { status: 400 });
+      body = {
+        messages: JSON.parse(formData.get('messages')?.toString() || '[]'),
+        selectedChatModel: formData.get('selectedChatModel')?.toString() || 'google("gemini-2.0-flash")',
+        id: formData.get('id')?.toString() || generateUUID(),
+        file: formData.get('file') as File | null,
+        currentData: formData.get('currentData') ? JSON.parse(formData.get('currentData') as string) : undefined,
+      };
     }
-  }
 
-  const userMessage = getMostRecentUserMessage(messages);
-  if (!userMessage) {
-    console.log('[POST] No user message found => 400');
-    return new Response('No user message found', { status: 400 });
-  }
+    console.log('[POST] Request body:', body);
 
-  console.log('[POST] checking chat =>', id);
-  const chat = await getChatById({ id });
-  if (!chat) {
-    console.log('[POST] no chat => creating new');
-    const title = await generateTitleFromUserMessage({ message: userMessage });
-    await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
-  }
+    // Ensure messages is an array, even if empty
+    const messages: Message[] = Array.isArray(body.messages) ? body.messages : [];
+    const id = body.id || generateUUID();
+    const selectedChatModel = body.selectedChatModel || 'google("gemini-2.0-flash")';
+    const file = body.file instanceof File ? body.file : null;
+    let currentData = body.currentData;
 
-  console.log('[POST] saving user message => DB');
-  await saveMessages({
-    messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }],
-  });
+    // Handle empty messages with a welcome response
+    if (messages.length === 0) {
+      console.log('[POST] Empty messages, returning welcome message');
+      return new Response(JSON.stringify({
+        messages: [{
+          id: generateUUID(),
+          role: 'assistant',
+          content: 'Welcome! How can I assist you today?',
+        }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
 
-  let fileBuffer: ArrayBuffer | undefined;
-  let fileMime: string | undefined;
-  if (file) {
-    console.log('[POST] file found => read as arrayBuffer');
-    fileBuffer = await file.arrayBuffer();
-    fileMime = file.type;
-  }
+    // Check if the message is a spreadsheet update request
+    const userMessage = getMostRecentUserMessage(messages);
+    if (!userMessage) {
+      console.log('[POST] No user message found => 400');
+      return new Response('No user message found', { status: 400 });
+    }
 
-  // Check if the message is a spreadsheet update request
-  const content = userMessage.content.toLowerCase();
-  const isSpreadsheetUpdate = content.includes('add') && (content.includes('deal') || content.includes('spreadsheet'));
-  
-  if (isSpreadsheetUpdate) {
-    console.log('[POST] Detected spreadsheet update request');
-    const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
-    return new Response(JSON.stringify({ updatedData: updatedSpreadsheet }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+    const content = userMessage.content.toLowerCase();
+    const isSpreadsheetUpdate = content.includes('add') && (content.includes('deal') || content.includes('spreadsheet'));
+
+    if (isSpreadsheetUpdate) {
+      console.log('[POST] Detected spreadsheet update request');
+      const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
+      return new Response(JSON.stringify({ updatedData: updatedSpreadsheet }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const chat = await getChatById({ id });
+    if (!chat) {
+      console.log('[POST] no chat => creating new');
+      const title = await generateTitleFromUserMessage({ message: userMessage });
+      await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
+    }
+
+    await saveMessages({
+      messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }],
     });
-  }
 
-  console.log('[POST] => createDataStreamResponse => multi-pass');
-  return createDataStreamResponse({
-    status: 200,
-    statusText: 'OK',
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-    execute: async (dataStream) => {
-      try {
-        console.log('[EXECUTE] Step A => getInitialAnalysis');
-        const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-        console.log('[EXECUTE] initialAnalysis length =>', initialAnalysis.length);
+    let fileBuffer: ArrayBuffer | undefined;
+    let fileMime: string | undefined;
+    if (file) {
+      console.log('[POST] file found => read as arrayBuffer');
+      fileBuffer = await file.arrayBuffer();
+      fileMime = file.type;
+    }
 
-        console.log('[EXECUTE] Step B => enhanceContext');
-        const enhancedContext = await enhanceContext(initialAnalysis);
-        console.log('[EXECUTE] enhancedContext => first 100 chars:', enhancedContext.slice(0, 100));
+    console.log('[POST] => createDataStreamResponse => multi-pass');
+    return createDataStreamResponse({
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+      execute: async (dataStream) => {
+        try {
+          const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime).catch(() => '');
+          const enhancedContext = await enhanceContext(initialAnalysis).catch(() => initialAnalysis);
 
-        console.log('[EXECUTE] Step C => final streaming with model:', selectedChatModel);
-        let finalModel;
-        if (selectedChatModel.startsWith('openai')) {
-          finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
-        } else if (selectedChatModel.startsWith('google')) {
-          finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
-        } else if (selectedChatModel === 'chat-model-reasoning') {
-          finalModel = myProvider.languageModel('chat-model-reasoning');
-        } else {
-          finalModel = myProvider.languageModel(selectedChatModel) || google('gemini-2.0-flash');
-        }
+          let finalModel;
+          if (selectedChatModel.startsWith('openai')) {
+            finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
+          } else if (selectedChatModel.startsWith('google')) {
+            finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
+          } else {
+            finalModel = google('gemini-2.0-flash'); // Default fallback
+          }
 
-        let isFirstContent = true;
-        let reasoningStarted = false;
+          const result = await streamText({
+            model: finalModel,
+            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+            messages,
+            maxSteps: 5,
+            experimental_transform: smoothStream({ chunking: 'line' }),
+            experimental_generateMessageId: generateUUID,
+            tools: {
+              getWeather,
+              createDocument: createDocument({ session, dataStream }),
+              updateDocument: updateDocument({ session, dataStream }),
+              requestSuggestions: requestSuggestions({ session, dataStream }),
+            },
+            onChunk: async (event) => {
+              const { chunk } = event;
+              if (chunk.type === 'text-delta' && chunk.textDelta.trim()) {
+                dataStream.writeData(chunk.textDelta);
+              }
+              if (chunk.type === 'reasoning') {
+                dataStream.writeMessageAnnotation({
+                  type: 'thinking',
+                  content: chunk.textDelta,
+                });
+              }
+            },
+            onFinish: async ({ response, reasoning }) => {
+              if (session.user?.id) {
+                try {
+                  let content = response.messages[response.messages.length - 1]?.content || '';
+                  if (typeof content !== 'string') {
+                    content = convertContentToString(content);
+                  }
 
-        const result = await streamText({
-          model: finalModel,
-          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-          messages,
-          maxSteps: 5,
-          experimental_activeTools:
-            selectedChatModel === 'chat-model-reasoning'
-              ? []
-              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-          experimental_transform: smoothStream({ chunking: 'line' }),
-          experimental_generateMessageId: generateUUID,
-          tools: {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({ session, dataStream }),
-          },
-          onChunk: async (event) => {
-            const { chunk } = event;
+                  const md = new markdownIt();
+                  const tokens = md.parse(content, {});
+                  const companyNames: string[] = [];
+                  const sources: { id: string; url: string }[] = [];
 
-            if (chunk.type === 'text-delta' && chunk.textDelta.trim() && isFirstContent) {
-              isFirstContent = false;
-              dataStream.writeData('workflow_stage:complete');
-            }
+                  tokens.forEach(token => {
+                    if (token.type === 'inline' && token.content) {
+                      const doc = compromise(token.content);
+                      const companies = doc.match('#Organization+').out('array') as string[];
+                      companyNames.push(...companies.filter(name => name.trim()));
 
-            if (chunk.type === 'reasoning' && !reasoningStarted) {
-              reasoningStarted = true;
-              dataStream.writeMessageAnnotation({
-                type: 'thinking',
-                content: 'Let’s break this down…',
-              });
-            }
+                      const citationRegex = /\[\d+(,\s*\d+)*\]/g;
+                      let match;
+                      while ((match = citationRegex.exec(token.content)) !== null) {
+                        const citationIds = match[0]
+                          .replace(/[\[\]]/g, '')
+                          .split(',')
+                          .map((id) => id.trim())
+                          .map(Number);
+                        citationIds.forEach((id) => {
+                          sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
+                        });
+                      }
+                    }
+                  });
 
-            if (chunk.type === 'reasoning') {
-              dataStream.writeMessageAnnotation({
-                type: 'reasoning',
-                content: chunk.textDelta,
-              });
-            }
+                  const uniqueCompanies = [...new Set(companyNames)];
+                  const logoMap = await inferDomains(uniqueCompanies);
 
-            switch (chunk.type) {
-              case 'tool-call':
-              case 'tool-call-streaming-start':
-              case 'tool-call-delta':
-              case 'tool-result':
-                break;
-            }
-          },
-          onFinish: async ({ response, reasoning }) => {
-            if (session.user?.id) {
-              try {
-                let content = response.messages[response.messages.length - 1]?.content || '';
-                let contentString: string;
-                if (typeof content === 'string') {
-                  contentString = content;
-                } else if (Array.isArray(content)) {
-                  contentString = content.map(part => ('text' in part ? part.text : '')).join('');
-                } else {
-                  contentString = '';
-                }
-
-                const md = new markdownIt();
-                const tokens = md.parse(contentString, {});
-                const companyNames: string[] = [];
-                const sources: { id: string; url: string }[] = [];
-
-                tokens.forEach(token => {
-                  if (token.type === 'inline' && token.content) {
-                    const doc = compromise(token.content);
-                    const companies = doc.match('#Organization+').out('array') as string[];
-                    companyNames.push(...companies.filter(name => name.trim()));
-
-                    const citationRegex = /\[\d+(,\s*\d+)*\]/g;
-                    let match;
-                    while ((match = citationRegex.exec(token.content)) !== null) {
-                      const citationIds = match[0]
-                        .replace(/[\[\]]/g, '')
-                        .split(',')
-                        .map((id) => id.trim())
-                        .map(Number);
-                      citationIds.forEach((id) => {
-                        sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
-                      });
+                  for (const [company, logoUrl] of Object.entries(logoMap)) {
+                    if (logoUrl !== 'unknown') {
+                      content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
                     }
                   }
-                });
 
-                const uniqueCompanies = [...new Set(companyNames)];
-                const logoMap = await inferDomains(uniqueCompanies);
+                  const compiledMdx = await compile(content, {
+                    outputFormat: 'function-body',
+                    remarkPlugins: [remarkGfm],
+                    rehypePlugins: [rehypeHighlight, rehypeRaw],
+                  });
 
-                for (const [company, logoUrl] of Object.entries(logoMap)) {
-                  if (logoUrl !== 'unknown') {
-                    contentString = contentString.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
-                  }
+                  const sanitizedMessages = sanitizeResponseMessages({
+                    messages: response.messages
+                      .filter(m => m.role === 'assistant')
+                      .map((m, index) => ({
+                        ...m,
+                        id: m.id || generateUUID(),
+                        role: 'assistant',
+                        content: compiledMdx.toString(),
+                      }) as CoreAssistantMessage & { id: string }),
+                    reasoning: reasoning || 'Generated reasoning for assistant response',
+                  });
+
+                  await saveMessages({
+                    messages: sanitizedMessages.map((message) => ({
+                      id: message.id,
+                      chatId: id,
+                      role: message.role,
+                      content: message.content,
+                      createdAt: new Date(),
+                      metadata: JSON.stringify({
+                        sources: [...new Set(sources)],
+                        reasoning: reasoning || 'No reasoning provided',
+                      }),
+                    })),
+                  });
+                } catch (error) {
+                  console.error('Failed to save chat', error);
                 }
-
-                const compiledMdx = await compile(contentString, {
-                  outputFormat: 'function-body',
-                  remarkPlugins: [remarkGfm],
-                  rehypePlugins: [rehypeHighlight, rehypeRaw],
-                });
-
-                const sanitizedMessages = sanitizeResponseMessages({
-                  messages: response.messages
-                    .filter(m => m.role === 'assistant')
-                    .map((m, index) => ({
-                      ...m,
-                      id: m.id || generateUUID(),
-                      role: 'assistant',
-                      content: compiledMdx.toString(),
-                    }) as CoreAssistantMessage & { id: string }),
-                  reasoning: reasoning || 'Generated reasoning for assistant response',
-                });
-
-                await saveMessages({
-                  messages: sanitizedMessages.map((message) => ({
-                    id: message.id,
-                    chatId: id,
-                    role: message.role,
-                    content: message.content,
-                    createdAt: new Date(),
-                    metadata: JSON.stringify({
-                      sources: [...new Set(sources)],
-                      reasoning: reasoning || 'No reasoning provided',
-                    }),
-                  })),
-                });
-              } catch (error) {
-                console.error('Failed to save chat', error);
               }
-            }
-          },
-          experimental_telemetry: {
-            isEnabled: true,
-            functionId: 'stream-text',
-          },
-        });
+            },
+          });
 
-        await result.mergeIntoDataStream(dataStream, {
-          sendReasoning: true,
-          sendSources: true,
-        });
-      } catch (err) {
-        console.error('[EXECUTE] Error during processing:', err);
-        throw err;
-      }
-    },
-    onError: (error) => {
-      console.error('[createDataStreamResponse] Final error handler:', error);
-      return error instanceof Error ? error.message : 'An error occurred';
-    },
-  });
+          await result.mergeIntoDataStream(dataStream, {
+            sendReasoning: true,
+            sendSources: true,
+          });
+        } catch (err) {
+          console.error('[EXECUTE] Error during processing:', err);
+          dataStream.writeError('An error occurred during processing');
+          throw err;
+        }
+      },
+      onError: (error) => {
+        console.error('[createDataStreamResponse] Final error handler:', error);
+        return new Response('Internal Server Error', { status: 500 });
+      },
+    });
+  } catch (error) {
+    console.error('[POST] Error in POST handler:', error);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 }
 
 export async function DELETE(request: Request) {
