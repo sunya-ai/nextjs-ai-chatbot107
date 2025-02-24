@@ -1,6 +1,7 @@
+// components/FinanceEditor.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback, useTransition, useMemo } from 'react'; // Added useMemo
 import { HotTable } from '@handsontable/react';
 import { registerAllModules } from 'handsontable/registry';
 import 'handsontable/dist/handsontable.full.min.css';
@@ -98,7 +99,7 @@ export default function FinanceEditor({
       };
 
       let newDocumentId: string;
-      if (documentId && currentVersionIndex > 0) { // Assuming currentVersionIndex exists or adapt based on your props
+      if (documentId) { // Fixed: Removed invalid reference to currentVersionIndex
         await updateDocumentAction({ id: documentId, ...documentData });
         newDocumentId = documentId;
       } else {
