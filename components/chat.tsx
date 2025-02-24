@@ -23,7 +23,7 @@ export function Chat({
   selectedChatModel,
   selectedVisibilityType,
   isReadonly,
-  onSpreadsheetDataUpdate, // Optional prop
+  onSpreadsheetDataUpdate, // Added prop
 }: {
   id: string;
   initialMessages: Array<Message>;
@@ -58,61 +58,78 @@ export function Chat({
       toast.error('An error occurred, please try again!');
     },
     onResponse: (response) => {
-      // Add null check to prevent "Cannot read properties of undefined (reading 'status')" error
-      if (!response) {
-        console.error('Response object is undefined');
-        return;
-      }
-      
-      if (response.status === 429) {
-        toast.error('Too many requests. Please try again later.');
-        return;
-      }
-      
-      // Add null check on response.body
-      if (!response.body) {
-        console.error('Response body is undefined');
-        return;
-      }
-      
-      const reader = response.body.getReader();
-      // Only process stream if we have a reader and the onSpreadsheetDataUpdate callback
-      if (!reader || !onSpreadsheetDataUpdate) return;
+      try {
+        // Add null check to prevent "Cannot read properties of undefined (reading 'status')" error
+        if (!response) {
+          console.error('Response object is undefined');
+          return;
+        }
+        
+        if (response.status === 429) {
+          toast.error('Too many requests. Please try again later.');
+          return;
+        }
+        
+        // Only proceed with stream processing if onSpreadsheetDataUpdate is provided
+        if (!onSpreadsheetDataUpdate) return;
+        
+        // Add null check on response.body
+        if (!response.body) {
+          console.error('Response body is undefined');
+          return;
+        }
+        
+        const reader = response.body.getReader();
+        if (!reader) {
+          console.error('Reader could not be obtained from response');
+          return;
+        }
 
-      const decoder = new TextDecoder();
-      let accumulatedData = '';
+        const decoder = new TextDecoder();
+        let accumulatedData = '';
 
-      const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
-        if (done) {
+        const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
           try {
-            // Add check to make sure accumulatedData is not empty
-            if (accumulatedData.trim() === '') {
-              console.warn('Accumulated data is empty, skipping JSON parsing');
+            if (done) {
+              try {
+                // Add check to make sure accumulatedData is not empty
+                if (accumulatedData.trim() === '') {
+                  console.warn('Accumulated data is empty, skipping JSON parsing');
+                  return;
+                }
+                
+                const jsonData = JSON.parse(accumulatedData);
+                if (jsonData.spreadsheetData || jsonData.updatedData) {
+                  const data = jsonData.spreadsheetData || jsonData.updatedData;
+                  onSpreadsheetDataUpdate(data, id); // Call the callback with data and chat ID
+                }
+              } catch (e) {
+                console.error('Error parsing response:', e);
+              }
               return;
             }
             
-            const jsonData = JSON.parse(accumulatedData);
-            if (jsonData.spreadsheetData || jsonData.updatedData) {
-              const data = jsonData.spreadsheetData || jsonData.updatedData;
-              onSpreadsheetDataUpdate(data, id); // Call the callback with data and chat ID
+            // Add null check for value
+            if (!value) {
+              console.error('Stream value is undefined');
+              return;
             }
-          } catch (e) {
-            console.error('Error parsing response:', e);
+            
+            accumulatedData += decoder.decode(value, { stream: true });
+            reader.read().then(processStream).catch(err => {
+              console.error('Error reading stream:', err);
+            });
+          } catch (streamError) {
+            console.error('Error in processStream:', streamError);
           }
-          return;
-        }
+        };
         
-        // Add null check for value
-        if (!value) {
-          console.error('Stream value is undefined');
-          return;
-        }
-        
-        accumulatedData += decoder.decode(value, { stream: true });
-        reader.read().then(processStream);
-      };
-      
-      reader.read().then(processStream);
+        reader.read().then(processStream).catch(err => {
+          console.error('Initial stream read error:', err);
+        });
+      } catch (responseError) {
+        console.error('Error in onResponse handler:', responseError);
+      }
     },
   });
 
@@ -137,7 +154,7 @@ export function Chat({
         <Messages
           chatId={id}
           isLoading={isLoading}
-          votes={votes}
+          votes={votes || []} {/* Add fallback for votes */}
           messages={messages}
           setMessages={setMessages}
           reload={reload}
@@ -177,7 +194,7 @@ export function Chat({
         messages={messages}
         setMessages={setMessages}
         reload={reload}
-        votes={votes}
+        votes={votes || []} {/* Add fallback for votes */}
         isReadonly={isReadonly}
       />
     </>
