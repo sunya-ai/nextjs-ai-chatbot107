@@ -2,12 +2,13 @@
 'use client';
 
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { useState, useEffect, startTransition, useMemo } from 'react';
+import { useState, useEffect, startTransition } from 'react'; // Removed useMemo for simplicity from template
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
+import { useChat } from 'ai/react'; // Added Vercel AI SDK useChat hook
 import {
   LineChart,
   Line,
@@ -51,23 +52,30 @@ export default function Home() {
   const [documentId] = useState<string>(generateUUID());
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
-  const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Use Vercel AI SDK's useChat for chat state management
+  const { messages, input, handleInputChange, handleSubmit, setMessages, status: chatStatus } = useChat({
+    api: '/api/chat', // Match with your API route
+    id: session?.user?.id || generateUUID(), // Unique chat ID tied to user session
+    initialMessages: status === 'authenticated' && session?.user
+      ? [
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
+            metadata: null,
+          },
+        ]
+      : [],
+  });
+
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      setInitialMessages([
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
-          metadata: null,
-        },
-      ]);
-    }
+    // No need to set initial messages here; useChat handles it
   }, [session, status]);
 
-  const convertToChartData = useMemo<ChartData>(() => {
+  // Simplified chart data for demonstration (remove useMemo to align with template simplicity)
+  const convertToChartData = () => {
     if (!spreadsheetData || !Array.isArray(spreadsheetData) || spreadsheetData.length < 2) return [];
     const headers = spreadsheetData[0];
     const dateIdx = headers.indexOf('Date');
@@ -87,16 +95,18 @@ export default function Home() {
     });
 
     return Object.values(groupedData)
-      .filter((item) => item.name !== 'Unknown')
+      .filter(item => item.name !== 'Unknown')
       .sort((a, b) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
-  }, [spreadsheetData]);
+  };
+
+  const chartData = convertToChartData();
 
   const renderChart = () => {
     const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
     switch (chartType) {
       case 'line':
         return (
-          <LineChart data={convertToChartData}>
+          <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
             <XAxis dataKey="name" stroke="gray" className="text-xs" />
             <YAxis stroke="gray" className="text-xs" />
@@ -109,7 +119,7 @@ export default function Home() {
         );
       case 'bar':
         return (
-          <BarChart data={convertToChartData}>
+          <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
             <XAxis dataKey="name" stroke="gray" className="text-xs" />
             <YAxis stroke="gray" className="text-xs" />
@@ -124,7 +134,7 @@ export default function Home() {
         return (
           <PieChart>
             <Pie
-              data={convertToChartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
+              data={chartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
               dataKey="value"
               nameKey="name"
               cx="50%"
@@ -132,7 +142,7 @@ export default function Home() {
               outerRadius={80}
               fill="#8884d8"
             >
-              {convertToChartData.map((_, index) => (
+              {chartData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -195,7 +205,7 @@ export default function Home() {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('messages', JSON.stringify(initialMessages));
+    formData.append('messages', JSON.stringify(messages)); // Use messages from useChat
     formData.append('selectedChatModel', selectedChatModel);
     formData.append('id', documentId);
 
@@ -211,7 +221,7 @@ export default function Home() {
         content: `Uploaded ${file.name}`,
         metadata: null,
       };
-      setInitialMessages(prev => [...prev, newMessage]);
+      setMessages(prev => [...prev, newMessage]); // Update messages via useChat
     } catch (error) {
       console.error('File upload error:', error);
     }
@@ -233,7 +243,11 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    const user = session.user as LocalSessionUser; // Type assertion since we know session is authenticated here
+    if (!session || !session.user) {
+      console.error('User session is undefined or not authenticated');
+      return;
+    }
+    const user = session.user as LocalSessionUser;
 
     setIsSaving(true);
     try {
@@ -277,7 +291,11 @@ export default function Home() {
         <MDXProvider components={{}}>
           <Chat
             id={documentId}
-            initialMessages={initialMessages}
+            messages={messages} // Pass messages from useChat
+            input={input}
+            handleInputChange={handleInputChange}
+            handleSubmit={handleSubmit}
+            setMessages={setMessages} // Pass setMessages for custom updates
             selectedChatModel={selectedChatModel}
             selectedVisibilityType="private"
             isReadonly={false}
