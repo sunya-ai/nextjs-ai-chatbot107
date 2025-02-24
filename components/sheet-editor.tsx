@@ -19,7 +19,7 @@ registerAllModules();
 
 const font = GeistSans;
 
-type SpreadsheetEditorProps = {
+type SheetEditorProps = {
   content: string;
   saveContent: (content: string, isCurrentVersion: boolean) => void;
   status: string;
@@ -27,13 +27,13 @@ type SpreadsheetEditorProps = {
   currentVersionIndex: number;
 };
 
-export default function SpreadsheetEditor({
+export default function SheetEditor({
   content,
   saveContent,
   status,
   isCurrentVersion,
   currentVersionIndex,
-}: SpreadsheetEditorProps) {
+}: SheetEditorProps) {
   const { data: session } = useSession();
   const { theme } = useTheme();
   const [data, setData] = useState<any[][]>([]);
@@ -112,7 +112,7 @@ export default function SpreadsheetEditor({
         newDocumentId = result[0].id;
       }
 
-      // Save to Vercel Blob for file storage (matching Vercel AI Chatbot artifact structure)
+      // Save to Vercel Blob for file storage
       const blobData = new Blob([unparse(data)], { type: 'text/csv' });
       const fileName = `${newDocumentId}.csv`;
       const { url } = await put(fileName, blobData, { access: 'private' });
