@@ -189,6 +189,11 @@ export default function Home() {
     const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
     const chartData = convertToChartData();
     
+    // Return an empty div if no data
+    if (!chartData || chartData.length === 0) {
+      return <div className="flex items-center justify-center h-full">No chart data available</div>;
+    }
+    
     switch (chartType) {
       case 'line':
         return (
@@ -237,7 +242,7 @@ export default function Home() {
           </PieChart>
         );
       default:
-        return null;
+        return <div className="flex items-center justify-center h-full">Select a chart type</div>;
     }
   };
 
