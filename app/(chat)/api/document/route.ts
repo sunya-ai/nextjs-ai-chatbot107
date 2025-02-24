@@ -5,8 +5,8 @@ import {
   deleteDocumentsByIdAfterTimestamp,
   getDocumentsById,
   saveDocument,
-} from '@/lib/db/queries'; // Verified import
-import { Document } from '@/lib/db/schema'; // Import Document type for type safety
+} from '@/lib/db/queries';
+import { Document } from '@/lib/db/schema';
 
 // Type for the request body in POST
 interface DocumentRequestBody {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     const document = await saveDocument({
-      id,
+      id, // Optional ID for updates, handled by lib/db/queries.ts
       content,
       title,
       kind,
