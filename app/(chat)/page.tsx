@@ -2,7 +2,7 @@
 'use client';
 
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react'; // Added startTransition
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
@@ -30,13 +30,17 @@ import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { parse, unparse } from 'papaparse'; // Ensure papaparse imports are present
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Ensure Server Actions are imported
 import { put } from '@vercel/blob'; // Ensure Vercel Blob import is present
-import { Button } from '@/components/ui/button'; // Add this import for the Button component
+import { Button } from '@/components/ui/button'; // Ensure Button import is present
+
+// Define types for better type safety
+type SpreadsheetRow = [string, string, number]; // Example: [Date, Deal Type, Amount]
+type SpreadsheetData = SpreadsheetRow[] | null;
 
 export default function Home() {
   const { data: session, status } = useSession();
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [spreadsheetData, setSpreadsheetData] = useState<any>(null);
+  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null); // Typed as SpreadsheetData
   const [documentId] = useState<string>(generateUUID());
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar'); // Typed as union
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
@@ -47,7 +51,7 @@ export default function Home() {
     console.log('Saved document ID:', newDocumentId);
   };
 
-  const handleDataChange = (newData: any) => {
+  const handleDataChange = (newData: SpreadsheetData) => {
     setSpreadsheetData(newData);
   };
 
@@ -86,7 +90,7 @@ export default function Home() {
     e.preventDefault();
   };
 
-  const handleSpreadsheetDataUpdate = (data: any, chatDocumentId: string) => {
+  const handleSpreadsheetDataUpdate = (data: SpreadsheetData, chatDocumentId: string) => {
     setSpreadsheetData(data);
     setSheetOpen(true);
     console.log('Spreadsheet updated from chat, document ID:', chatDocumentId);
@@ -105,15 +109,15 @@ export default function Home() {
     }
   }, [session, status]);
 
-  const convertToChartData = (data: any) => {
-    if (!data || !Array.isArray(data) || data.length < 2) return [];
-    const headers = data[0];
+  const convertToChartData = useMemo(() => {
+    if (!spreadsheetData || !Array.isArray(spreadsheetData) || spreadsheetData.length < 2) return [];
+    const headers = spreadsheetData[0];
     const dateIdx = headers.indexOf('Date');
     const dealTypeIdx = headers.indexOf('Deal Type');
     const amountIdx = headers.indexOf('Amount');
 
     const groupedData: Record<string, { name: string; solar: number; oil: number; geothermal: number }> = {};
-    data.slice(1).forEach((row: any[]) => {
+    spreadsheetData.slice(1).forEach((row: any[]) => {
       const date = row[dateIdx] || 'Unknown';
       const dealType = row[dealTypeIdx] || 'Unknown';
       const amount = parseFloat(row[amountIdx]) || 0;
@@ -127,14 +131,14 @@ export default function Home() {
     return Object.values(groupedData)
       .filter((item: any) => item.name !== 'Unknown')
       .sort((a: any, b: any) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
-  };
+  }, [spreadsheetData]);
 
   const renderChart = () => {
     const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
     switch (chartType) {
       case 'line':
         return (
-          <LineChart data={convertToChartData(spreadsheetData)}>
+          <LineChart data={convertToChartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
             <XAxis dataKey="name" stroke="gray" className="text-xs" />
             <YAxis stroke="gray" className="text-xs" />
@@ -147,7 +151,7 @@ export default function Home() {
         );
       case 'bar':
         return (
-          <BarChart data={convertToChartData(spreadsheetData)}>
+          <BarChart data={convertToChartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
             <XAxis dataKey="name" stroke="gray" className="text-xs" />
             <YAxis stroke="gray" className="text-xs" />
@@ -162,7 +166,7 @@ export default function Home() {
         return (
           <PieChart>
             <Pie
-              data={convertToChartData(spreadsheetData).map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
+              data={convertToChartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
               dataKey="value"
               nameKey="name"
               cx="50%"
@@ -170,7 +174,7 @@ export default function Home() {
               outerRadius={80}
               fill="#8884d8"
             >
-              {convertToChartData(spreadsheetData).map((_, index) => (
+              {convertToChartData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -218,31 +222,38 @@ export default function Home() {
 
     setIsSaving(true);
     try {
-      const documentData = {
-        title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
-        content: unparse(spreadsheetData || []),
-        kind: 'sheet' as const,
-        userId: session.user.id,
-      };
+      startTransition(() => {
+        // Wrap the state update in startTransition for non-blocking behavior
+        const documentData = {
+          title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
+          content: unparse(spreadsheetData || []),
+          kind: 'sheet' as const,
+          userId: session.user.id,
+        };
 
-      let newDocumentId: string;
-      if (documentId) {
-        await updateDocumentAction({ id: documentId, ...documentData });
-        newDocumentId = documentId;
-      } else {
-        const result = await createDocumentAction(documentData);
-        newDocumentId = result.id;
-      }
-
-      // Save to Vercel Blob
-      const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
-      const fileName = `${newDocumentId}.csv`;
-      const { url } = await put(fileName, blobData, { access: 'public' });
-      console.log('Spreadsheet saved to Vercel Blob:', url);
-
-      handleSave(newDocumentId);
+        let newDocumentId: string;
+        if (documentId) {
+          updateDocumentAction({ id: documentId, ...documentData });
+          newDocumentId = documentId;
+        } else {
+          createDocumentAction(documentData).then(result => {
+            newDocumentId = result.id;
+            // Save to Vercel Blob after creating/updating the document
+            const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
+            const fileName = `${newDocumentId}.csv`;
+            put(fileName, blobData, { access: 'public' }).then(({ url }) => {
+              console.log('Spreadsheet saved to Vercel Blob:', url);
+              handleSave(newDocumentId);
+            }).catch(error => {
+              console.error('Failed to save to Vercel Blob:', error);
+            });
+          }).catch(error => {
+            console.error('Failed to create/update document:', error);
+          });
+        }
+      });
     } catch (error) {
-      console.error('Failed to save spreadsheet:', error);
+      console.error('Unexpected error in saveSpreadsheet:', error);
     } finally {
       setIsSaving(false);
     }
@@ -281,7 +292,7 @@ export default function Home() {
             <option value="pie">Pie Chart</option>
           </select>
           <Button
-            onClick={() => startTransition(saveSpreadsheet)}
+            onClick={() => startTransition(saveSpreadsheet)} // Using startTransition for non-blocking save
             disabled={isSaving}
             className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
           >
