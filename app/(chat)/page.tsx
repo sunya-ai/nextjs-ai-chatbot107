@@ -50,6 +50,7 @@ export default function Home() {
       signIn(); // Redirect to sign-in if no session
     },
   });
+  
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null);
@@ -73,17 +74,7 @@ export default function Home() {
       : [],
   });
 
-  // Handle loading state explicitly
-  if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
-  // Ensure userId is non-null before proceeding
-  if (!session?.user?.id) {
-    console.error('User ID is undefined, cannot proceed');
-    return <div>Error: User not authenticated or ID missing</div>;
-  }
-
+  // Define all handlers BEFORE any conditional returns
   const handleSave = (newDocumentId: string) => {
     console.log('Saved document ID:', newDocumentId);
   };
@@ -134,8 +125,8 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    // Ensure session.user.id is non-null
-    if (!session.user?.id) {
+    // Safe guard to prevent errors if session is not yet loaded
+    if (!session?.user?.id) {
       console.error('User session or ID is undefined');
       return;
     }
@@ -146,7 +137,7 @@ export default function Home() {
         title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
         content: unparse(spreadsheetData || []),
         kind: 'sheet' as const,
-        userId: session.user.id, // Now guaranteed to be a string
+        userId: session.user.id,
       };
 
       let newDocumentId: string;
@@ -194,10 +185,10 @@ export default function Home() {
       .sort((a, b) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
   };
 
-  const chartData = convertToChartData();
-
   const renderChart = () => {
     const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
+    const chartData = convertToChartData();
+    
     switch (chartType) {
       case 'line':
         return (
@@ -245,9 +236,35 @@ export default function Home() {
             <Legend />
           </PieChart>
         );
+      default:
+        return null;
     }
   };
 
+  // Now use a single return with conditional rendering
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  // For debugging - you can remove this in production
+  if (!session?.user?.id) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <div className="bg-red-50 border border-red-200 rounded p-4 max-w-md">
+          <h2 className="text-lg font-semibold text-red-700">Authentication Error</h2>
+          <p className="text-sm text-red-600">User ID is undefined, cannot proceed.</p>
+          <button 
+            onClick={() => signIn()}
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Sign In Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Main component render
   return (
     <div
       onDrop={handleDrop}
