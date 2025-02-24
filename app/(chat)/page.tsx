@@ -4,9 +4,9 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { FinanceEditor } from '@/components/FinanceEditor';
+import { FinanceEditor } from '@/components/FinanceEditor'; // Updated import
 import { MDXProvider } from '@mdx-js/react';
-import { PlusIcon } from '@heroicons/react/24/outline'; // Confirmed Heroicons v2 import
+import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
 import {
   LineChart,
@@ -36,7 +36,6 @@ export default function Home() {
   const [spreadsheetData, setSpreadsheetData] = useState<any>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [chartType, setChartType] = useState<string>('bar'); // Default to bar chart for energy visualizations
-  const [chartData, setChartData] = useState<any[]>([]);
   const [selectedChatModel, setSelectedChatModel] = useState<string>('openai("gpt-4o")'); // Default to Vercel AI Chatbot model
 
   const {
@@ -65,12 +64,10 @@ export default function Home() {
               setSpreadsheetData(jsonData.spreadsheetData);
               setDocumentId(jsonData.documentId);
               setSheetOpen(true);
-              setChartData(convertToChartData(jsonData.spreadsheetData));
             } else if (jsonData.updatedData) {
               setSpreadsheetData(jsonData.updatedData);
               setDocumentId(jsonData.documentId);
               setSheetOpen(true);
-              setChartData(convertToChartData(jsonData.updatedData));
             }
           }
         });
@@ -84,7 +81,6 @@ export default function Home() {
 
   const handleDataChange = (newData: any) => {
     setSpreadsheetData(newData);
-    setChartData(convertToChartData(newData));
   };
 
   const handleFileDrop = async (file: File) => {
@@ -151,6 +147,60 @@ export default function Home() {
     return sortedData;
   };
 
+  const renderChart = () => {
+    const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
+    switch (chartType) {
+      case 'line':
+        return (
+          <LineChart data={convertToChartData(spreadsheetData)}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
+            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
+            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
+          </LineChart>
+        );
+      case 'bar':
+        return (
+          <BarChart data={convertToChartData(spreadsheetData)}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+            <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
+            <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
+            <Bar dataKey="geothermal" fill="#ef4444" name="Geothermal Deals" />
+          </BarChart>
+        );
+      case 'pie':
+        return (
+          <PieChart>
+            <Pie
+              data={convertToChartData(spreadsheetData).map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              fill="#8884d8"
+            >
+              {convertToChartData(spreadsheetData).map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+          </PieChart>
+        );
+      default:
+        return null;
+    }
+  };
+
   if (status !== 'authenticated') {
     return (
       <div className="min-h-screen p-2 flex flex-col items-center justify-center gap-4">
@@ -178,60 +228,6 @@ export default function Home() {
       </div>
     );
   }
-
-  const renderChart = () => {
-    const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
-    switch (chartType) {
-      case 'line':
-        return (
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis dataKey="name" stroke="gray" className="text-xs" />
-            <YAxis stroke="gray" className="text-xs" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
-            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
-            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
-          </LineChart>
-        );
-      case 'bar':
-        return (
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis dataKey="name" stroke="gray" className="text-xs" />
-            <YAxis stroke="gray" className="text-xs" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-            <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
-            <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
-            <Bar dataKey="geothermal" fill="#ef4444" name="Geothermal Deals" />
-          </BarChart>
-        );
-      case 'pie':
-        return (
-          <PieChart>
-            <Pie
-              data={chartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              fill="#8884d8"
-            >
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-          </PieChart>
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <div
@@ -293,7 +289,7 @@ export default function Home() {
               <SheetTitle className="text-2xl font-semibold text-gray-900 dark:text-white">Generated Spreadsheet</SheetTitle>
             </SheetHeader>
             <FinanceEditor
-              initialData={spreadsheetData}
+              initialData={spreadsheetData || [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]]}
               documentId={documentId}
               onSave={handleSave}
               onDataChange={handleDataChange}
