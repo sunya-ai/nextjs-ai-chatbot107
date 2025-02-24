@@ -477,7 +477,7 @@ export async function POST(request: Request) {
       },
       onError: (error) => {
         console.error('[createDataStreamResponse] Final error handler:', error);
-        return new Response('Internal Server Error', { status: 500 }); // Use Response for errors
+        return 'Internal Server Error'; // Return string instead of Response
       },
     });
   } catch (error) {
