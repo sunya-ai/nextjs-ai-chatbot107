@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  productionBrowserSourceMaps: true, // Add this line
 };
 
 export default nextConfig;
