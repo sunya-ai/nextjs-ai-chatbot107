@@ -1,3 +1,5 @@
+'use server';
+
 import { genSaltSync, hashSync } from 'bcrypt-ts';
 import { and, asc, desc, eq, gt, gte, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -16,16 +18,9 @@ import {
 } from './schema';
 import { ArtifactKind } from '@/components/artifact';
 
-// Optionally, if not using email/pass login, you can
-// use the Drizzle adapter for Auth.js / NextAuth
-// https://authjs.dev/reference/adapter/drizzle
-
-// biome-ignore lint: Forbidden non-null assertion.
+// Initialize the database client (server-only)
 const client = postgres(process.env.POSTGRES_URL!);
-const db = drizzle(client); // Remove this line if using lib/db/index.ts
-
-// Note: These functions are now client-safe but will throw errors if called directly in Client Components
-// due to database access. Use Server Actions or API routes for actual database queries.
+const db = drizzle(client);
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
@@ -168,30 +163,30 @@ export async function getVotesByChatId({ id }: { id: string }) {
   }
 }
 
-export async function saveDocument({
-  id,
-  title,
-  kind,
-  content,
-  userId,
-}: {
-  id: string;
-  title: string;
-  kind: ArtifactKind;
-  content: string;
-  userId: string;
-}) {
+export async function createDocument(data: { title: string; content: string; kind: ArtifactKind; userId: string }) {
   try {
     return await db.insert(document).values({
-      id,
-      title,
-      kind,
-      content,
-      userId,
+      id: crypto.randomUUID(),
+      title: data.title,
+      kind: data.kind,
+      content: data.content,
+      userId: data.userId,
       createdAt: new Date(),
     });
   } catch (error) {
     console.error('Failed to save document in database');
+    throw error;
+  }
+}
+
+export async function updateDocument(data: { id: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
+  try {
+    return await db
+      .update(document)
+      .set({ title: data.title, content: data.content, kind: data.kind })
+      .where(and(eq(document.id, data.id), eq(document.userId, data.userId)));
+  } catch (error) {
+    console.error('Failed to update document in database');
     throw error;
   }
 }
