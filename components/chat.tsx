@@ -1,5 +1,5 @@
 // components/chat.tsx
-'use client'; // Corrected: No backslash
+'use client';
 
 import type { Attachment, Message } from 'ai';
 import { useChat } from 'ai/react';
@@ -23,12 +23,14 @@ export function Chat({
   selectedChatModel,
   selectedVisibilityType,
   isReadonly,
+  onSpreadsheetDataUpdate, // Added prop
 }: {
   id: string;
   initialMessages: Array<Message>;
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
+  onSpreadsheetDataUpdate?: (data: any, documentId: string) => void; // Optional callback
 }) {
   const { mutate } = useSWRConfig();
 
@@ -54,6 +56,35 @@ export function Chat({
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
+    },
+    onResponse: (response) => {
+      if (response.status === 429) {
+        toast.error('Too many requests. Please try again later.');
+        return;
+      }
+      const reader = response.body?.getReader();
+      if (!reader || !onSpreadsheetDataUpdate) return;
+
+      const decoder = new TextDecoder();
+      let accumulatedData = '';
+
+      const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
+        if (done) {
+          try {
+            const jsonData = JSON.parse(accumulatedData);
+            if (jsonData.spreadsheetData || jsonData.updatedData) {
+              const data = jsonData.spreadsheetData || jsonData.updatedData;
+              onSpreadsheetDataUpdate(data, id); // Call the callback with data and chat ID
+            }
+          } catch (e) {
+            console.error('Error parsing response:', e);
+          }
+          return;
+        }
+        accumulatedData += decoder.decode(value, { stream: true });
+        reader.read().then(processStream);
+      };
+      reader.read().then(processStream);
     },
   });
 
