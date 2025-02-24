@@ -27,35 +27,33 @@ import { useTheme } from 'next-themes';
 import { cn, generateUUID } from '@/lib/utils';
 import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
-import { parse, unparse } from 'papaparse'; // Ensure papaparse imports are present
-import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Ensure Server Actions are imported
-import { put } from '@vercel/blob'; // Ensure Vercel Blob import is present
-import { Button } from '@/components/ui/button'; // Ensure Button import is present
-import Image from 'next/image'; // Added for Next.js image optimization
+import { parse, unparse } from 'papaparse';
+import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
+import { put } from '@vercel/blob';
+import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 
-// Define local types for better type safety within this file
-type SpreadsheetRow = [string, string, number]; // Example: [Date, Deal Type, Amount]
+// Define local types for type safety
+type SpreadsheetRow = [string, string, number]; // [Date, Deal Type, Amount]
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
-// Local type for session.user, assuming id exists when authenticated
 interface LocalSessionUser {
   id: string;
-  // Add other properties as needed (e.g., name, email) based on your auth.ts
+  // Add other properties as needed from auth.ts
 }
 
 export default function Home() {
   const { data: session, status } = useSession();
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null); // Typed as SpreadsheetData
+  const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null);
   const [documentId] = useState<string>(generateUUID());
-  const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar'); // Typed as union
+  const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Always call hooks at the top level, before any conditionals
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
       setInitialMessages([
@@ -78,7 +76,7 @@ export default function Home() {
 
     const groupedData: Record<string, { name: string; solar: number; oil: number; geothermal: number }> = {};
     spreadsheetData.slice(1).forEach((row: SpreadsheetRow) => {
-      const date = row[0] || 'Unknown'; // Access by index based on SpreadsheetRow
+      const date = row[0] || 'Unknown';
       const dealType = row[1] || 'Unknown';
       const amount = parseFloat(row[2].toString()) || 0;
 
@@ -89,8 +87,8 @@ export default function Home() {
     });
 
     return Object.values(groupedData)
-      .filter((item: any) => item.name !== 'Unknown')
-      .sort((a: any, b: any) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
+      .filter((item) => item.name !== 'Unknown')
+      .sort((a, b) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
   }, [spreadsheetData]);
 
   const renderChart = () => {
@@ -145,12 +143,13 @@ export default function Home() {
     }
   };
 
-  // Defer rendering until session is loaded and authenticated to prevent hydration mismatches
-  if (status === 'loading' || !session) {
+  // Handle loading state explicitly
+  if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  if (status !== 'authenticated') {
+  // Handle unauthenticated state
+  if (!session || status !== 'authenticated') {
     return (
       <div className="min-h-screen p-2 flex flex-col items-center justify-center gap-4">
         <div className="text-center max-w-2xl">
@@ -158,10 +157,10 @@ export default function Home() {
           <p className="text-lg text-gray-600 dark:text-gray-300 mb-4">Unleash powerful insights for energy transactions—solar, oil, geothermal, and more.</p>
           <button
             aria-label="Sign in to start"
-            onClick={() => signIn()} // Specify your provider here, e.g., signIn('github')
+            onClick={() => signIn()} // Add provider if needed, e.g., signIn('github')
             className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded flex items-center gap-2 mx-auto hover:from-green-600 hover:to-emerald-700 text-lg shadow-lg transition-colors"
           >
-            <PlusIcon className="size-5" /> {/* Updated to use Tailwind size-5 shorthand */}
+            <PlusIcon className="size-5" />
             Get Started
           </button>
         </div>
@@ -171,9 +170,9 @@ export default function Home() {
               <Image
                 src={`/icon-${sector.toLowerCase()}.png`}
                 alt={sector}
-                width={48} // Adjust width as needed
-                height={48} // Adjust height as needed
-                className="mx-auto animate-shimmer size-12" // Updated to use Tailwind size-12 shorthand
+                width={48}
+                height={48}
+                className="mx-auto animate-shimmer size-12"
               />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{sector} Insights</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Explore the latest deals and trends.</p>
@@ -234,62 +233,36 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    // Type guard to ensure session.user is defined, using local typing
-    if (!session || !session.user) {
-      console.error('User session is undefined or not authenticated');
-      return;
-    }
-
-    // Assert session.user as LocalSessionUser to ensure id exists
-    const user = session.user as LocalSessionUser;
+    const user = session.user as LocalSessionUser; // Type assertion since we know session is authenticated here
 
     setIsSaving(true);
     try {
-      startTransition(() => {
+      startTransition(async () => {
         const documentData = {
           title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
           content: unparse(spreadsheetData || []),
           kind: 'sheet' as const,
-          userId: user.id, // Safe because of the type assertion
+          userId: user.id,
         };
 
         let newDocumentId: string;
         if (documentId) {
-          updateDocumentAction({ id: documentId, ...documentData }).then(() => {
-            newDocumentId = documentId;
-            const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
-            const fileName = `${newDocumentId}.csv`;
-            put(fileName, blobData, { access: 'public' }).then(({ url }) => {
-              console.log('Spreadsheet saved to Vercel Blob:', url);
-              handleSave(newDocumentId); // Use handleSave from the outer scope
-            }).catch(error => {
-              console.error('Failed to save to Vercel Blob:', error);
-              setIsSaving(false);
-            });
-          }).catch(error => {
-            console.error('Failed to update document:', error);
-            setIsSaving(false);
-          });
+          await updateDocumentAction({ id: documentId, ...documentData });
+          newDocumentId = documentId;
         } else {
-          createDocumentAction(documentData).then(result => {
-            newDocumentId = result.id;
-            const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
-            const fileName = `${newDocumentId}.csv`;
-            put(fileName, blobData, { access: 'public' }).then(({ url }) => {
-              console.log('Spreadsheet saved to Vercel Blob:', url);
-              handleSave(newDocumentId); // Use handleSave from the outer scope
-            }).catch(error => {
-              console.error('Failed to save to Vercel Blob:', error);
-              setIsSaving(false);
-            });
-          }).catch(error => {
-            console.error('Failed to create document:', error);
-            setIsSaving(false);
-          });
+          const result = await createDocumentAction(documentData);
+          newDocumentId = result.id;
         }
+
+        const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
+        const fileName = `${newDocumentId}.csv`;
+        const { url } = await put(fileName, blobData, { access: 'public' });
+        console.log('Spreadsheet saved to Vercel Blob:', url);
+        handleSave(newDocumentId);
+        setIsSaving(false);
       });
     } catch (error) {
-      console.error('Unexpected error in saveSpreadsheet:', error);
+      console.error('Error in saveSpreadsheet:', error);
       setIsSaving(false);
     }
   };
@@ -327,7 +300,7 @@ export default function Home() {
             <option value="pie">Pie Chart</option>
           </select>
           <Button
-            onClick={() => startTransition(saveSpreadsheet)}
+            onClick={saveSpreadsheet}
             disabled={isSaving}
             className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
           >
