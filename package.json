@@ -64,7 +64,7 @@
     "lucide-react": "^0.446.0",
     "markdown-it": "^14.1.0",
     "nanoid": "^5.0.8",
-    "next": "15.1.7",
+    "next": "canary",
     "next-auth": "5.0.0-beta.25",
     "next-mdx-remote": "^4.4.1",
     "next-themes": "^0.3.0",
@@ -95,7 +95,7 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "usehooks-ts": "^3.1.0",
-    "zod": "^3.24.1"
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
@@ -106,11 +106,11 @@
     "@types/node": "^22.8.6",
     "@types/papaparse": "^5.3.15",
     "@types/pdf-parse": "^1.1.4",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
     "drizzle-kit": "^0.25.0",
     "eslint": "^8.57.0",
-    "eslint-config-next": "15.1.7",
+    "eslint-config-next": "canary",
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.3",
     "eslint-plugin-tailwindcss": "^3.17.5",
