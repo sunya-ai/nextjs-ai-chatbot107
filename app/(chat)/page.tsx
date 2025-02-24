@@ -31,6 +31,7 @@ import { parse, unparse } from 'papaparse'; // Ensure papaparse imports are pres
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions'; // Ensure Server Actions are imported
 import { put } from '@vercel/blob'; // Ensure Vercel Blob import is present
 import { Button } from '@/components/ui/button'; // Ensure Button import is present
+import { debounce } from 'lodash'; // Assuming you added this for debouncing
 
 // Define local types for better type safety within this file
 type SpreadsheetRow = [string, string, number]; // Example: [Date, Deal Type, Amount]
@@ -53,6 +54,11 @@ export default function Home() {
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Defer rendering until session is loaded to prevent hydration mismatches
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
 
   const handleSave = (newDocumentId: string) => {
     console.log('Saved document ID:', newDocumentId);
@@ -124,10 +130,10 @@ export default function Home() {
     const amountIdx = headers.indexOf('Amount');
 
     const groupedData: Record<string, { name: string; solar: number; oil: number; geothermal: number }> = {};
-    spreadsheetData.slice(1).forEach((row: any[]) => {
-      const date = row[dateIdx] || 'Unknown';
-      const dealType = row[dealTypeIdx] || 'Unknown';
-      const amount = parseFloat(row[amountIdx]) || 0;
+    spreadsheetData.slice(1).forEach((row: SpreadsheetRow) => {
+      const date = row[0] || 'Unknown'; // Access by index based on SpreadsheetRow
+      const dealType = row[1] || 'Unknown';
+      const amount = parseFloat(row[2].toString()) || 0;
 
       if (!groupedData[date]) groupedData[date] = { name: date, solar: 0, oil: 0, geothermal: 0 };
       if (dealType === 'Solar M&A') groupedData[date].solar += amount;
@@ -191,10 +197,6 @@ export default function Home() {
         );
     }
   };
-
-  if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
 
   if (status !== 'authenticated') {
     return (
@@ -285,6 +287,8 @@ export default function Home() {
     }
   };
 
+  const debouncedSaveSpreadsheet = debounce(saveSpreadsheet, 500);
+
   return (
     <div
       onDrop={handleDrop}
@@ -318,7 +322,7 @@ export default function Home() {
             <option value="pie">Pie Chart</option>
           </select>
           <Button
-            onClick={() => startTransition(saveSpreadsheet)} // Using startTransition for non-blocking save
+            onClick={() => startTransition(debouncedSaveSpreadsheet)} // Using debounced save for performance
             disabled={isSaving}
             className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
           >
