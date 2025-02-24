@@ -37,6 +37,7 @@ export default function Home() {
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar'); // Typed as union
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = (newDocumentId: string) => {
     console.log('Saved document ID:', newDocumentId);
@@ -88,7 +89,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (initialMessages.length === 0 && session) {
+    if (status === 'authenticated' && session?.user) {
       setInitialMessages([
         {
           id: crypto.randomUUID(),
@@ -98,7 +99,7 @@ export default function Home() {
         },
       ]);
     }
-  }, [session, initialMessages]);
+  }, [session, status]);
 
   const convertToChartData = (data: any) => {
     if (!data || !Array.isArray(data) || data.length < 2) return [];
@@ -176,6 +177,10 @@ export default function Home() {
     }
   };
 
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   if (status !== 'authenticated') {
     return (
       <div className="min-h-screen p-2 flex flex-col items-center justify-center gap-4">
@@ -203,6 +208,41 @@ export default function Home() {
       </div>
     );
   }
+
+  const saveSpreadsheet = async () => {
+    if (!session?.user?.id) return;
+
+    setIsSaving(true);
+    try {
+      const documentData = {
+        title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
+        content: unparse(spreadsheetData || []),
+        kind: 'sheet' as const,
+        userId: session.user.id,
+      };
+
+      let newDocumentId: string;
+      if (documentId) {
+        await updateDocumentAction({ id: documentId, ...documentData });
+        newDocumentId = documentId;
+      } else {
+        const result = await createDocumentAction(documentData);
+        newDocumentId = result.id;
+      }
+
+      // Save to Vercel Blob
+      const blobData = new Blob([unparse(spreadsheetData || [])], { type: 'text/csv' });
+      const fileName = `${newDocumentId}.csv`;
+      const { url } = await put(fileName, blobData, { access: 'public' });
+      console.log('Spreadsheet saved to Vercel Blob:', url);
+
+      handleSave(newDocumentId);
+    } catch (error) {
+      console.error('Failed to save spreadsheet:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div
@@ -236,6 +276,13 @@ export default function Home() {
             <option value="line">Line Chart</option>
             <option value="pie">Pie Chart</option>
           </select>
+          <Button
+            onClick={() => startTransition(saveSpreadsheet)}
+            disabled={isSaving}
+            className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
+          >
+            {isSaving ? 'Saving...' : 'Save Spreadsheet'}
+          </Button>
         </div>
         <div className="flex-1 overflow-y-auto">
           <ResponsiveContainer width="100%" height={300}>
