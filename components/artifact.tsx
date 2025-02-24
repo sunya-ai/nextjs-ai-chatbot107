@@ -25,16 +25,15 @@ import { useArtifact } from '@/hooks/use-artifact';
 import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
 import { textArtifact } from '@/artifacts/text/client';
-import { sheetArtifact } from '@/artifacts/sheet/client'; // Import sheetArtifact
+import { sheetArtifact } from '@/artifacts/sheet/client';
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 
-// Use sheetArtifact instead of partial object
 export const artifactDefinitions = [
   textArtifact,
   codeArtifact,
   imageArtifact,
-  sheetArtifact, // Replace { kind: 'sheet', content: SheetEditor }
+  sheetArtifact,
 ];
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
@@ -51,6 +50,23 @@ export interface UIArtifact {
     width: number;
     height: number;
   };
+}
+
+// Define the props type for content functions
+interface ContentProps {
+  title: string;
+  content: string;
+  mode: 'edit' | 'diff';
+  status: 'streaming' | 'idle';
+  currentVersionIndex: number;
+  suggestions: any[];
+  onSaveContent: (content: string, debounce: boolean) => void;
+  isInline: boolean;
+  isCurrentVersion: boolean;
+  getDocumentContentById: (index: number) => string;
+  isLoading: boolean;
+  metadata: any;
+  setMetadata: Dispatch<SetStateAction<any>>;
 }
 
 function PureArtifact({
@@ -427,9 +443,7 @@ function PureArtifact({
                       {`Updated ${formatDistance(
                         new Date(document.createdAt),
                         new Date(),
-                        {
-                          addSuffix: true,
-                        },
+                        { addSuffix: true },
                       )}`}
                     </div>
                   ) : (
@@ -450,7 +464,7 @@ function PureArtifact({
             </div>
 
             <div className="dark:bg-muted bg-background h-full overflow-y-scroll !max-w-full items-center">
-              {artifactDefinition.content({
+              {(artifactDefinition.content as (props: ContentProps) => React.ReactNode)({
                 title: artifact.title,
                 content: isCurrentVersion ? artifact.content : getDocumentContentById(currentVersionIndex),
                 mode,
