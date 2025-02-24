@@ -22,7 +22,7 @@ interface CodeBlockProps {
   node?: any;
   inline?: boolean;
   className?: string;
-  children?: React.ReactNode; // Optional to match MDXComponents
+  children?: React.ReactNode;
   [key: string]: any;
 }
 
@@ -221,3 +221,5 @@ export const Markdown = memo(
   },
   (prevProps, nextProps) => prevProps.children === nextProps.children,
 );
+
+Markdown.displayName = 'Markdown'; // Added to fix react/display-name error
