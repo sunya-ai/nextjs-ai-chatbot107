@@ -2,7 +2,6 @@
 
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
-import { useChat } from 'ai/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import FinanceEditor from '@/components/FinanceEditor';
 import { MDXProvider } from '@mdx-js/react';
@@ -25,8 +24,9 @@ import {
 } from 'recharts';
 import { useTheme } from 'next-themes';
 import { GeistSans } from 'geist/font/sans';
-import { cn } from '@/lib/utils';
-import { Message } from 'ai'; // Import Vercel AI SDK's Message type
+import { cn, generateUUID } from '@/lib/utils';
+import { Message } from 'ai';
+import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models'; // Ensure this exists or adjust
 
 const font = GeistSans;
 
@@ -35,73 +35,27 @@ export default function Home() {
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<any>(null);
-  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [documentId] = useState<string>(generateUUID()); // Static ID
   const [chartType, setChartType] = useState<string>('bar');
-  const [selectedChatModel, setSelectedChatModel] = useState<string>('openai("gpt-4o")');
-
-  const {
-    messages,
-    input,
-    handleInputChange,
-    handleSubmit,
-    isLoading,
-    data,
-    setMessages,
-    reload,
-  } = useChat({
-    api: '/api/chat',
-    body: { userId: session?.user?.id, documentId, currentData: spreadsheetData, selectedChatModel },
-    onResponse: (response) => {
-      if (response.status === 429) {
-        alert('Too many requests. Please try again later.');
-        return;
-      }
-      const reader = response.body?.getReader();
-      if (!reader) return;
-
-      const decoder = new TextDecoder();
-      let accumulatedData = '';
-
-      const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
-        if (done) {
-          try {
-            const jsonData = JSON.parse(accumulatedData);
-            if (jsonData.spreadsheetData) {
-              setSpreadsheetData(jsonData.spreadsheetData);
-              setDocumentId(jsonData.documentId);
-              setSheetOpen(true);
-            } else if (jsonData.updatedData) {
-              setSpreadsheetData(jsonData.updatedData);
-              setDocumentId(jsonData.documentId);
-              setSheetOpen(true);
-            }
-          } catch (e) {
-            console.error('Error parsing response:', e);
-          }
-          return;
-        }
-        accumulatedData += decoder.decode(value, { stream: true });
-        reader.read().then(processStream);
-      };
-      reader.read().then(processStream);
-    },
-  });
+  const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
+  const [initialMessages, setInitialMessages] = useState<Message[]>([]);
 
   const handleSave = (newDocumentId: string) => {
-    setDocumentId(newDocumentId);
+    console.log('Saved document ID:', newDocumentId); // Log for now
   };
 
   const handleDataChange = (newData: any) => {
     setSpreadsheetData(newData);
+    // Optionally, propagate changes back to chat if needed
   };
 
   const handleFileDrop = async (file: File) => {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('messages', JSON.stringify(messages));
+    formData.append('messages', JSON.stringify(initialMessages));
     formData.append('selectedChatModel', selectedChatModel);
-    formData.append('id', documentId || 'new-chat');
+    formData.append('id', documentId);
 
     try {
       const response = await fetch('/api/chat', {
@@ -109,15 +63,13 @@ export default function Home() {
         body: formData,
       });
       if (!response.ok) throw new Error('Upload failed');
-      setMessages(prev => [
-        ...prev,
-        {
-          id: crypto.randomUUID(), // Generate unique ID
-          role: 'user',
-          content: `Uploaded ${file.name}`,
-          metadata: null,
-        } as Message, // Type assertion to match Vercel AI SDK's Message
-      ]);
+      const newMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: `Uploaded ${file.name}`,
+        metadata: null,
+      };
+      setInitialMessages(prev => [...prev, newMessage]);
     } catch (error) {
       console.error('File upload error:', error);
     }
@@ -132,18 +84,24 @@ export default function Home() {
     e.preventDefault();
   };
 
+  const handleSpreadsheetDataUpdate = (data: any, chatDocumentId: string) => {
+    setSpreadsheetData(data);
+    setSheetOpen(true);
+    console.log('Spreadsheet updated from chat, document ID:', chatDocumentId);
+  };
+
   useEffect(() => {
-    if (messages.length === 0 && session) {
-      setMessages([
+    if (initialMessages.length === 0 && session) {
+      setInitialMessages([
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: 'Welcome! Ask about energy deals (e.g., solar M&A) or upload PDFs.',
+          content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
           metadata: null,
-        } as Message,
+        },
       ]);
     }
-  }, [session, messages, setMessages]);
+  }, [session, initialMessages]);
 
   const convertToChartData = (data: any) => {
     if (!data || !Array.isArray(data) || data.length < 2) return [];
@@ -164,12 +122,9 @@ export default function Home() {
       if (dealType === 'Geothermal Deals') groupedData[date].geothermal += amount;
     });
 
-    const chartData = Object.values(groupedData).filter((item: any) => item.name !== 'Unknown');
-    return chartData.sort((a: any, b: any) => {
-      const totalA = a.solar + a.oil + a.geothermal;
-      const totalB = b.solar + b.oil + b.geothermal;
-      return totalB - totalA; // Largest to smallest
-    });
+    return Object.values(groupedData)
+      .filter((item: any) => item.name !== 'Unknown')
+      .sort((a: any, b: any) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
   };
 
   const renderChart = () => {
@@ -263,27 +218,14 @@ export default function Home() {
       <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
         <MDXProvider components={{}}>
           <Chat
-            messages={messages}
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            setMessages={setMessages}
-            reload={reload}
+            id={documentId}
+            initialMessages={initialMessages}
             selectedChatModel={selectedChatModel}
-            setSelectedChatModel={setSelectedChatModel}
+            selectedVisibilityType="private" // Consistent with template
+            isReadonly={false}
+            onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
           />
         </MDXProvider>
-        {isLoading && (
-          <div className="mt-2 text-gray-500 dark:text-gray-400 text-sm">
-            <div className="flex justify-center gap-1">
-              <span className="w-2 h-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-              <span className="w-2 h-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
-              <span className="w-2 h-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
-            </div>
-            <p>Analyzing energy deals…</p>
-          </div>
-        )}
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">Drag and drop PDFs or documents here to analyze energy data.</p>
       </div>
       <div className="w-1/2 p-2 flex flex-col gap-2">
