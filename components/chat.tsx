@@ -3,7 +3,7 @@
 
 import type { Attachment, Message } from 'ai';
 import { useChat } from 'ai/react';
-import { useState, useEffect, Component, ReactNode } from 'react';
+import { useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 
 import { ChatHeader } from '@/components/chat-header';
@@ -17,98 +17,22 @@ import { VisibilityType } from './visibility-selector';
 import { useArtifactSelector } from '@/hooks/use-artifact';
 import { toast } from 'sonner';
 
-// Error Boundary component to catch and handle React errors
-class ErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; fallback: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error("ChatComponent Error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-
-    return this.props.children;
-  }
-}
-
-// The main Chat component wrapped with error handling
 export function Chat({
   id,
   initialMessages,
   selectedChatModel,
   selectedVisibilityType,
   isReadonly,
-  onSpreadsheetDataUpdate,
+  onSpreadsheetDataUpdate, // Added prop
 }: {
   id: string;
   initialMessages: Array<Message>;
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
-  onSpreadsheetDataUpdate?: (data: any, documentId: string) => void;
-}) {
-  return (
-    <ErrorBoundary
-      fallback={
-        <div className="flex flex-col min-w-0 h-dvh bg-background">
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center p-4">
-              <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
-              <p className="mb-4">The chat interface encountered an error.</p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Reload page
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-    >
-      <ChatContent
-        id={id}
-        initialMessages={initialMessages}
-        selectedChatModel={selectedChatModel}
-        selectedVisibilityType={selectedVisibilityType}
-        isReadonly={isReadonly}
-        onSpreadsheetDataUpdate={onSpreadsheetDataUpdate}
-      />
-    </ErrorBoundary>
-  );
-}
-
-// The actual chat content, separated to work with the error boundary
-function ChatContent({
-  id,
-  initialMessages,
-  selectedChatModel,
-  selectedVisibilityType,
-  isReadonly,
-  onSpreadsheetDataUpdate,
-}: {
-  id: string;
-  initialMessages: Array<Message>;
-  selectedChatModel: string;
-  selectedVisibilityType: VisibilityType;
-  isReadonly: boolean;
-  onSpreadsheetDataUpdate?: (data: any, documentId: string) => void;
+  onSpreadsheetDataUpdate?: (data: any, documentId: string) => void; // Optional callback
 }) {
   const { mutate } = useSWRConfig();
-  const [errorShown, setErrorShown] = useState(false);
 
   const {
     messages,
@@ -131,91 +55,76 @@ function ChatContent({
       mutate('/api/history');
     },
     onError: (error) => {
-      // Only show one toast to avoid multiple errors
-      if (!errorShown) {
-        toast.error('An error occurred, please try again!');
-        setErrorShown(true);
-        setTimeout(() => setErrorShown(false), 3000); // Reset after 3 seconds
-      }
+      toast.error('An error occurred, please try again!');
     },
     onResponse: (response) => {
-      try {
-        // Safety check for response undefined
-        if (!response) {
-          console.error('Response object is undefined');
-          return;
-        }
-        
-        // Safely access status
-        const status = response?.status;
-        if (status === 429) {
-          toast.error('Too many requests. Please try again later.');
-          return;
-        }
-        
-        // Skip processing if no callback or no body
-        if (!onSpreadsheetDataUpdate || !response.body) {
-          return;
-        }
-        
-        const reader = response.body.getReader();
-        if (!reader) {
-          return;
-        }
+      // Add null check to prevent "Cannot read properties of undefined (reading 'status')" error
+      if (!response) {
+        console.error('Response object is undefined');
+        return;
+      }
+      
+      if (response.status === 429) {
+        toast.error('Too many requests. Please try again later.');
+        return;
+      }
+      
+      // Only proceed if we have a response body and the callback
+      if (!response.body || !onSpreadsheetDataUpdate) {
+        return;
+      }
+      
+      const reader = response.body.getReader();
+      if (!reader) return;
 
-        const decoder = new TextDecoder();
-        let accumulatedData = '';
+      const decoder = new TextDecoder();
+      let accumulatedData = '';
 
-        const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
+      const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
+        if (done) {
           try {
-            if (done) {
-              if (!accumulatedData || accumulatedData.trim() === '') {
-                return;
-              }
-              
-              try {
-                const jsonData = JSON.parse(accumulatedData);
-                if (jsonData.spreadsheetData || jsonData.updatedData) {
-                  const data = jsonData.spreadsheetData || jsonData.updatedData;
-                  onSpreadsheetDataUpdate(data, id);
-                }
-              } catch (e) {
-                console.error('Error parsing response:', e);
-              }
+            // Add check to make sure accumulatedData is not empty
+            if (!accumulatedData || accumulatedData.trim() === '') {
               return;
             }
             
-            if (value) {
-              accumulatedData += decoder.decode(value, { stream: true });
-              reader.read().then(processStream).catch(() => {});
+            const jsonData = JSON.parse(accumulatedData);
+            if (jsonData.spreadsheetData || jsonData.updatedData) {
+              const data = jsonData.spreadsheetData || jsonData.updatedData;
+              onSpreadsheetDataUpdate(data, id); // Call the callback with data and chat ID
             }
-          } catch (error) {
-            console.error('Stream processing error:', error);
+          } catch (e) {
+            console.error('Error parsing response:', e);
           }
-        };
+          return;
+        }
         
-        reader.read().then(processStream).catch(() => {});
-      } catch (error) {
-        console.error('Response handling error:', error);
-      }
+        // Add null check for value
+        if (!value) {
+          return;
+        }
+        
+        accumulatedData += decoder.decode(value, { stream: true });
+        reader.read().then(processStream).catch(err => {
+          console.error('Error reading stream:', err);
+        });
+      };
+      
+      reader.read().then(processStream).catch(err => {
+        console.error('Initial stream read error:', err);
+      });
     },
   });
 
-  // Fetch votes with error handling
   const { data: votes } = useSWR<Array<Vote>>(
     `/api/vote?chatId=${id}`,
     fetcher,
-    {
-      onError: (error) => {
-        console.error('Error fetching votes:', error);
-      }
-    }
   );
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
-  
-  // Always provide safe defaults
+
+  // Use safe votes to prevent null reference errors
   const safeVotes = votes || [];
 
   return (
