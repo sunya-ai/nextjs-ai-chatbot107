@@ -172,7 +172,7 @@ export async function createDocument(data: { title: string; content: string; kin
       content: data.content,
       userId: data.userId,
       createdAt: new Date(),
-    });
+    }).returning(); // Note: .returning() typically returns an array
   } catch (error) {
     console.error('Failed to save document in database');
     throw error;
@@ -184,7 +184,8 @@ export async function updateDocument(data: { id: string; title: string; content:
     return await db
       .update(document)
       .set({ title: data.title, content: data.content, kind: data.kind })
-      .where(and(eq(document.id, data.id), eq(document.userId, data.userId)));
+      .where(and(eq(document.id, data.id), eq(document.userId, data.userId)))
+      .returning(); // Note: .returning() typically returns an array
   } catch (error) {
     console.error('Failed to update document in database');
     throw error;
@@ -194,8 +195,8 @@ export async function updateDocument(data: { id: string; title: string; content:
 export async function saveDocument(data: { id?: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
   try {
     if (data.id) {
-      // Update existing document
-      return await updateDocument(data);
+      // Update existing document, ensuring id is a string
+      return await updateDocument({ ...data, id: data.id });
     } else {
       // Create new document
       return await createDocument(data);
