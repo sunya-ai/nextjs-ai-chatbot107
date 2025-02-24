@@ -1,9 +1,5 @@
-import type {
-  Attachment,
-  ChatRequestOptions,
-  CreateMessage,
-  Message,
-} from 'ai';
+// components/artifact.tsx
+import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -29,16 +25,16 @@ import { useArtifact } from '@/hooks/use-artifact';
 import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
 import { textArtifact } from '@/artifacts/text/client';
-import SheetEditor from './sheet-editor'; // Updated import for default export
-import { SpreadsheetEditor } from './sheet-editor'; // Updated import for named export
+import { sheetArtifact } from '@/artifacts/sheet/client'; // Import sheetArtifact
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 
+// Use sheetArtifact instead of partial object
 export const artifactDefinitions = [
   textArtifact,
   codeArtifact,
   imageArtifact,
-  { kind: 'sheet' as const, content: SheetEditor }, // Updated to use SheetEditor
+  sheetArtifact, // Replace { kind: 'sheet', content: SheetEditor }
 ];
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
@@ -88,9 +84,7 @@ function PureArtifact({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
-    event?: {
-      preventDefault?: () => void;
-    },
+    event?: { preventDefault?: () => void },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
   reload: (
@@ -233,12 +227,6 @@ function PureArtifact({
   };
 
   const [isToolbarVisible, setIsToolbarVisible] = useState(false);
-
-  /*
-   * NOTE: if there are no documents, or if
-   * the documents are being fetched, then
-   * we mark it as the current version.
-   */
 
   const isCurrentVersion =
     documents && documents.length > 0
