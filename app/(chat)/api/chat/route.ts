@@ -27,7 +27,7 @@ import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
-import { inferDomains } from '@/lib/ai/tools/infer-domains'; // Added import for inferDomains
+import { inferDomains } from '@/lib/ai/tools/infer-domains';
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import markdownIt from 'markdown-it';
@@ -109,7 +109,7 @@ const assistantsEnhancer = createAssistantsEnhancer(
 );
 
 /**
- * Helper to convert message content (which may be an array of parts) to a string for MDX compilation.
+ * Helper to convert message content to a string for MDX compilation.
  */
 function convertContentToString(content: any): string {
   if (typeof content === 'string') return content;
@@ -126,7 +126,7 @@ function convertContentToString(content: any): string {
 }
 
 /**
- * For the initial analysis we use generateText (the older approach) to get a complete text result, compiled as MDX.
+ * For the initial analysis we use generateText to get a complete text result, compiled as MDX.
  */
 async function getInitialAnalysis(
   messages: Message[],
@@ -185,13 +185,12 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
     });
     console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
 
-    // Compile to MDX for best Markdown rendering
     const compiledMdx = await compile(text, {
       outputFormat: 'function-body',
       remarkPlugins: [remarkGfm],
       rehypePlugins: [rehypeHighlight, rehypeRaw],
     });
-    return compiledMdx.toString(); // Store as a string (function body) for DB, parse in components
+    return compiledMdx.toString();
   } catch (error) {
     console.error('[getInitialAnalysis] Error:', error);
     throw error;
@@ -204,16 +203,50 @@ async function enhanceContext(initialAnalysis: string): Promise<string> {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
     console.log('[enhanceContext] Enhanced context received');
 
-    // Compile enhanced context to MDX if it's a string
     const compiledMdx = await compile(enhancedContext, {
       outputFormat: 'function-body',
       remarkPlugins: [remarkGfm],
       rehypePlugins: [rehypeHighlight, rehypeRaw],
     });
-    return compiledMdx.toString(); // Store as a string (function body) for DB, parse in components
+    return compiledMdx.toString();
   } catch (err) {
     console.error('[enhanceContext] Error:', err);
-    return initialAnalysis; // Fallback (string or MDX string)
+    return initialAnalysis;
+  }
+}
+
+/**
+ * Helper function to generate or update spreadsheet data based on user input.
+ */
+async function processSpreadsheetUpdate(
+  messages: Message[],
+  currentData?: any
+): Promise<any> {
+  const userMessage = getMostRecentUserMessage(messages);
+  if (!userMessage) return currentData;
+
+  const content = userMessage.content.toLowerCase();
+  const spreadsheetPrompt = `
+You are an energy deal spreadsheet manager. Based on the user's message and any existing data, generate or update a spreadsheet with columns: Date, Deal Type, Amount.
+
+- If the message requests adding a deal (e.g., "Add a solar deal for $1M on 2025-03-01"), append a new row.
+- If no existing data is provided, start with headers: ["Date", "Deal Type", "Amount"].
+- Parse the message for date (YYYY-MM-DD), deal type (e.g., "Solar M&A", "Oil Trends", "Geothermal Deals"), and amount (in dollars, e.g., $1M or 1000000).
+- Return the updated 2D array directly (no additional text).
+
+Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']])}.
+`;
+
+  try {
+    const { text } = await generateText({
+      model: google('gemini-2.0-flash'),
+      system: spreadsheetPrompt,
+      messages: [{ role: 'user', content: userMessage.content }],
+    });
+    return JSON.parse(text); // Expecting a 2D array like [["Date", "Deal Type", "Amount"], ["2025-03-01", "Solar M&A", 1000000]]
+  } catch (error) {
+    console.error('[processSpreadsheetUpdate] Error:', error);
+    return currentData || [['Date', 'Deal Type', 'Amount']]; // Fallback to existing or default
   }
 }
 
@@ -237,6 +270,7 @@ export async function POST(request: Request) {
   let messages: Message[] = [];
   let selectedChatModel = 'default-model';
   let file: File | null = null;
+  let currentData: any; // For spreadsheet data from formData
 
   if (request.headers.get('content-type')?.includes('application/json')) {
     console.log('[POST] => Found JSON body');
@@ -245,11 +279,13 @@ export async function POST(request: Request) {
       id = json.id;
       messages = json.messages;
       selectedChatModel = json.selectedChatModel || 'default-model';
+      currentData = json.currentData; // Extract current spreadsheet data if provided
 
       console.log('[POST] JSON parse =>', {
         id,
         selectedChatModel,
         messagesCount: messages.length,
+        hasCurrentData: !!currentData,
       });
     } catch (err) {
       console.error('[POST] Invalid JSON =>', err);
@@ -263,11 +299,13 @@ export async function POST(request: Request) {
       const messagesStr = formData.get('messages')?.toString() || '';
       selectedChatModel = formData.get('selectedChatModel')?.toString() || 'default-model';
       file = formData.get('file') as File | null;
+      currentData = formData.get('currentData') ? JSON.parse(formData.get('currentData') as string) : undefined;
 
       console.log('[POST] formData =>', {
         id,
         selectedChatModel,
         hasFile: !!file,
+        hasCurrentData: !!currentData,
       });
 
       try {
@@ -310,6 +348,19 @@ export async function POST(request: Request) {
     fileMime = file.type;
   }
 
+  // Check if the message is a spreadsheet update request
+  const content = userMessage.content.toLowerCase();
+  const isSpreadsheetUpdate = content.includes('add') && (content.includes('deal') || content.includes('spreadsheet'));
+  
+  if (isSpreadsheetUpdate) {
+    console.log('[POST] Detected spreadsheet update request');
+    const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
+    return new Response(JSON.stringify({ updatedData: updatedSpreadsheet }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   console.log('[POST] => createDataStreamResponse => multi-pass');
   return createDataStreamResponse({
     status: 200,
@@ -340,181 +391,150 @@ export async function POST(request: Request) {
         }
 
         let isFirstContent = true;
-        let reasoningStarted = false; // For Grok 3 thinking
+        let reasoningStarted = false;
 
-        try {
-          const result = await streamText({
-            model: finalModel,
-            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-            messages,
-            maxSteps: 5,
-            experimental_activeTools:
-              selectedChatModel === 'chat-model-reasoning'
-                ? []
-                : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
-            experimental_transform: smoothStream({ chunking: 'line' }),
-            experimental_generateMessageId: generateUUID,
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({ session, dataStream }),
-            },
-            onChunk: async (event) => {
-              const { chunk } = event;
+        const result = await streamText({
+          model: finalModel,
+          system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
+          messages,
+          maxSteps: 5,
+          experimental_activeTools:
+            selectedChatModel === 'chat-model-reasoning'
+              ? []
+              : ['getWeather', 'createDocument', 'updateDocument', 'requestSuggestions'],
+          experimental_transform: smoothStream({ chunking: 'line' }),
+          experimental_generateMessageId: generateUUID,
+          tools: {
+            getWeather,
+            createDocument: createDocument({ session, dataStream }),
+            updateDocument: updateDocument({ session, dataStream }),
+            requestSuggestions: requestSuggestions({ session, dataStream }),
+          },
+          onChunk: async (event) => {
+            const { chunk } = event;
 
-              if (chunk.type === 'text-delta' && chunk.textDelta.trim() && isFirstContent) {
-                isFirstContent = false;
-                dataStream.writeData('workflow_stage:complete');
-              }
+            if (chunk.type === 'text-delta' && chunk.textDelta.trim() && isFirstContent) {
+              isFirstContent = false;
+              dataStream.writeData('workflow_stage:complete');
+            }
 
-              if (chunk.type === 'reasoning' && !reasoningStarted) {
-                reasoningStarted = true;
-                dataStream.writeMessageAnnotation({
-                  type: 'thinking',
-                  content: 'Let’s break this down…', // Grok 3 style
-                });
-              }
+            if (chunk.type === 'reasoning' && !reasoningStarted) {
+              reasoningStarted = true;
+              dataStream.writeMessageAnnotation({
+                type: 'thinking',
+                content: 'Let’s break this down…',
+              });
+            }
 
-              if (chunk.type === 'reasoning') {
-                dataStream.writeMessageAnnotation({
-                  type: 'reasoning',
-                  content: chunk.textDelta,
-                });
-              }
+            if (chunk.type === 'reasoning') {
+              dataStream.writeMessageAnnotation({
+                type: 'reasoning',
+                content: chunk.textDelta,
+              });
+            }
 
-              switch (chunk.type) {
-                case 'tool-call':
-                case 'tool-call-streaming-start':
-                case 'tool-call-delta':
-                case 'tool-result':
-                  // Keep thinking state during tool calls
-                  break;
-              }
-            },
-            onFinish: async ({ response, reasoning }) => {
-              if (session.user?.id) {
-                try {
-                  let content = response.messages[response.messages.length - 1]?.content || '';
-                  let contentString: string;
-                  if (typeof content === 'string') {
-                    contentString = content;
-                  } else if (Array.isArray(content)) {
-                    // Handle array of parts (e.g., TextPart or ToolCallPart)
-                    contentString = content.map(part => ('text' in part ? part.text : '')).join('');
-                  } else {
-                    contentString = ''; // Fallback for unexpected types
-                  }
-
-                  const md = new markdownIt();
-                  const tokens = md.parse(contentString, {});
-                  const companyNames: string[] = [];
-                  const sources: { id: string; url: string }[] = [];
-
-                  tokens.forEach(token => {
-                    if (token.type === 'inline' && token.content) {
-                      const doc = compromise(token.content);
-                      const companies = doc.match('#Organization+').out('array') as string[];
-                      companyNames.push(...companies.filter(name => name.trim()));
-
-                      // Parse citations for sources (e.g., [1, 2])
-                      const citationRegex = /\[\d+(,\s*\d+)*\]/g;
-                      let match;
-                      while ((match = citationRegex.exec(token.content)) !== null) {
-                        const citationIds = match[0]
-                          .replace(/[\[\]]/g, '')
-                          .split(',')
-                          .map((id) => id.trim())
-                          .map(Number);
-                        citationIds.forEach((id) => {
-                          // Simulate a source URL (replace with actual logic or API call)
-                          sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
-                        });
-                      }
-                    }
-                  });
-
-                  const uniqueCompanies = [...new Set(companyNames)];
-                  const logoMap = await inferDomains(uniqueCompanies);
-
-                  for (const [company, logoUrl] of Object.entries(logoMap)) {
-                    if (logoUrl !== 'unknown') {
-                      contentString = contentString.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
-                    }
-                  }
-
-                  // Compile to MDX for best Markdown rendering
-                  const compiledMdx = await compile(contentString, {
-                    outputFormat: 'function-body',
-                    remarkPlugins: [remarkGfm],
-                    rehypePlugins: [rehypeHighlight, rehypeRaw],
-                  });
-
-                  // Ensure the message conforms to the expected type, filtering for assistant messages
-                  const lastMessageIndex = response.messages.length - 1;
-                  const sanitizedMessages = sanitizeResponseMessages({
-                    messages: response.messages
-                      .filter(m => m.role === 'assistant') // Filter to only assistant messages
-                      .map((m, index) => ({
-                        ...m,
-                        id: m.id || generateUUID(),
-                        role: 'assistant',
-                        content: compiledMdx.toString(), // Update content with MDX
-                      }) as CoreAssistantMessage & { id: string }), // Use CoreAssistantMessage & { id: string }
-                    reasoning: reasoning || 'Generated reasoning for assistant response',
-                  });
-
-                  // Save messages with custom data in metadata
-                  await saveMessages({
-                    messages: sanitizedMessages.map((message) => ({
-                      id: message.id,
-                      chatId: id,
-                      role: message.role,
-                      content: message.content, // Store MDX string (function body) for DB
-                      createdAt: new Date(),
-                      metadata: JSON.stringify({
-                        sources: [...new Set(sources)],
-                        reasoning: reasoning || 'No reasoning provided',
-                      }), // Store sources and reasoning in JSON
-                    })),
-                  });
-                } catch (error) {
-                  console.error('Failed to save chat', error);
+            switch (chunk.type) {
+              case 'tool-call':
+              case 'tool-call-streaming-start':
+              case 'tool-call-delta':
+              case 'tool-result':
+                break;
+            }
+          },
+          onFinish: async ({ response, reasoning }) => {
+            if (session.user?.id) {
+              try {
+                let content = response.messages[response.messages.length - 1]?.content || '';
+                let contentString: string;
+                if (typeof content === 'string') {
+                  contentString = content;
+                } else if (Array.isArray(content)) {
+                  contentString = content.map(part => ('text' in part ? part.text : '')).join('');
+                } else {
+                  contentString = '';
                 }
+
+                const md = new markdownIt();
+                const tokens = md.parse(contentString, {});
+                const companyNames: string[] = [];
+                const sources: { id: string; url: string }[] = [];
+
+                tokens.forEach(token => {
+                  if (token.type === 'inline' && token.content) {
+                    const doc = compromise(token.content);
+                    const companies = doc.match('#Organization+').out('array') as string[];
+                    companyNames.push(...companies.filter(name => name.trim()));
+
+                    const citationRegex = /\[\d+(,\s*\d+)*\]/g;
+                    let match;
+                    while ((match = citationRegex.exec(token.content)) !== null) {
+                      const citationIds = match[0]
+                        .replace(/[\[\]]/g, '')
+                        .split(',')
+                        .map((id) => id.trim())
+                        .map(Number);
+                      citationIds.forEach((id) => {
+                        sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
+                      });
+                    }
+                  }
+                });
+
+                const uniqueCompanies = [...new Set(companyNames)];
+                const logoMap = await inferDomains(uniqueCompanies);
+
+                for (const [company, logoUrl] of Object.entries(logoMap)) {
+                  if (logoUrl !== 'unknown') {
+                    contentString = contentString.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
+                  }
+                }
+
+                const compiledMdx = await compile(contentString, {
+                  outputFormat: 'function-body',
+                  remarkPlugins: [remarkGfm],
+                  rehypePlugins: [rehypeHighlight, rehypeRaw],
+                });
+
+                const sanitizedMessages = sanitizeResponseMessages({
+                  messages: response.messages
+                    .filter(m => m.role === 'assistant')
+                    .map((m, index) => ({
+                      ...m,
+                      id: m.id || generateUUID(),
+                      role: 'assistant',
+                      content: compiledMdx.toString(),
+                    }) as CoreAssistantMessage & { id: string }),
+                  reasoning: reasoning || 'Generated reasoning for assistant response',
+                });
+
+                await saveMessages({
+                  messages: sanitizedMessages.map((message) => ({
+                    id: message.id,
+                    chatId: id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: new Date(),
+                    metadata: JSON.stringify({
+                      sources: [...new Set(sources)],
+                      reasoning: reasoning || 'No reasoning provided',
+                    }),
+                  })),
+                });
+              } catch (error) {
+                console.error('Failed to save chat', error);
               }
-            },
-            experimental_telemetry: {
-              isEnabled: true,
-              functionId: 'stream-text',
-            },
-          });
+            }
+          },
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: 'stream-text',
+          },
+        });
 
-          await result.mergeIntoDataStream(dataStream, {
-            sendReasoning: true,
-            sendSources: true,
-          });
-        } catch (streamError) {
-          console.error('[EXECUTE:stream] Error during streaming:', streamError);
-
-          try {
-            console.log('[EXECUTE] Attempting fallback response');
-            const fallbackResult = streamText({
-              model: finalModel,
-              system: systemPrompt({ selectedChatModel }),
-              messages,
-              experimental_transform: smoothStream({ chunking: 'line' }),
-              experimental_generateMessageId: generateUUID,
-            });
-
-            await fallbackResult.mergeIntoDataStream(dataStream, {
-              sendReasoning: true,
-              sendSources: true,
-            });
-          } catch (fallbackError) {
-            console.error('[EXECUTE] Fallback attempt failed:', fallbackError);
-            throw fallbackError;
-          }
-        }
+        await result.mergeIntoDataStream(dataStream, {
+          sendReasoning: true,
+          sendSources: true,
+        });
       } catch (err) {
         console.error('[EXECUTE] Error during processing:', err);
         throw err;
