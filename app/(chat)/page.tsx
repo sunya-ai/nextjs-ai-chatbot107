@@ -26,7 +26,7 @@ import {
 import { useTheme } from 'next-themes';
 import { GeistSans } from 'geist/font/sans';
 import { cn, generateUUID } from '@/lib/utils';
-import { ExtendedMessage } from '@/lib/types'; // Import extended type
+import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 
 const font = GeistSans;
@@ -37,7 +37,7 @@ export default function Home() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<any>(null);
   const [documentId] = useState<string>(generateUUID());
-  const [chartType, setChartType] = useState<string>('bar');
+  const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar'); // Typed as union
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [initialMessages, setInitialMessages] = useState<ExtendedMessage[]>([]);
 
@@ -176,8 +176,6 @@ export default function Home() {
             <Legend />
           </PieChart>
         );
-      default:
-        return null;
     }
   };
 
@@ -234,7 +232,7 @@ export default function Home() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Analyze and visualize energy transactions.</p>
           <select
             value={chartType}
-            onChange={(e) => setChartType(e.target.value)}
+            onChange={(e) => setChartType(e.target.value as 'bar' | 'line' | 'pie')}
             className="mt-2 p-2 border rounded dark:bg-gray-700 dark:text-white text-sm"
           >
             <option value="bar">Bar Chart (Largest to Smallest)</option>
