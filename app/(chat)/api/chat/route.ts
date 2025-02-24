@@ -472,13 +472,12 @@ export async function POST(request: Request) {
           });
         } catch (err) {
           console.error('[EXECUTE] Error during processing:', err);
-          dataStream.writeError('An error occurred during processing');
-          throw err;
+          throw err; // Throw the error instead of using writeError
         }
       },
       onError: (error) => {
         console.error('[createDataStreamResponse] Final error handler:', error);
-        return new Response('Internal Server Error', { status: 500 });
+        return new Response('Internal Server Error', { status: 500 }); // Use Response for errors
       },
     });
   } catch (error) {
