@@ -10,7 +10,7 @@ import { put } from '@vercel/blob';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { parse, unparse } from 'papaparse';
-import { createDocumentAction, updateDocumentAction } from '@/app/actions/db'; // Using Server Actions
+import { createDocumentAction, updateDocumentAction } from '@/app/actions'; // Updated import path
 import { GeistSans } from 'geist/font/sans';
 
 // Register all Handsontable modules
