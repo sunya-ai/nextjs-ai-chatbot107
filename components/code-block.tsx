@@ -1,10 +1,12 @@
+// components/code-block.tsx
 'use client';
 
 interface CodeBlockProps {
-  node: any;
-  inline: boolean;
-  className: string;
-  children: any;
+  node?: any;
+  inline?: boolean; // Already optional, matches MDXRemote's type
+  className?: string;
+  children: React.ReactNode;
+  [key: string]: any;
 }
 
 export function CodeBlock({
@@ -14,7 +16,7 @@ export function CodeBlock({
   children,
   ...props
 }: CodeBlockProps) {
-  if (!inline) {
+  if (!inline) { // Handles undefined as falsy, rendering as block
     return (
       <div className="not-prose flex flex-col">
         <pre
