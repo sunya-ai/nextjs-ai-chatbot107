@@ -11,36 +11,67 @@ import {
 import { VisibilityType } from '@/components/visibility-selector';
 import { myProvider } from '@/lib/ai/models';
 
+// Ensure the ArtifactKind type is available for document creation/updates if needed
+import { ArtifactKind } from '@/components/artifact';
+
+// Add Server Actions for document operations (optional, for consistency with FinanceEditor and sheet-editor)
+export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }) {
+  return await createDocument(data); // Import createDocument from lib/db/queries.ts if needed
+}
+
+export async function updateDocumentAction(data: { id: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
+  return await updateDocument(data); // Import updateDocument from lib/db/queries.ts if needed
+}
+
 export async function saveChatModelAsCookie(model: string) {
   const cookieStore = await cookies();
-  cookieStore.set('chat-model', model);
+  cookieStore.set('chat-model', model, {
+    httpOnly: true, // Secure cookie settings
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  });
 }
 
 export async function generateTitleFromUserMessage({
   message,
 }: {
   message: Message;
-}) {
-  const { text: title } = await generateText({
-    model: myProvider.languageModel('title-model'),
-    system: `\n
-    - you will generate a short title based on the first message a user begins a conversation with
-    - ensure it is not more than 80 characters long
-    - the title should be a summary of the user's message
-    - do not use quotes or colons`,
-    prompt: JSON.stringify(message),
-  });
+}): Promise<string> {
+  try {
+    const { text: title } = await generateText({
+      model: myProvider.languageModel('title-model'),
+      system: `
+        - You will generate a short title based on the first message a user begins a conversation with.
+        - Ensure it is not more than 80 characters long.
+        - The title should be a summary of the user's message.
+        - Do not use quotes or colons.`,
+      prompt: JSON.stringify(message),
+    });
 
-  return title;
+    return title.trim();
+  } catch (error) {
+    console.error('Failed to generate title from user message:', error);
+    throw error;
+  }
 }
 
 export async function deleteTrailingMessages({ id }: { id: string }) {
-  const [message] = await getMessageById({ id });
+  try {
+    const [message] = await getMessageById({ id });
 
-  await deleteMessagesByChatIdAfterTimestamp({
-    chatId: message.chatId,
-    timestamp: message.createdAt,
-  });
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    await deleteMessagesByChatIdAfterTimestamp({
+      chatId: message.chatId,
+      timestamp: message.createdAt,
+    });
+  } catch (error) {
+    console.error('Failed to delete trailing messages:', error);
+    throw error;
+  }
 }
 
 export async function updateChatVisibility({
@@ -50,5 +81,10 @@ export async function updateChatVisibility({
   chatId: string;
   visibility: VisibilityType;
 }) {
-  await updateChatVisiblityById({ chatId, visibility });
+  try {
+    await updateChatVisiblityById({ chatId, visibility });
+  } catch (error) {
+    console.error('Failed to update chat visibility:', error);
+    throw error;
+  }
 }
