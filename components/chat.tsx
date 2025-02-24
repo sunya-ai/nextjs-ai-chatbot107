@@ -1,9 +1,8 @@
-// components/chat.tsx
 'use client';
 
 import type { Attachment, Message } from 'ai';
 import { useChat } from 'ai/react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 
 import { ChatHeader } from '@/components/chat-header';
@@ -33,6 +32,7 @@ export function Chat({
   onSpreadsheetDataUpdate?: (data: any, documentId: string) => void; // Optional callback
 }) {
   const { mutate } = useSWRConfig();
+  const containerRef = useRef<HTMLDivElement>(null); // Ref for DOM safety
 
   const {
     messages,
@@ -56,26 +56,30 @@ export function Chat({
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
+      console.error('Chat error:', error);
     },
     onResponse: (response) => {
-      // Add null check to prevent "Cannot read properties of undefined (reading 'status')" error
+      // Enhanced null check for response
       if (!response) {
         console.error('Response object is undefined');
         return;
       }
-      
+
       if (response.status === 429) {
         toast.error('Too many requests. Please try again later.');
         return;
       }
-      
+
       // Only proceed if we have a response body and the callback
       if (!response.body || !onSpreadsheetDataUpdate) {
         return;
       }
-      
+
       const reader = response.body.getReader();
-      if (!reader) return;
+      if (!reader) {
+        console.warn('No reader available in response body');
+        return;
+      }
 
       const decoder = new TextDecoder();
       let accumulatedData = '';
@@ -83,33 +87,31 @@ export function Chat({
       const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
         if (done) {
           try {
-            // Add check to make sure accumulatedData is not empty
             if (!accumulatedData || accumulatedData.trim() === '') {
               return;
             }
-            
             const jsonData = JSON.parse(accumulatedData);
             if (jsonData.spreadsheetData || jsonData.updatedData) {
               const data = jsonData.spreadsheetData || jsonData.updatedData;
               onSpreadsheetDataUpdate(data, id); // Call the callback with data and chat ID
             }
           } catch (e) {
-            console.error('Error parsing response:', e);
+            console.error('Error parsing response stream:', e);
           }
           return;
         }
-        
-        // Add null check for value
+
         if (!value) {
+          console.warn('Stream value is undefined');
           return;
         }
-        
+
         accumulatedData += decoder.decode(value, { stream: true });
         reader.read().then(processStream).catch(err => {
-          console.error('Error reading stream:', err);
+          console.error('Stream reading error:', err);
         });
       };
-      
+
       reader.read().then(processStream).catch(err => {
         console.error('Initial stream read error:', err);
       });
@@ -127,9 +129,17 @@ export function Chat({
   // Use safe votes to prevent null reference errors
   const safeVotes = votes || [];
 
+  // Ensure DOM is ready before any manipulation
+  useEffect(() => {
+    if (containerRef.current) {
+      // Add any necessary DOM initialization here if needed
+      console.log('Chat container mounted');
+    }
+  }, []);
+
   return (
     <>
-      <div className="flex flex-col min-w-0 h-dvh bg-background">
+      <div ref={containerRef} className="flex flex-col min-w-0 h-dvh bg-background">
         <ChatHeader
           chatId={id}
           selectedModelId={selectedChatModel}
