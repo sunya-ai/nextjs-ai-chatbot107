@@ -13,7 +13,8 @@ import { cn } from '@/lib/utils';
 import { parse, unparse } from 'papaparse';
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
 import { inferDomains } from '@/lib/ai/tools/infer-domains';
-import { GeistSans } from 'geist/font/sans';
+import { GeistSans } from 'geist/font';
+const font = GeistSans;
 
 // Register all Handsontable modules
 registerAllModules();
