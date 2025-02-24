@@ -14,7 +14,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
       system: sheetPrompt,
       prompt: title,
       schema: z.object({
-        csv: z.string().describe('CSV data'),
+        csv: z.string().describe('CSV data for the spreadsheet'),
       }),
     });
 
@@ -51,7 +51,7 @@ export const sheetDocumentHandler = createDocumentHandler<'sheet'>({
       system: updateDocumentPrompt(document.content, 'sheet'),
       prompt: description,
       schema: z.object({
-        csv: z.string(),
+        csv: z.string().describe('Updated CSV data for the spreadsheet'),
       }),
     });
 
