@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import React, { memo } from 'react';
-import { MDXRemote } from 'next-mdx-remote/rsc'; // Use RSC version for Next.js App Router
+import { MDXRemote } from 'next-mdx-remote'; // Correct import
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/tooltip';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { serialize } from 'next-mdx-remote/serialize'; // For client-side serialization
 
 // Define CodeBlockProps explicitly
 interface CodeBlockProps {
@@ -203,22 +204,20 @@ const collectSources = (content: string): { id: string; url: string }[] => {
   return [...new Set(sources)];
 };
 
+// Client-side rendering with next-mdx-remote
 export const Markdown = memo(
-  ({ children: initialContent }: { children: string }) => {
+  async ({ children: initialContent }: { children: string }) => {
     const sources = collectSources(initialContent);
+    const mdxSource = await serialize(initialContent, {
+      mdxOptions: {
+        remarkPlugins: [remarkGfm],
+        rehypePlugins: [rehypeHighlight, rehypeRaw],
+      },
+    });
 
     return (
       <div className="prose prose-zinc dark:prose-invert max-w-none">
-        <MDXRemote
-          source={initialContent}
-          components={components}
-          options={{
-            mdxOptions: {
-              remarkPlugins: [remarkGfm],
-              rehypePlugins: [rehypeHighlight, rehypeRaw],
-            },
-          }}
-        />
+        <MDXRemote source={mdxSource} components={components} />
         <SourcePreview sources={sources} />
       </div>
     );
