@@ -13,8 +13,6 @@ import { cn } from '@/lib/utils';
 import { parse, unparse } from 'papaparse';
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
 import { inferDomains } from '@/lib/ai/tools/infer-domains';
-import { GeistSans } from 'geist/font/sans';
-const font = GeistSans;
 
 // Register all Handsontable modules
 registerAllModules();
@@ -122,7 +120,7 @@ export default function FinanceEditor({
   };
 
   return (
-    <div className={cn('p-2', font.className)}>
+    <div className={cn('p-2')}>
       <HotTable
         data={data}
         columns={columns}
