@@ -1,12 +1,12 @@
+// components/markdown.tsx
 import Link from 'next/link';
-import React, { memo, useMemo } from 'react';
-import { MDXProvider } from '@mdx-js/react'; // Use MDXProvider instead of MDXContent
-import { compile } from '@mdx-js/mdx'; // For MDX compilation
+import { MDXRemote, type MDXRemoteSerializeResult } from 'next-mdx-remote';
+import { serialize } from 'next-mdx-remote/serialize';
 import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight'; // For code highlighting
-import rehypeRaw from 'rehype-raw'; // For raw HTML in MDX
+import rehypeHighlight from 'rehype-highlight';
+import rehypeRaw from 'rehype-raw';
 import { CodeBlock } from './code-block';
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -15,7 +15,6 @@ import {
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// Source preview component for v0-style boxes
 const SourcePreview = ({ sources }: { sources: { id: string; url: string }[] }) => {
   if (!sources.length) return null;
 
@@ -40,40 +39,34 @@ const SourcePreview = ({ sources }: { sources: { id: string; url: string }[] }) 
   );
 };
 
-// MDX components for rendering
 const components = {
   code: CodeBlock,
-  pre: ({ children }) => <>{children}</>,
-  ol: ({ children, ...props }) => (
+  pre: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  ol: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <ol className="list-decimal list-outside ml-4 space-y-4 font-semibold [counter-reset:list-item]" {...props}>
       {children}
     </ol>
   ),
-  li: ({ children, ...props }) => (
+  li: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <li className="py-1 [&>strong]:mr-2 break-words" {...props}>
       {children}
     </li>
   ),
-  ul: ({ children, ...props }) => (
+  ul: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <ul className="list-disc list-outside ml-8 space-y-2" {...props}>
       {children}
     </ul>
   ),
-  p: ({ children, ...props }) => (
+  p: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <p className="my-2 leading-relaxed break-words" {...props}>
       {children}
     </p>
   ),
-  strong: ({ children, ...props }) => {
+  strong: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => {
     const cleanText = children?.toString().replace(/\*+/g, '').trim() || '';
     const isCitation = /^\[\d+(,\s*\d+)*\]$/.test(cleanText);
     
     if (isCitation) {
-      const citationIds = cleanText
-        .replace(/[\[\]]/g, '')
-        .split(',')
-        .map((id) => id.trim())
-        .map(Number);
       return (
         <span className="text-[9px] text-zinc-500 dark:text-zinc-400 align-super bg-zinc-100/50 dark:bg-zinc-800/50 rounded px-1" {...props}>
           {cleanText}
@@ -87,7 +80,7 @@ const components = {
       </span>
     );
   },
-  a: ({ href, children, ...props }) => (
+  a: ({ href, children, ...props }: { href?: string; children: React.ReactNode; [key: string]: any }) => (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -108,54 +101,54 @@ const components = {
       </Tooltip>
     </TooltipProvider>
   ),
-  h1: ({ children, ...props }) => (
+  h1: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <h1 className="text-xl font-bold mt-6 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
       {children}
     </h1>
   ),
-  h2: ({ children, ...props }) => (
+  h2: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <h2 className="text-lg font-bold mt-8 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800" {...props}>
       {children}
     </h2>
   ),
-  h3: ({ children, ...props }) => (
+  h3: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <h3 className="text-base font-bold mt-6 mb-3" {...props}>
       {children}
     </h3>
   ),
-  h4: ({ children, ...props }) => (
+  h4: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <h4 className="text-base font-semibold mt-6 mb-2" {...props}>
       {children}
     </h4>
   ),
-  h5: ({ children, ...props }) => (
+  h5: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <h5 className="text-sm font-semibold mt-6 mb-2" {...props}>
       {children}
     </h5>
   ),
-  h6: ({ children, ...props }) => (
+  h6: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <h6 className="text-xs font-semibold mt-6 mb-2" {...props}>
       {children}
     </h6>
   ),
-  table: ({ children, ...props }) => (
+  table: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <div className="my-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <table className="w-full border-collapse" {...props}>
         {children}
       </table>
     </div>
   ),
-  thead: ({ children, ...props }) => (
+  thead: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <thead className="bg-zinc-50/50 dark:bg-zinc-900" {...props}>
       {children}
     </thead>
   ),
-  tbody: ({ children, ...props }) => (
+  tbody: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800" {...props}>
       {children}
     </tbody>
   ),
-  tr: ({ children, ...props }) => (
+  tr: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <tr 
       className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors duration-150" 
       {...props}
@@ -163,19 +156,18 @@ const components = {
       {children}
     </tr>
   ),
-  td: ({ children, ...props }) => (
+  td: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <td className="px-6 py-3 text-sm whitespace-normal" {...props}>
       {children}
     </td>
   ),
-  th: ({ children, ...props }) => (
+  th: ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
     <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-zinc-600 dark:text-zinc-300 uppercase" {...props}>
       {children}
     </th>
   ),
 };
 
-// Collect citations for source preview
 const collectSources = (content: string): { id: string; url: string }[] => {
   const sources: { id: string; url: string }[] = [];
   const citationRegex = /\[\d+(,\s*\d+)*\]/g;
@@ -188,40 +180,26 @@ const collectSources = (content: string): { id: string; url: string }[] => {
       .map((id) => id.trim())
       .map(Number);
     citationIds.forEach((id) => {
-      // Simulate a source URL (replace with actual logic or API call)
       sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
     });
   }
 
-  return [...new Set(sources)]; // Remove duplicates
+  return [...new Set(sources)];
 };
 
-// Compile MDX content asynchronously
-const compileMDX = async (content: string): Promise<string> => {
-  const compiled = await compile(content, {
-    outputFormat: 'function-body',
-    remarkPlugins: [remarkGfm],
-    rehypePlugins: [rehypeHighlight, rehypeRaw],
-  });
-  return compiled.toString(); // Return MDX as a string (function body)
-};
-
-const NonMemoizedMarkdown = async ({ children: initialContent }: { children: string }) => {
+export async function Markdown({ children: initialContent }: { children: string }) {
   const sources = collectSources(initialContent);
-  const mdxContent = await compileMDX(initialContent);
+  const mdxSource = await serialize(initialContent, {
+    mdxOptions: {
+      remarkPlugins: [remarkGfm],
+      rehypePlugins: [rehypeHighlight, rehypeRaw],
+    },
+  });
 
-  // Use MDXProvider to render MDX content
   return (
     <div className="prose prose-zinc dark:prose-invert max-w-none">
-      <MDXProvider components={components}>
-        <MDXContent>{mdxContent}</MDXContent>
-      </MDXProvider>
+      <MDXRemote source={mdxSource} components={components} />
       <SourcePreview sources={sources} />
     </div>
   );
-};
-
-export const Markdown = memo(
-  NonMemoizedMarkdown,
-  (prevProps, nextProps) => prevProps.children === nextProps.children,
-);
+}
