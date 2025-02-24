@@ -6,7 +6,7 @@ import {
   SparklesIcon,
   UndoIcon,
 } from '@/components/icons';
-import { SpreadsheetEditor } from '@/components/sheet-editor';
+import { SheetEditor } from '@/components/sheet-editor'; // Updated to use Handsontable-based component
 import { parse, unparse } from 'papaparse';
 import { toast } from 'sonner';
 
@@ -34,7 +34,7 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
     status,
   }) => {
     return (
-      <SpreadsheetEditor
+      <SheetEditor
         content={content}
         currentVersionIndex={currentVersionIndex}
         isCurrentVersion={isCurrentVersion}
@@ -76,7 +76,7 @@ export const sheetArtifact = new Artifact<'sheet', Metadata>({
       icon: <CopyIcon />,
       description: 'Copy as .csv',
       onClick: ({ content }) => {
-        const parsed = parse<string[]>(content, { skipEmptyLines: true });
+        const parsed = parse<string[]>(content, { skipEmptyLines: true, header: true });
 
         const nonEmptyRows = parsed.data.filter((row) =>
           row.some((cell) => cell.trim() !== ''),
