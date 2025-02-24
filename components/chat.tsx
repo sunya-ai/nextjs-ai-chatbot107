@@ -23,7 +23,7 @@ export function Chat({
   selectedChatModel,
   selectedVisibilityType,
   isReadonly,
-  onSpreadsheetDataUpdate, // Added prop
+  onSpreadsheetDataUpdate, // Optional prop
 }: {
   id: string;
   initialMessages: Array<Message>;
@@ -58,11 +58,25 @@ export function Chat({
       toast.error('An error occurred, please try again!');
     },
     onResponse: (response) => {
+      // Add null check to prevent "Cannot read properties of undefined (reading 'status')" error
+      if (!response) {
+        console.error('Response object is undefined');
+        return;
+      }
+      
       if (response.status === 429) {
         toast.error('Too many requests. Please try again later.');
         return;
       }
-      const reader = response.body?.getReader();
+      
+      // Add null check on response.body
+      if (!response.body) {
+        console.error('Response body is undefined');
+        return;
+      }
+      
+      const reader = response.body.getReader();
+      // Only process stream if we have a reader and the onSpreadsheetDataUpdate callback
       if (!reader || !onSpreadsheetDataUpdate) return;
 
       const decoder = new TextDecoder();
@@ -71,6 +85,12 @@ export function Chat({
       const processStream = async ({ done, value }: { done: boolean; value?: Uint8Array }) => {
         if (done) {
           try {
+            // Add check to make sure accumulatedData is not empty
+            if (accumulatedData.trim() === '') {
+              console.warn('Accumulated data is empty, skipping JSON parsing');
+              return;
+            }
+            
             const jsonData = JSON.parse(accumulatedData);
             if (jsonData.spreadsheetData || jsonData.updatedData) {
               const data = jsonData.spreadsheetData || jsonData.updatedData;
@@ -81,9 +101,17 @@ export function Chat({
           }
           return;
         }
+        
+        // Add null check for value
+        if (!value) {
+          console.error('Stream value is undefined');
+          return;
+        }
+        
         accumulatedData += decoder.decode(value, { stream: true });
         reader.read().then(processStream);
       };
+      
       reader.read().then(processStream);
     },
   });
