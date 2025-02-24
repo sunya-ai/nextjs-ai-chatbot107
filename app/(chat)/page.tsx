@@ -1,4 +1,3 @@
-// app/(chat)/page.tsx
 'use client';
 
 import { useSession, signIn } from 'next-auth/react';
@@ -45,7 +44,7 @@ interface LocalSessionUser {
 }
 
 export default function Home() {
-  // Use useSession with required session and early redirect
+  // Use useSession with required: true to enforce authentication
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -63,7 +62,7 @@ export default function Home() {
   // Use Vercel AI SDK's useChat with safe session handling
   const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat({
     api: '/api/chat',
-    id: session?.user?.id || generateUUID(), // Fallback to generateUUID if session.user.id is undefined
+    id: session?.user?.id || generateUUID(), // Fallback to UUID if session.user.id is undefined
     initialMessages: status === 'authenticated' && session?.user
       ? [
           {
@@ -75,98 +74,12 @@ export default function Home() {
       : [],
   });
 
-  // Ensure session is fully loaded before client-side logic
-  useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      // Sync chat state or perform client-side setup
-    }
-  }, [session, status]);
-
-  // Chart data conversion function (unchanged for functionality)
-  const convertToChartData = () => {
-    if (!spreadsheetData || !Array.isArray(spreadsheetData) || spreadsheetData.length < 2) return [];
-    const headers = spreadsheetData[0];
-    const dateIdx = headers.indexOf('Date');
-    const dealTypeIdx = headers.indexOf('Deal Type');
-    const amountIdx = headers.indexOf('Amount');
-
-    const groupedData: Record<string, { name: string; solar: number; oil: number; geothermal: number }> = {};
-    spreadsheetData.slice(1).forEach((row: SpreadsheetRow) => {
-      const date = row[0] || 'Unknown';
-      const dealType = row[1] || 'Unknown';
-      const amount = parseFloat(row[2].toString()) || 0;
-
-      if (!groupedData[date]) groupedData[date] = { name: date, solar: 0, oil: 0, geothermal: 0 };
-      if (dealType === 'Solar M&A') groupedData[date].solar += amount;
-      if (dealType === 'Oil Trends') groupedData[date].oil += amount;
-      if (dealType === 'Geothermal Deals') groupedData[date].geothermal += amount;
-    });
-
-    return Object.values(groupedData)
-      .filter(item => item.name !== 'Unknown')
-      .sort((a, b) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
-  };
-
-  const chartData = convertToChartData();
-
-  const renderChart = () => {
-    const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
-    switch (chartType) {
-      case 'line':
-        return (
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis dataKey="name" stroke="gray" className="text-xs" />
-            <YAxis stroke="gray" className="text-xs" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
-            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
-            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
-          </LineChart>
-        );
-      case 'bar':
-        return (
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis dataKey="name" stroke="gray" className="text-xs" />
-            <YAxis stroke="gray" className="text-xs" />
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-            <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
-            <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
-            <Bar dataKey="geothermal" fill="#ef4444" name="Geothermal Deals" />
-          </BarChart>
-        );
-      case 'pie':
-        return (
-          <PieChart>
-            <Pie
-              data={chartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              fill="#8884d8"
-            >
-              {chartData.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
-            <Legend />
-          </PieChart>
-        );
-    }
-  };
-
   // Handle loading state explicitly
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // Handle unauthenticated state (covered by useSession.required)
+  // The component will only render if authenticated due to required: true
   const handleSave = (newDocumentId: string) => {
     console.log('Saved document ID:', newDocumentId);
   };
@@ -250,6 +163,84 @@ export default function Home() {
     } catch (error) {
       console.error('Error in saveSpreadsheet:', error);
       setIsSaving(false);
+    }
+  };
+
+  const convertToChartData = () => {
+    if (!spreadsheetData || !Array.isArray(spreadsheetData) || spreadsheetData.length < 2) return [];
+    const headers = spreadsheetData[0];
+    const dateIdx = headers.indexOf('Date');
+    const dealTypeIdx = headers.indexOf('Deal Type');
+    const amountIdx = headers.indexOf('Amount');
+
+    const groupedData: Record<string, { name: string; solar: number; oil: number; geothermal: number }> = {};
+    spreadsheetData.slice(1).forEach((row: SpreadsheetRow) => {
+      const date = row[0] || 'Unknown';
+      const dealType = row[1] || 'Unknown';
+      const amount = parseFloat(row[2].toString()) || 0;
+
+      if (!groupedData[date]) groupedData[date] = { name: date, solar: 0, oil: 0, geothermal: 0 };
+      if (dealType === 'Solar M&A') groupedData[date].solar += amount;
+      if (dealType === 'Oil Trends') groupedData[date].oil += amount;
+      if (dealType === 'Geothermal Deals') groupedData[date].geothermal += amount;
+    });
+
+    return Object.values(groupedData)
+      .filter(item => item.name !== 'Unknown')
+      .sort((a, b) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
+  };
+
+  const chartData = convertToChartData();
+
+  const renderChart = () => {
+    const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
+    switch (chartType) {
+      case 'line':
+        return (
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
+            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
+            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
+          </LineChart>
+        );
+      case 'bar':
+        return (
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+            <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
+            <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
+            <Bar dataKey="geothermal" fill="#ef4444" name="Geothermal Deals" />
+          </BarChart>
+        );
+      case 'pie':
+        return (
+          <PieChart>
+            <Pie
+              data={chartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              fill="#8884d8"
+            >
+              {chartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+          </PieChart>
+        );
     }
   };
 
