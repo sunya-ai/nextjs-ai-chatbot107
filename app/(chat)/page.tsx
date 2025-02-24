@@ -31,14 +31,19 @@ import { parse, unparse } from 'papaparse';
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
 import { put } from '@vercel/blob';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 
-// Define local types for safety
+// Define local types for type safety
 type SpreadsheetRow = [string, string, number]; // [Date, Deal Type, Amount]
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
+interface LocalSessionUser {
+  id: string; // Ensure this is required and non-null
+}
+
 export default function Home() {
-  // Enforce authentication with useSession
+  // Use useSession with required: true to enforce authentication
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -53,27 +58,32 @@ export default function Home() {
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [isSaving, setIsSaving] = useState(false);
 
-  // UseChat with safe session handling
+  // Use Vercel AI SDK's useChat with safe session handling
   const { messages, input, handleInputChange, handleSubmit, setMessages } = useChat({
     api: '/api/chat',
-    id: session?.user?.id || generateUUID(), // Fallback UUID if session.user.id is undefined
+    id: session?.user?.id || generateUUID(), // Fallback to UUID if session.user.id is undefined
     initialMessages: status === 'authenticated' && session?.user
       ? [
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data.',
+            content: 'Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., "Add a new solar deal for $1M on 2025-03-01").',
           },
         ]
       : [],
   });
 
-  // Handle loading state
+  // Handle loading state explicitly
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  // Functions remain largely unchanged; key fixes are in session and loading handling
+  // Ensure userId is non-null before proceeding
+  if (!session?.user?.id) {
+    console.error('User ID is undefined, cannot proceed');
+    return <div>Error: User not authenticated or ID missing</div>;
+  }
+
   const handleSave = (newDocumentId: string) => {
     console.log('Saved document ID:', newDocumentId);
   };
@@ -108,15 +118,35 @@ export default function Home() {
     }
   };
 
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    handleFileDrop(e.dataTransfer.files[0]);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleSpreadsheetDataUpdate = (data: SpreadsheetData, chatDocumentId: string) => {
+    setSpreadsheetData(data);
+    setSheetOpen(true);
+    console.log('Spreadsheet updated from chat, document ID:', chatDocumentId);
+  };
+
   const saveSpreadsheet = async () => {
-    if (!session || !session.user) return;
+    // Ensure session.user.id is non-null
+    if (!session.user?.id) {
+      console.error('User session or ID is undefined');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const documentData = {
         title: `Finance Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
         content: unparse(spreadsheetData || []),
         kind: 'sheet' as const,
-        userId: session.user.id,
+        userId: session.user.id, // Now guaranteed to be a string
       };
 
       let newDocumentId: string;
@@ -159,7 +189,9 @@ export default function Home() {
       if (dealType === 'Geothermal Deals') groupedData[date].geothermal += amount;
     });
 
-    return Object.values(groupedData).filter(item => item.name !== 'Unknown');
+    return Object.values(groupedData)
+      .filter(item => item.name !== 'Unknown')
+      .sort((a, b) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
   };
 
   const chartData = convertToChartData();
@@ -170,23 +202,23 @@ export default function Home() {
       case 'line':
         return (
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
             <Legend />
-            <Line type="monotone" dataKey="solar" stroke="#22c55e" name="Solar Deals" />
-            <Line type="monotone" dataKey="oil" stroke="#3b82f6" name="Oil Trends" />
-            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" name="Geothermal Deals" />
+            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
+            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
+            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
           </LineChart>
         );
       case 'bar':
         return (
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
             <Legend />
             <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
             <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
@@ -196,10 +228,20 @@ export default function Home() {
       case 'pie':
         return (
           <PieChart>
-            <Pie data={chartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-              {chartData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+            <Pie
+              data={chartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              fill="#8884d8"
+            >
+              {chartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
             </Pie>
-            <Tooltip />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
             <Legend />
           </PieChart>
         );
@@ -207,7 +249,11 @@ export default function Home() {
   };
 
   return (
-    <div className={cn('min-h-screen bg-gray-100 dark:bg-gray-950 flex')}>
+    <div
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      className={cn('min-h-screen bg-gray-100 dark:bg-gray-950 flex')}
+    >
       <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
         <MDXProvider components={{}}>
           <Chat
@@ -216,26 +262,29 @@ export default function Home() {
             selectedChatModel={selectedChatModel}
             selectedVisibilityType="private"
             isReadonly={false}
-            onSpreadsheetDataUpdate={(data, chatDocumentId) => {
-              setSpreadsheetData(data);
-              setSheetOpen(true);
-            }}
+            onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
           />
         </MDXProvider>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">Drag and drop PDFs or documents here to analyze energy data.</p>
       </div>
       <div className="w-1/2 p-2 flex flex-col gap-2">
-        <div className="bg-gray-50 dark:bg-gray-800 p-2 border-b">
-          <h1 className="text-xl font-semibold">Energy Research</h1>
+        <div className="bg-gray-50 dark:bg-gray-800 p-2 border-b dark:border-gray-700">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Energy Research</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Analyze and visualize energy transactions.</p>
           <select
             value={chartType}
             onChange={(e) => setChartType(e.target.value as 'bar' | 'line' | 'pie')}
-            className="mt-2 p-2 border rounded"
+            className="mt-2 p-2 border rounded dark:bg-gray-700 dark:text-white text-sm"
           >
-            <option value="bar">Bar Chart</option>
+            <option value="bar">Bar Chart (Largest to Smallest)</option>
             <option value="line">Line Chart</option>
             <option value="pie">Pie Chart</option>
           </select>
-          <Button onClick={saveSpreadsheet} disabled={isSaving}>
+          <Button
+            onClick={saveSpreadsheet}
+            disabled={isSaving}
+            className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
+          >
             {isSaving ? 'Saving...' : 'Save Spreadsheet'}
           </Button>
         </div>
@@ -245,9 +294,9 @@ export default function Home() {
           </ResponsiveContainer>
         </div>
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent side="right" className="w-full max-w-2xl">
+          <SheetContent side="right" className="w-full max-w-2xl bg-gray-50 dark:bg-gray-900">
             <SheetHeader>
-              <SheetTitle>Generated Spreadsheet</SheetTitle>
+              <SheetTitle className="text-2xl font-semibold text-gray-900 dark:text-white">Generated Spreadsheet</SheetTitle>
             </SheetHeader>
             <FinanceEditor
               initialData={spreadsheetData || [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]]}
