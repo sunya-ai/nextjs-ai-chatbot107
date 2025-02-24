@@ -19,8 +19,6 @@ const font = GeistSans;
 // Register all Handsontable modules
 registerAllModules();
 
-const font = GeistSans;
-
 export default function FinanceEditor({
   initialData,
   documentId,
