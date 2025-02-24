@@ -54,7 +54,7 @@ export default function Home() {
   const [selectedChatModel] = useState<string>(DEFAULT_CHAT_MODEL);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Use Vercel AI SDK's useChat for chat state management, but we'll let Chat component manage its state
+  // Use Vercel AI SDK's useChat for chat state management
   const { messages, input, handleInputChange, handleSubmit, setMessages, status: chatStatus } = useChat({
     api: '/api/chat',
     id: session?.user?.id || generateUUID(),
@@ -70,7 +70,10 @@ export default function Home() {
   });
 
   useEffect(() => {
-    // No need to set initial messages here; useChat handles it
+    // Ensure session is fully loaded before proceeding with client-side logic
+    if (status === 'authenticated' && session?.user) {
+      // Additional client-side setup if needed (e.g., syncing with chat state)
+    }
   }, [session, status]);
 
   const convertToChartData = () => {
