@@ -14,22 +14,23 @@ import { VisibilityType } from '@/components/visibility-selector';
 import { myProvider } from '@/lib/ai/models';
 import { ArtifactKind } from '@/components/artifact';
 
-// Define the expected shape of a document
+// Define the expected shape of a document, matching database schema
 type Document = {
   id: string;
   title: string;
-  content: string;
+  content: string | null; // Changed to allow null
   kind: ArtifactKind;
   userId: string;
 };
 
 export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }): Promise<Document> {
-  const results = await createDocument(data); // Returns array-like structure
+  const results = await createDocument(data);
   return results[0]; // Take the first document (assumes at least one result)
 }
 
-export async function updateDocumentAction(data: { id: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
-  return await updateDocument(data);
+export async function updateDocumentAction(data: { id?: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
+  if (!data.id) throw new Error('Document ID is required for update');
+  return await updateDocument({ ...data, id: data.id });
 }
 
 export async function saveChatModelAsCookie(model: string) {
