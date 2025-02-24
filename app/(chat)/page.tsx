@@ -76,7 +76,7 @@ export default function Home() {
         throw new Error('File upload failed');
       }
       const data = await response.json();
-      const newMessage: ExtendedMessage = { // Use ExtendedMessage for metadata support
+      const newMessage: ExtendedMessage = {
         id: crypto.randomUUID(),
         role: 'user',
         content: `Uploaded ${file.name}`,
