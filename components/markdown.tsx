@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import React, { memo } from 'react';
 import { MDXRemote } from 'next-mdx-remote'; // Correct import
+import { serialize } from 'next-mdx-remote/serialize'; // For client-side serialization
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
@@ -16,7 +17,6 @@ import {
 } from '@/components/ui/tooltip';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { serialize } from 'next-mdx-remote/serialize'; // For client-side serialization
 
 // Define CodeBlockProps explicitly
 interface CodeBlockProps {
