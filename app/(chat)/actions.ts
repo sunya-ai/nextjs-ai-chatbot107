@@ -7,26 +7,25 @@ import {
   deleteMessagesByChatIdAfterTimestamp,
   getMessageById,
   updateChatVisiblityById,
+  createDocument,
+  updateDocument,
 } from '@/lib/db/queries';
 import { VisibilityType } from '@/components/visibility-selector';
 import { myProvider } from '@/lib/ai/models';
-
-// Ensure the ArtifactKind type is available for document creation/updates if needed
 import { ArtifactKind } from '@/components/artifact';
 
-// Add Server Actions for document operations (optional, for consistency with FinanceEditor and sheet-editor)
 export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }) {
-  return await createDocument(data); // Import createDocument from lib/db/queries.ts if needed
+  return await createDocument(data);
 }
 
 export async function updateDocumentAction(data: { id: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
-  return await updateDocument(data); // Import updateDocument from lib/db/queries.ts if needed
+  return await updateDocument(data);
 }
 
 export async function saveChatModelAsCookie(model: string) {
   const cookieStore = await cookies();
   cookieStore.set('chat-model', model, {
-    httpOnly: true, // Secure cookie settings
+    httpOnly: true,
     sameSite: 'strict',
     path: '/',
     maxAge: 30 * 24 * 60 * 60, // 30 days
