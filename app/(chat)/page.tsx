@@ -8,6 +8,7 @@ import { MDXProvider } from '@mdx-js/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { Chat } from '@/components/chat';
 import { useChat } from 'ai/react';
+import { Message } from 'ai'; // Import Message from ai directly
 import {
   LineChart,
   Line,
@@ -25,7 +26,7 @@ import {
 } from 'recharts';
 import { useTheme } from 'next-themes';
 import { cn, generateUUID } from '@/lib/utils';
-import { ExtendedMessage, Message } from '@/lib/types';
+import { ExtendedMessage } from '@/lib/types';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { parse, unparse } from 'papaparse';
 import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
