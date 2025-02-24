@@ -93,6 +93,58 @@ export default function Home() {
       .sort((a: any, b: any) => b.solar + b.oil + b.geothermal - (a.solar + a.oil + a.geothermal));
   }, [spreadsheetData]);
 
+  const renderChart = () => {
+    const COLORS = ['#22c55e', '#3b82f6', '#ef4444'];
+    switch (chartType) {
+      case 'line':
+        return (
+          <LineChart data={convertToChartData}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+            <Line type="monotone" dataKey="solar" stroke="#22c55e" strokeWidth={2} name="Solar Deals" />
+            <Line type="monotone" dataKey="oil" stroke="#3b82f6" strokeWidth={2} name="Oil Trends" />
+            <Line type="monotone" dataKey="geothermal" stroke="#ef4444" strokeWidth={2} name="Geothermal Deals" />
+          </LineChart>
+        );
+      case 'bar':
+        return (
+          <BarChart data={convertToChartData}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
+            <XAxis dataKey="name" stroke="gray" className="text-xs" />
+            <YAxis stroke="gray" className="text-xs" />
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+            <Bar dataKey="solar" fill="#22c55e" name="Solar Deals" />
+            <Bar dataKey="oil" fill="#3b82f6" name="Oil Trends" />
+            <Bar dataKey="geothermal" fill="#ef4444" name="Geothermal Deals" />
+          </BarChart>
+        );
+      case 'pie':
+        return (
+          <PieChart>
+            <Pie
+              data={convertToChartData.map(d => ({ name: d.name, value: d.solar + d.oil + d.geothermal }))}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              fill="#8884d8"
+            >
+              {convertToChartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+            <Legend />
+          </PieChart>
+        );
+    }
+  };
+
   // Defer rendering until session is loaded and authenticated to prevent hydration mismatches
   if (status === 'loading' || !session) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
