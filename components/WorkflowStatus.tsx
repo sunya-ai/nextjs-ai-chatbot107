@@ -3,6 +3,7 @@
 import { Circle, Loader2 } from 'lucide-react';
 import { motion, HTMLMotionProps, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export interface WorkflowFile {
   path: string;
@@ -16,7 +17,7 @@ interface WorkflowStatusProps {
 }
 
 // Extend HTMLMotionProps to include className for Tailwind CSS compatibility
-type MotionDivProps = HTMLMotionProps<'div'>;
+type MotionDivProps = HTMLMotionProps<'div'> & { className?: string };
 
 const thinkingMessages = [
   'Give me a sec… this response needs seasoning.',
