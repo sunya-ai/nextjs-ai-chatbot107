@@ -1,3 +1,4 @@
+// lib/utils.ts
 import type {
   CoreAssistantMessage,
   CoreToolMessage,
@@ -5,7 +6,7 @@ import type {
   TextStreamPart,
   ToolInvocation,
   ToolSet,
-  ResponseMessage,
+  // Removed ResponseMessage since it's defined locally
 } from 'ai';
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
