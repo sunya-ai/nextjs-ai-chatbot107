@@ -11,7 +11,7 @@ import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 import { parse, unparse } from 'papaparse';
 import { inferDomains } from '@/lib/ai/tools/infer-domains';
-import { createDocument, updateDocument } from '@/lib/db/queries';
+import { createDocumentAction, updateDocumentAction } from '@/app/actions/db'; // Using Server Actions
 import { GeistSans } from 'geist/font/sans';
 
 // Register all Handsontable modules
@@ -105,11 +105,11 @@ export default function SheetEditor({
       let newDocumentId: string;
       if (currentVersionIndex > 0) { // Assuming currentVersionIndex indicates an existing document
         const docId = content.split('-')[0] || crypto.randomUUID();
-        await updateDocument({ id: docId, ...documentData });
+        await updateDocumentAction({ id: docId, ...documentData });
         newDocumentId = docId;
       } else {
-        const result = await createDocument(documentData);
-        newDocumentId = result[0].id;
+        const result = await createDocumentAction(documentData);
+        newDocumentId = result.id; // Adjust based on your Server Action return type
       }
 
       // Save to Vercel Blob for file storage
