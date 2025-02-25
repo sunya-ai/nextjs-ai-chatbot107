@@ -6,22 +6,27 @@ import { Overview } from './overview';
 import { memo } from 'react';
 import { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
-import { cn } from '@/lib/utils'; // Import cn from utils.ts
+import { cn } from '@/lib/utils';
+
+// Extend Message type with metadata
+interface UIMessage extends Message {
+  metadata?: string | null;
+}
 
 interface MessagesProps {
   chatId: string;
   isLoading: boolean;
   votes: Array<Vote> | undefined;
-  messages: Array<Message>;
+  messages: Array<UIMessage>;
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[])
+    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])
   ) => void;
   reload: (
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
   isArtifactVisible: boolean;
-  className?: string; // Added className prop
+  className?: string;
 }
 
 function PureMessages({
@@ -33,17 +38,16 @@ function PureMessages({
   reload,
   isReadonly,
   isArtifactVisible,
-  className, // Destructure className
+  className,
 }: MessagesProps) {
-  const [messagesContainerRef, messagesEndRef] =
-    useScrollToBottom<HTMLDivElement>();
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom(); // Remove <HTMLDivElement>
 
   return (
     <div
       ref={messagesContainerRef}
       className={cn(
         "flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4",
-        className // Merge with passed className
+        className
       )}
     >
       {messages.length === 0 && <Overview />}
