@@ -278,6 +278,8 @@ export async function POST(request: Request) {
         metadata: null,
         migrationRetry: '', // Default for dummy field
         retryTimestamp: new Date(), // Default for dummy field
+        retryCounter: 999, // Default for dummy integer field
+        retryFlag: true, // Default for dummy boolean field
       }],
     });
 
@@ -361,6 +363,8 @@ export async function POST(request: Request) {
                     metadata: metadata ? JSON.stringify(metadata) : null,
                     migrationRetry: '', // Default for dummy field
                     retryTimestamp: new Date(), // Default for dummy field
+                    retryCounter: 999, // Default for dummy integer field
+                    retryFlag: true, // Default for dummy boolean field
                   }],
                 });
               }
