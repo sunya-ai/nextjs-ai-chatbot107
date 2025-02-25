@@ -1,3 +1,4 @@
+// lib/db/schema.ts
 import type { InferSelectModel } from 'drizzle-orm';
 import {
   pgTable,
@@ -73,7 +74,7 @@ export const document = pgTable(
     createdAt: timestamp('createdAt').notNull(),
     title: text('title').notNull(),
     content: text('content'),
-    kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet'] })
+    kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] }) // Add 'table' and 'chart'
       .notNull()
       .default('text'),
     userId: uuid('userId')
