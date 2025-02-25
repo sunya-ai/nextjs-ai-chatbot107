@@ -111,9 +111,10 @@ export default function Home() {
     return <div className="min-h-screen flex items-center justify-center">Session data loading...</div>;
   }
 
-  // File handling functions with improved error handling
+  // File handling functions with improved error handling and type safety
   const handleFileDrop = async (file: File) => {
-    if (!file || !session.user.id) return;
+    // Type guard to ensure session.user is defined before accessing .id
+    if (!file || !session.user || !session.user.id) return;
     try {
       const formData = new FormData();
       formData.append("file", file);
