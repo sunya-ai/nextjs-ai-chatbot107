@@ -277,10 +277,10 @@ export async function POST(request: Request) {
         chatId: id,
         metadata: null,
         migrationRetry: '', // Default for dummy field
-        retryTimestamp: new Date(), // Default for dummy field
+        retryTimestamp: new Date(), // Default for dummy field (timestamp, so Date is correct)
         retryCounter: 999, // Default for dummy integer field
         retryFlag: true, // Default for dummy boolean field
-        retryDate: new Date('2025-02-25'), // Default for dummy date field
+        retryDate: '2025-02-25', // Updated to string for dummy date field
       }],
     });
 
@@ -363,10 +363,10 @@ export async function POST(request: Request) {
                     createdAt: new Date(),
                     metadata: metadata ? JSON.stringify(metadata) : null,
                     migrationRetry: '', // Default for dummy field
-                    retryTimestamp: new Date(), // Default for dummy field
+                    retryTimestamp: new Date(), // Default for dummy field (timestamp, so Date is correct)
                     retryCounter: 999, // Default for dummy integer field
                     retryFlag: true, // Default for dummy boolean field
-                    retryDate: new Date('2025-02-25'), // Default for dummy date field
+                    retryDate: '2025-02-25', // Updated to string for dummy date field
                   }],
                 });
               }
