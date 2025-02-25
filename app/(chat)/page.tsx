@@ -28,11 +28,17 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { MDXProvider } from "@mdx-js/react";
 import { createDocumentAction, updateDocumentAction } from "@/app/(chat)/actions";
-import { ErrorBoundary } from "react-error-boundary"; // Updated import
+import { ErrorBoundary } from "react-error-boundary"; // Ensure this is installed
 import { toast } from "sonner";
 
-// Fallback component for error states
-function ErrorFallback({ error, resetErrorBoundary }) {
+// Type for ErrorBoundary props
+interface ErrorFallbackProps {
+  error: Error; // Specify Error type from JavaScript/TypeScript
+  resetErrorBoundary: () => void; // Function to reset the error boundary
+}
+
+// Fallback component for error states with explicit types
+function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <h2 className="text-xl font-semibold mb-4">Something went wrong</h2>
