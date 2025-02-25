@@ -50,7 +50,8 @@ export const message = pgTable('Message', {
   retryFlag: boolean('retry_flag').default(true), // Keep existing
   retryDate: date('retry_date').default('2025-02-25'), // Keep existing
   retryMarker: text('retry_marker').default('Final migration push'), // Keep existing
-  retryNumber: integer('retry_number').default(12345), // New dummy integer field
+  retryNumber: integer('retry_number').default(12345), // Keep existing
+  retryBoolean: boolean('retry_boolean').default(false), // New dummy boolean field
 });
 
 export type Message = InferSelectModel<typeof message>;
