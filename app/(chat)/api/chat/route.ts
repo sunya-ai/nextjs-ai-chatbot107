@@ -225,21 +225,14 @@ export async function POST(request: Request) {
       return new Response('Too Many Requests', { status: 429 });
     }
 
-    const formData = await request.formData();
-    const body = {
-      messages: JSON.parse(formData.get('messages')?.toString() || '[]'),
-      selectedChatModel: formData.get('selectedChatModel')?.toString() || 'google("gemini-2.0-flash")',
-      id: formData.get('id')?.toString() || generateUUID(),
-      file: formData.get('file') as File | null,
-      currentData: formData.get('currentData') ? JSON.parse(formData.get('currentData') as string) : undefined,
-    };
-
+    // Parse JSON body instead of formData
+    const body = await request.json();
     console.log('[POST] Request body:', body);
 
     const messages: Message[] = Array.isArray(body.messages) ? body.messages : [];
     const id = body.id || generateUUID();
     const selectedChatModel = body.selectedChatModel || 'google("gemini-2.0-flash")';
-    const file = body.file instanceof File ? body.file : null;
+    const file = body.file || null; // Handle file if sent as JSON (might need adjustment)
     let currentData = body.currentData;
 
     if (messages.length === 0) {
@@ -273,7 +266,7 @@ export async function POST(request: Request) {
 
     const chat = await getChatById({ id });
     if (!chat) {
-      console.log('[POST] no chat => creating new');
+      console.log('[POST] No chat => creating new');
       const title = await generateTitleFromUserMessage({ message: userMessage });
       await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
     }
@@ -285,9 +278,20 @@ export async function POST(request: Request) {
     let fileBuffer: ArrayBuffer | undefined;
     let fileMime: string | undefined;
     if (file) {
-      console.log('[POST] file found => read as arrayBuffer');
-      fileBuffer = await file.arrayBuffer();
-      fileMime = file.type;
+      // Handle file if sent as JSON (e.g., base64 or Buffer). Adjust based on how the client sends it
+      if (typeof file === 'string') {
+        // Assuming file is sent as base64 string
+        const binaryString = atob(file.split(',')[1]); // Handle base64 format
+        fileBuffer = new ArrayBuffer(binaryString.length);
+        const uint8Array = new Uint8Array(fileBuffer);
+        for (let i = 0; i < binaryString.length; i++) {
+          uint8Array[i] = binaryString.charCodeAt(i);
+        }
+        fileMime = file.split(';')[0].split(':')[1] || 'application/octet-stream';
+      } else if (file instanceof ArrayBuffer) {
+        fileBuffer = file;
+        fileMime = 'application/octet-stream'; // Default; adjust if known
+      }
     }
 
     console.log('[POST] => createDataStreamResponse => multi-pass');
