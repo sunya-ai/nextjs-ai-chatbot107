@@ -33,7 +33,6 @@ import { ChartArtifact } from './ChartArtifact';
 import equal from 'fast-deep-equal';
 import { DataStreamDelta } from './data-stream-handler';
 
-// Define ArtifactKind independently to avoid circular reference
 export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'table' | 'chart';
 
 export interface ArtifactDefinition {
@@ -96,6 +95,7 @@ export const artifactDefinitions = [
     initialize: () => {},
     onStreamPart: undefined,
     actions: [],
+    toolbar: [], // Explicitly add empty toolbar
   },
   {
     kind: 'chart',
@@ -103,6 +103,7 @@ export const artifactDefinitions = [
     initialize: () => {},
     onStreamPart: undefined,
     actions: [],
+    toolbar: [], // Explicitly add empty toolbar
   },
 ] as const satisfies ArtifactDefinition[];
 
