@@ -1,4 +1,3 @@
-// components/artifact.tsx
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -12,6 +11,9 @@ import {
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
+import { HotTable } from '@handsontable/react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import 'handsontable/dist/handsontable.full.min.css';
 import type { Document, Vote } from '@/lib/db/schema';
 import { fetcher } from '@/lib/utils';
 import { MultimodalInput } from './multimodal-input';
@@ -24,16 +26,46 @@ import { useSidebar } from './ui/sidebar';
 import { useArtifact } from '@/hooks/use-artifact';
 import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
-import { textArtifact } from '@/artifacts/text/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
+import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
-import { cn } from '@/lib/utils';
 
 export const artifactDefinitions = [
   textArtifact,
   codeArtifact,
   imageArtifact,
   sheetArtifact,
+  {
+    kind: 'table',
+    content: ({ content, onSaveContent, isCurrentVersion }) => (
+      <HotTable
+        data={JSON.parse(content)}
+        colHeaders={true}
+        rowHeaders={true}
+        stretchH="all"
+        className="text-sm"
+        afterChange={(changes) =>
+          changes &&
+          isCurrentVersion &&
+          onSaveContent(JSON.stringify(JSON.parse(content)))
+        }
+      />
+    ),
+    initialize: () => {},
+  },
+  {
+    kind: 'chart',
+    content: ({ content }) => (
+      <LineChart width={300} height={200} data={JSON.parse(content)}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="x" />
+        <YAxis />
+        <Tooltip />
+        <Line type="monotone" dataKey="y" stroke="#8884d8" />
+      </LineChart>
+    ),
+    initialize: () => {},
+  },
 ];
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
@@ -52,21 +84,15 @@ export interface UIArtifact {
   };
 }
 
-// Define the props type for content functions
-interface ContentProps {
-  title: string;
-  content: string;
-  mode: 'edit' | 'diff';
-  status: 'streaming' | 'idle';
-  currentVersionIndex: number;
-  suggestions: any[];
-  onSaveContent: (content: string, debounce: boolean) => void;
-  isInline: boolean;
-  isCurrentVersion: boolean;
-  getDocumentContentById: (index: number) => string;
-  isLoading: boolean;
-  metadata: any;
-  setMetadata: Dispatch<SetStateAction<any>>;
+// Persistence functions (localStorage for now)
+async function fetchSavedArtifacts(): Promise<UIArtifact[]> {
+  return JSON.parse(localStorage.getItem('savedArtifacts') || '[]');
+}
+
+async function saveNewArtifact(artifact: UIArtifact) {
+  const artifacts = await fetchSavedArtifacts();
+  artifacts.push({ ...artifact, documentId: `saved-${Date.now()}` });
+  localStorage.setItem('savedArtifacts', JSON.stringify(artifacts));
 }
 
 function PureArtifact({
@@ -100,7 +126,9 @@ function PureArtifact({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
-    event?: { preventDefault?: () => void },
+    event?: {
+      preventDefault?: () => void;
+    },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
   reload: (
@@ -109,7 +137,7 @@ function PureArtifact({
   isReadonly: boolean;
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
-
+  const { mutate } = useSWRConfig();
   const {
     data: documents,
     isLoading: isDocumentsFetching,
@@ -124,18 +152,44 @@ function PureArtifact({
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
+  const [savedArtifacts, setSavedArtifacts] = useState<UIArtifact[]>([]);
 
   const { open: isSidebarOpen } = useSidebar();
+
+  // Load saved artifacts
+  useEffect(() => {
+    fetchSavedArtifacts().then(setSavedArtifacts);
+  }, []);
+
+  // Update artifact from messages
+  useEffect(() => {
+    const latestMessage = messages[messages.length - 1];
+    if (latestMessage?.role === 'assistant' && artifact.isVisible) {
+      try {
+        const content = JSON.parse(latestMessage.content);
+        if (Array.isArray(content)) {
+          const kind = Array.isArray(content[0]) ? 'table' : 'chart';
+          setArtifact({
+            ...artifact,
+            kind,
+            content: latestMessage.content,
+            title: kind === 'table' ? 'Table Artifact' : 'Chart Artifact',
+          });
+        }
+      } catch (e) {
+        // Not an artifact, keep existing
+      }
+    }
+  }, [messages, artifact, setArtifact]);
 
   useEffect(() => {
     if (documents && documents.length > 0) {
       const mostRecentDocument = documents.at(-1);
-
       if (mostRecentDocument) {
         setDocument(mostRecentDocument);
         setCurrentVersionIndex(documents.length - 1);
-        setArtifact((currentArtifact) => ({
-          ...currentArtifact,
+        setArtifact((current) => ({
+          ...current,
           content: mostRecentDocument.content ?? '',
         }));
       }
@@ -146,7 +200,6 @@ function PureArtifact({
     mutateDocuments();
   }, [artifact.status, mutateDocuments]);
 
-  const { mutate } = useSWRConfig();
   const [isContentDirty, setIsContentDirty] = useState(false);
 
   const handleContentChange = useCallback(
@@ -159,7 +212,6 @@ function PureArtifact({
           if (!currentDocuments) return undefined;
 
           const currentDocument = currentDocuments.at(-1);
-
           if (!currentDocument || !currentDocument.content) {
             setIsContentDirty(false);
             return currentDocuments;
@@ -202,7 +254,6 @@ function PureArtifact({
     (updatedContent: string, debounce: boolean) => {
       if (document && updatedContent !== document.content) {
         setIsContentDirty(true);
-
         if (debounce) {
           debouncedHandleContentChange(updatedContent);
         } else {
@@ -225,25 +276,16 @@ function PureArtifact({
     if (type === 'latest') {
       setCurrentVersionIndex(documents.length - 1);
       setMode('edit');
-    }
-
-    if (type === 'toggle') {
+    } else if (type === 'toggle') {
       setMode((mode) => (mode === 'edit' ? 'diff' : 'edit'));
-    }
-
-    if (type === 'prev') {
-      if (currentVersionIndex > 0) {
-        setCurrentVersionIndex((index) => index - 1);
-      }
-    } else if (type === 'next') {
-      if (currentVersionIndex < documents.length - 1) {
-        setCurrentVersionIndex((index) => index + 1);
-      }
+    } else if (type === 'prev' && currentVersionIndex > 0) {
+      setCurrentVersionIndex((index) => index - 1);
+    } else if (type === 'next' && currentVersionIndex < documents.length - 1) {
+      setCurrentVersionIndex((index) => index + 1);
     }
   };
 
   const [isToolbarVisible, setIsToolbarVisible] = useState(false);
-
   const isCurrentVersion =
     documents && documents.length > 0
       ? currentVersionIndex === documents.length - 1
@@ -253,7 +295,7 @@ function PureArtifact({
   const isMobile = windowWidth ? windowWidth < 768 : false;
 
   const artifactDefinition = artifactDefinitions.find(
-    (definition) => definition.kind === artifact.kind,
+    (def) => def.kind === artifact.kind,
   );
 
   if (!artifactDefinition) {
@@ -261,13 +303,11 @@ function PureArtifact({
   }
 
   useEffect(() => {
-    if (artifact.documentId !== 'init') {
-      if (artifactDefinition.initialize) {
-        artifactDefinition.initialize({
-          documentId: artifact.documentId,
-          setMetadata,
-        });
-      }
+    if (artifact.documentId !== 'init' && artifactDefinition.initialize) {
+      artifactDefinition.initialize({
+        documentId: artifact.documentId,
+        setMetadata,
+      });
     }
   }, [artifact.documentId, artifactDefinition, setMetadata]);
 
@@ -310,12 +350,7 @@ function PureArtifact({
                   damping: 30,
                 },
               }}
-              exit={{
-                opacity: 0,
-                x: 0,
-                scale: 1,
-                transition: { duration: 0 },
-              }}
+              exit={{ opacity: 0, x: 0, scale: 1, transition: { duration: 0 } }}
             >
               <AnimatePresence>
                 {!isCurrentVersion && (
@@ -361,7 +396,7 @@ function PureArtifact({
           )}
 
           <motion.div
-            className="fixed dark:bg-muted bg-background h-dvh flex flex-col overflow-y-scroll md:border-l dark:border-zinc-700 border-zinc-200"
+            className="fixed bg-white dark:bg-gray-800 h-dvh flex flex-col overflow-y-scroll md:border-l border-gray-200 dark:border-gray-700 shadow-lg"
             initial={
               isMobile
                 ? {
@@ -370,7 +405,7 @@ function PureArtifact({
                     y: artifact.boundingBox.top,
                     height: artifact.boundingBox.height,
                     width: artifact.boundingBox.width,
-                    borderRadius: 50,
+                    borderRadius: 12,
                   }
                 : {
                     opacity: 1,
@@ -378,7 +413,7 @@ function PureArtifact({
                     y: artifact.boundingBox.top,
                     height: artifact.boundingBox.height,
                     width: artifact.boundingBox.width,
-                    borderRadius: 50,
+                    borderRadius: 12,
                   }
             }
             animate={
@@ -388,14 +423,13 @@ function PureArtifact({
                     x: 0,
                     y: 0,
                     height: windowHeight,
-                    width: windowWidth ? windowWidth : 'calc(100dvw)',
+                    width: windowWidth || '100dvw',
                     borderRadius: 0,
                     transition: {
                       delay: 0,
                       type: 'spring',
                       stiffness: 200,
                       damping: 30,
-                      duration: 5000,
                     },
                   }
                 : {
@@ -403,99 +437,107 @@ function PureArtifact({
                     x: 400,
                     y: 0,
                     height: windowHeight,
-                    width: windowWidth
-                      ? windowWidth - 400
-                      : 'calc(100dvw-400px)',
+                    width: windowWidth ? windowWidth - 400 : 'calc(100dvw - 400px)',
                     borderRadius: 0,
                     transition: {
                       delay: 0,
                       type: 'spring',
                       stiffness: 200,
                       damping: 30,
-                      duration: 5000,
                     },
                   }
             }
             exit={{
               opacity: 0,
               scale: 0.5,
-              transition: {
-                delay: 0.1,
-                type: 'spring',
-                stiffness: 600,
-                damping: 30,
-              },
+              transition: { delay: 0.1, type: 'spring', stiffness: 600, damping: 30 },
             }}
           >
-            <div className="p-2 flex flex-row justify-between items-start">
+            <div className="p-4 flex flex-row justify-between items-start bg-gray-50 dark:bg-gray-900">
               <div className="flex flex-row gap-4 items-start">
                 <ArtifactCloseButton />
-
                 <div className="flex flex-col">
-                  <div className="font-medium">{artifact.title}</div>
-
+                  <div className="font-semibold text-gray-900 dark:text-gray-100">{artifact.title}</div>
                   {isContentDirty ? (
-                    <div className="text-sm text-muted-foreground">
-                      Saving changes...
-                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Saving changes...</div>
                   ) : document ? (
-                    <div className="text-sm text-muted-foreground">
-                      {`Updated ${formatDistance(
-                        new Date(document.createdAt),
-                        new Date(),
-                        { addSuffix: true },
-                      )}`}
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {`Updated ${formatDistance(new Date(document.createdAt), new Date(), { addSuffix: true })}`}
                     </div>
                   ) : (
-                    <div className="w-32 h-3 mt-2 bg-muted-foreground/20 rounded-md animate-pulse" />
+                    <div className="w-32 h-3 mt-2 bg-gray-200 dark:bg-gray-600 rounded-md animate-pulse" />
                   )}
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                {savedArtifacts.length > 0 && (
+                  <select
+                    className="p-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    onChange={(e) => {
+                      const selected = savedArtifacts[Number(e.target.value)];
+                      setArtifact({ ...artifact, ...selected });
+                    }}
+                  >
+                    <option value="">Load Saved</option>
+                    {savedArtifacts.map((art, idx) => (
+                      <option key={idx} value={idx}>
+                        {art.title} ({art.kind})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                  onClick={() => saveNewArtifact(artifact)}
+                >
+                  Save
+                </button>
+                <ArtifactActions
+                  artifact={artifact}
+                  currentVersionIndex={currentVersionIndex}
+                  handleVersionChange={handleVersionChange}
+                  isCurrentVersion={isCurrentVersion}
+                  mode={mode}
+                  metadata={metadata}
+                  setMetadata={setMetadata}
+                />
+              </div>
+            </div>
 
-              <ArtifactActions
-                artifact={artifact}
-                currentVersionIndex={currentVersionIndex}
-                handleVersionChange={handleVersionChange}
-                isCurrentVersion={isCurrentVersion}
+            <div className="flex-1 overflow-y-auto p-4 bg-white dark:bg-gray-800">
+              <artifactDefinition.content
+                title={artifact.title}
+                content={
+                  isCurrentVersion
+                    ? artifact.content
+                    : getDocumentContentById(currentVersionIndex)
+                }
                 mode={mode}
+                status={artifact.status}
+                currentVersionIndex={currentVersionIndex}
+                suggestions={[]}
+                onSaveContent={saveContent}
+                isInline={false}
+                isCurrentVersion={isCurrentVersion}
+                getDocumentContentById={getDocumentContentById}
+                isLoading={isDocumentsFetching && !artifact.content}
                 metadata={metadata}
                 setMetadata={setMetadata}
               />
             </div>
 
-            <div className="dark:bg-muted bg-background h-full overflow-y-scroll !max-w-full items-center">
-              {(artifactDefinition.content as (props: ContentProps) => React.ReactNode)({
-                title: artifact.title,
-                content: isCurrentVersion ? artifact.content : getDocumentContentById(currentVersionIndex),
-                mode,
-                status: artifact.status,
-                currentVersionIndex,
-                suggestions: [],
-                onSaveContent: saveContent,
-                isInline: false,
-                isCurrentVersion,
-                getDocumentContentById,
-                isLoading: isDocumentsFetching && !artifact.content,
-                metadata,
-                setMetadata,
-              })}
-
-              <AnimatePresence>
-                {isCurrentVersion && (
-                  <Toolbar
-                    isToolbarVisible={isToolbarVisible}
-                    setIsToolbarVisible={setIsToolbarVisible}
-                    append={append}
-                    isLoading={isLoading}
-                    stop={stop}
-                    setMessages={setMessages}
-                    artifactKind={artifact.kind}
-                  />
-                )}
-              </AnimatePresence>
-            </div>
-
             <AnimatePresence>
+              {isCurrentVersion && (
+                <Toolbar
+                  isToolbarVisible={isToolbarVisible}
+                  setIsToolbarVisible={setIsToolbarVisible}
+                  append={append}
+                  isLoading={isLoading}
+                  stop={stop}
+                  setMessages={setMessages}
+                  artifactKind={artifact.kind}
+                />
+              )}
               {!isCurrentVersion && (
                 <VersionFooter
                   currentVersionIndex={currentVersionIndex}
@@ -515,7 +557,6 @@ export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (!equal(prevProps.votes, nextProps.votes)) return false;
   if (prevProps.input !== nextProps.input) return false;
-  if (!equal(prevProps.messages, nextProps.messages.length)) return false;
-
+  if (!equal(prevProps.messages, nextProps.messages)) return false;
   return true;
 });
