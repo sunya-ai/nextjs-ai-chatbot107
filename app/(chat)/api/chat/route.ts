@@ -280,7 +280,9 @@ export async function POST(request: Request) {
         retryTimestamp: new Date(), // Default for dummy field (timestamp, so Date is correct)
         retryCounter: 999, // Default for dummy integer field
         retryFlag: true, // Default for dummy boolean field
-        retryDate: '2025-02-25', // Updated to string for dummy date field
+        retryDate: '2025-02-25', // Default for dummy date field
+        retryMarker: 'Final migration push', // Default for dummy text field
+        retryNumber: 12345, // Default for dummy integer field
       }],
     });
 
@@ -366,7 +368,9 @@ export async function POST(request: Request) {
                     retryTimestamp: new Date(), // Default for dummy field (timestamp, so Date is correct)
                     retryCounter: 999, // Default for dummy integer field
                     retryFlag: true, // Default for dummy boolean field
-                    retryDate: '2025-02-25', // Updated to string for dummy date field
+                    retryDate: '2025-02-25', // Default for dummy date field
+                    retryMarker: 'Final migration push', // Default for dummy text field
+                    retryNumber: 12345, // Default for dummy integer field
                   }],
                 });
               }
