@@ -10,6 +10,7 @@ import {
   foreignKey,
   boolean,
   integer,
+  date, // Imported the date type
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -47,7 +48,7 @@ export const message = pgTable('Message', {
   retryTimestamp: timestamp('retry_timestamp').defaultNow(), // Keep existing
   retryCounter: integer('retry_counter').default(999), // Keep existing
   retryFlag: boolean('retry_flag').default(true), // Keep existing
-  retryDate: pgTable.date('retry_date').default('2025-02-25'), // Corrected to pgTable.date()
+  retryDate: date('retry_date').default('2025-02-25'), // Corrected to use the date function
 });
 
 export type Message = InferSelectModel<typeof message>;
