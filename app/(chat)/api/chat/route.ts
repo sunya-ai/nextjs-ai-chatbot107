@@ -1,4 +1,9 @@
-import { streamText, generateText, type Message } from 'ai';
+import {
+  type Message,
+  createDataStreamResponse,
+  streamText,
+  generateText,
+} from 'ai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { google } from '@ai-sdk/google';
@@ -10,10 +15,7 @@ import {
   saveChat,
   saveMessages,
 } from '@/lib/db/queries';
-import {
-  generateUUID,
-  getMostRecentUserMessage,
-} from '@/lib/utils';
+import { generateUUID, getMostRecentUserMessage } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '@/app/(chat)/actions';
 import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
@@ -155,7 +157,7 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
     return text;
   } catch (error) {
     console.error('[getInitialAnalysis] Error:', error);
-    return userMessage.content; // Fallback to original query
+    return userMessage.content;
   }
 }
 
@@ -193,7 +195,7 @@ Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']]
       system: spreadsheetPrompt,
       messages: [{ role: 'user', content: userMessage.content }],
     });
-    return JSON.parse(text); // Returns JSON array
+    return JSON.parse(text);
   } catch (error) {
     console.error('[processSpreadsheetUpdate] Error:', error);
     return currentData || [['Date', 'Deal Type', 'Amount']];
@@ -288,72 +290,87 @@ export async function POST(request: Request) {
       fileMime = file.type;
     }
 
-    console.log('[POST] => processing multi-pass');
-    const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-    const enhancedContext = await enhanceContext(initialAnalysis);
-    const finalPrompt = `Context:\n${enhancedContext}\n\nQuery: ${initialAnalysis}`;
+    console.log('[POST] => createDataStreamResponse => multi-pass');
+    return createDataStreamResponse({
+      status: 200,
+      statusText: 'OK',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      execute: async (dataStream) => {
+        try {
+          const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
+          const enhancedContext = await enhanceContext(initialAnalysis);
+          const finalPrompt = `Context:\n${enhancedContext}\n\nQuery: ${initialAnalysis}`;
 
-    const finalModel = getFinalModel(selectedChatModel);
-    const result = await streamText({
-      model: finalModel,
-      system: systemPrompt({ selectedChatModel }),
-      messages: [{ role: 'user', content: finalPrompt }],
-      tools: {
-        getWeather,
-        createDocument: createDocument({ session }),
-        updateDocument: updateDocument({ session }),
-        requestSuggestions: requestSuggestions({ session }),
-      },
-      onFinish: async ({ response }) => {
-        const assistantMessage = response.messages.find(m => m.role === 'assistant');
-        if (assistantMessage) {
-          let content = convertContentToString(assistantMessage.content);
-          let metadata = null;
+          const finalModel = getFinalModel(selectedChatModel);
+          const result = await streamText({
+            model: finalModel,
+            system: systemPrompt({ selectedChatModel }),
+            messages: [{ role: 'user', content: finalPrompt }],
+            tools: {
+              getWeather,
+              createDocument: createDocument({ session, dataStream }),
+              updateDocument: updateDocument({ session, dataStream }),
+              requestSuggestions: requestSuggestions({ session, dataStream }),
+            },
+            onFinish: async ({ response }) => {
+              const assistantMessage = response.messages.find(m => m.role === 'assistant');
+              if (assistantMessage) {
+                let content = convertContentToString(assistantMessage.content);
+                let metadata = null;
 
-          // Check if it's an artifact (e.g., table/chart)
-          try {
-            const parsedContent = JSON.parse(content);
-            if (Array.isArray(parsedContent)) {
-              // Send JSON for artifacts
-              content = JSON.stringify(parsedContent);
-              metadata = {
-                isArtifact: true,
-                kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
-              };
-            } else {
-              // Compile to MDX for non-artifacts
-              const compiledMdx = await compile(content, {
-                outputFormat: 'function-body',
-                remarkPlugins: [remarkGfm],
-                rehypePlugins: [rehypeHighlight, rehypeRaw],
-              });
-              content = compiledMdx.toString();
-            }
-          } catch (e) {
-            // Fallback to MDX
-            const compiledMdx = await compile(content, {
-              outputFormat: 'function-body',
-              remarkPlugins: [remarkGfm],
-              rehypePlugins: [rehypeHighlight, rehypeRaw],
-            });
-            content = compiledMdx.toString();
-          }
+                try {
+                  const parsedContent = JSON.parse(content);
+                  if (Array.isArray(parsedContent)) {
+                    content = JSON.stringify(parsedContent);
+                    metadata = {
+                      isArtifact: true,
+                      kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
+                    };
+                  } else {
+                    const compiledMdx = await compile(content, {
+                      outputFormat: 'function-body',
+                      remarkPlugins: [remarkGfm],
+                      rehypePlugins: [rehypeHighlight, rehypeRaw],
+                    });
+                    content = compiledMdx.toString();
+                  }
+                } catch (e) {
+                  const compiledMdx = await compile(content, {
+                    outputFormat: 'function-body',
+                    remarkPlugins: [remarkGfm],
+                    rehypePlugins: [rehypeHighlight, rehypeRaw],
+                  });
+                  content = compiledMdx.toString();
+                }
 
-          await saveMessages({
-            messages: [{
-              id: generateUUID(),
-              chatId: id,
-              role: 'assistant',
-              content,
-              createdAt: new Date(),
-              metadata: metadata ? JSON.stringify(metadata) : null,
-            }],
+                await saveMessages({
+                  messages: [{
+                    id: generateUUID(),
+                    chatId: id,
+                    role: 'assistant',
+                    content,
+                    createdAt: new Date(),
+                    metadata: metadata ? JSON.stringify(metadata) : null,
+                  }],
+                });
+              }
+            },
           });
+
+          await result.mergeIntoDataStream(dataStream, {
+            sendReasoning: true,
+            sendSources: true,
+          });
+        } catch (err) {
+          console.error('[EXECUTE] Error during processing:', err);
+          throw err;
         }
       },
+      onError: (error) => {
+        console.error('[createDataStreamResponse] Final error handler:', error);
+        return 'Internal Server Error';
+      },
     });
-
-    return result.toDataStreamResponse();
   } catch (error) {
     console.error('[POST] Error in POST handler:', error);
     const message = error.message.includes('file') ? 'File processing failed' : 'Internal Server Error';
