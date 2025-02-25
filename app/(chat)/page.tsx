@@ -147,7 +147,7 @@ export default function Home() {
     spreadsheetData.slice(1).forEach((row: SpreadsheetRow) => {
       const date = row[0] || 'Unknown';
       const dealType = row[1] || 'Unknown';
-      const amount = parseFloat(row[2].toString()) || 0;
+      const amount = parseFloat(row[2]?.toString() || '0') || 0;
 
       if (!groupedData[date]) groupedData[date] = { name: date, solar: 0, oil: 0, geothermal: 0 };
       if (dealType === 'Solar M&A') groupedData[date].solar += amount;
