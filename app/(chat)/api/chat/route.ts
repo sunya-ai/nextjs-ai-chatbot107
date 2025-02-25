@@ -283,6 +283,7 @@ export async function POST(request: Request) {
         retryDate: '2025-02-25', // Default for dummy date field
         retryMarker: 'Final migration push', // Default for dummy text field
         retryNumber: 12345, // Default for dummy integer field
+        retryBoolean: false, // Default for new dummy boolean field
       }],
     });
 
@@ -371,6 +372,7 @@ export async function POST(request: Request) {
                     retryDate: '2025-02-25', // Default for dummy date field
                     retryMarker: 'Final migration push', // Default for dummy text field
                     retryNumber: 12345, // Default for dummy integer field
+                    retryBoolean: false, // Default for new dummy boolean field
                   }],
                 });
               }
