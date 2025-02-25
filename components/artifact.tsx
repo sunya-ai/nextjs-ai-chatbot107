@@ -65,13 +65,60 @@ export interface UIArtifact {
 }
 
 async function fetchSavedArtifacts(): Promise<UIArtifact[]> {
-  return JSON.parse(localStorage.getItem('savedArtifacts') || '[]');
+  try {
+    const savedData = localStorage.getItem('savedArtifacts');
+    if (!savedData) return [];
+    
+    const parsed = JSON.parse(savedData);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Error fetching saved artifacts:", error);
+    return [];
+  }
 }
 
 async function saveNewArtifact(artifact: UIArtifact) {
-  const artifacts = await fetchSavedArtifacts();
-  artifacts.push({ ...artifact, documentId: `saved-${Date.now()}` });
-  localStorage.setItem('savedArtifacts', JSON.stringify(artifacts));
+  try {
+    if (!artifact) throw new Error("Cannot save undefined artifact");
+    
+    const artifacts = await fetchSavedArtifacts();
+    artifacts.push({ 
+      ...artifact, 
+      documentId: `saved-${Date.now()}` 
+    });
+    
+    localStorage.setItem('savedArtifacts', JSON.stringify(artifacts));
+    return true;
+  } catch (error) {
+    console.error("Failed to save artifact:", error);
+    throw error; // Re-throw to handle in the UI
+  }
+}
+
+// Safe Artifact Content component to catch rendering errors
+function SafeArtifactContent({ artifactDefinition, ...props }) {
+  const [hasError, setHasError] = useState(false);
+  
+  useEffect(() => {
+    setHasError(false);
+  }, [artifactDefinition]);
+  
+  if (hasError) {
+    return (
+      <div className="p-4 bg-red-50 text-red-800 rounded">
+        <h3 className="font-bold mb-2">Error displaying artifact content</h3>
+        <p>There was a problem rendering this content. Try refreshing the page or contact support.</p>
+      </div>
+    );
+  }
+  
+  try {
+    return artifactDefinition.content({ ...props });
+  } catch (error) {
+    console.error("Error rendering artifact content:", error);
+    setHasError(true);
+    return null;
+  }
 }
 
 function PureArtifact({
@@ -134,31 +181,38 @@ function PureArtifact({
   const { open: isSidebarOpen } = useSidebar();
 
   useEffect(() => {
-    fetchSavedArtifacts().then(setSavedArtifacts);
+    fetchSavedArtifacts().then(setSavedArtifacts).catch(err => {
+      console.error("Failed to load saved artifacts:", err);
+      setSavedArtifacts([]);
+    });
   }, []);
 
   useEffect(() => {
     const latestMessage = messages[messages.length - 1];
     if (latestMessage?.role === 'assistant' && artifact.isVisible) {
       try {
-        const content = JSON.parse(latestMessage.content);
-        if (Array.isArray(content)) {
-          const kind = Array.isArray(content[0]) ? 'table' : 'chart';
-          setArtifact({
-            ...artifact,
-            kind,
-            content: latestMessage.content,
-            title: kind === 'table' ? 'Table Artifact' : 'Chart Artifact',
-          });
+        // Only try parsing if content is a string
+        if (typeof latestMessage.content === 'string') {
+          const content = JSON.parse(latestMessage.content);
+          if (Array.isArray(content)) {
+            const kind = Array.isArray(content[0]) ? 'table' : 'chart';
+            setArtifact({
+              ...artifact,
+              kind,
+              content: latestMessage.content,
+              title: kind === 'table' ? 'Table Artifact' : 'Chart Artifact',
+            });
+          }
         }
       } catch (e) {
-        // Not an artifact, keep existing
+        // Silent catch - content isn't JSON parseable
+        console.debug("Not a parseable JSON artifact:", e);
       }
     }
   }, [messages, artifact, setArtifact]);
 
   useEffect(() => {
-    if (documents && documents.length > 0) {
+    if (documents?.length > 0) {
       const mostRecentDocument = documents.at(-1);
       if (mostRecentDocument) {
         setDocument(mostRecentDocument);
@@ -179,12 +233,12 @@ function PureArtifact({
 
   const handleContentChange = useCallback(
     (updatedContent: string) => {
-      if (!artifact) return;
+      if (!artifact || !artifact.documentId) return;
 
       mutate<Array<Document>>(
         `/api/document?id=${artifact.documentId}`,
         async (currentDocuments) => {
-          if (!currentDocuments) return undefined;
+          if (!currentDocuments?.length) return undefined;
 
           const currentDocument = currentDocuments.at(-1);
           if (!currentDocument || !currentDocument.content) {
@@ -193,24 +247,30 @@ function PureArtifact({
           }
 
           if (currentDocument.content !== updatedContent) {
-            await fetch(`/api/document?id=${artifact.documentId}`, {
-              method: 'POST',
-              body: JSON.stringify({
-                title: artifact.title,
+            try {
+              await fetch(`/api/document?id=${artifact.documentId}`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  title: artifact.title,
+                  content: updatedContent,
+                  kind: artifact.kind,
+                }),
+              });
+
+              setIsContentDirty(false);
+
+              const newDocument = {
+                ...currentDocument,
                 content: updatedContent,
-                kind: artifact.kind,
-              }),
-            });
+                createdAt: new Date(),
+              };
 
-            setIsContentDirty(false);
-
-            const newDocument = {
-              ...currentDocument,
-              content: updatedContent,
-              createdAt: new Date(),
-            };
-
-            return [...currentDocuments, newDocument];
+              return [...currentDocuments, newDocument];
+            } catch (error) {
+              console.error("Failed to save document:", error);
+              setIsContentDirty(false);
+              return currentDocuments;
+            }
           }
           return currentDocuments;
         },
@@ -241,8 +301,8 @@ function PureArtifact({
 
   function getDocumentContentById(index: number) {
     if (!documents) return '';
-    if (!documents[index]) return '';
-    return documents[index].content ?? '';
+    if (index < 0 || index >= documents.length) return '';
+    return documents[index]?.content ?? '';
   }
 
   const handleVersionChange = (type: 'next' | 'prev' | 'toggle' | 'latest') => {
@@ -274,15 +334,35 @@ function PureArtifact({
   );
 
   if (!artifactDefinition) {
-    throw new Error('Artifact definition not found!');
+    console.error(`Artifact definition not found for kind: ${artifact.kind}`);
+    // Return an error component instead of throwing
+    return (
+      <AnimatePresence>
+        {artifact.isVisible && (
+          <motion.div className="fixed top-4 right-4 bg-red-100 text-red-800 p-4 rounded-lg shadow-lg">
+            Error: Unknown artifact type '{artifact.kind}'. Please refresh the page.
+            <button 
+              className="ml-2 bg-red-200 p-1 rounded"
+              onClick={() => setArtifact(prev => ({...prev, isVisible: false}))}
+            >
+              Close
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
   }
 
   useEffect(() => {
-    if (artifact.documentId !== 'init' && artifactDefinition.initialize) {
-      artifactDefinition.initialize({
-        documentId: artifact.documentId,
-        setMetadata,
-      });
+    if (artifact.documentId !== 'init' && typeof artifactDefinition.initialize === 'function') {
+      try {
+        artifactDefinition.initialize({
+          documentId: artifact.documentId,
+          setMetadata,
+        });
+      } catch (error) {
+        console.error(`Error initializing ${artifact.kind} artifact:`, error);
+      }
     }
   }, [artifact.documentId, artifactDefinition, setMetadata]);
 
@@ -450,7 +530,9 @@ function PureArtifact({
                     className="p-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                     onChange={(e) => {
                       const selected = savedArtifacts[Number(e.target.value)];
-                      setArtifact({ ...artifact, ...selected });
+                      if (selected) {
+                        setArtifact({ ...artifact, ...selected });
+                      }
                     }}
                   >
                     <option value="">Load Saved</option>
@@ -463,7 +545,17 @@ function PureArtifact({
                 )}
                 <button
                   className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                  onClick={() => saveNewArtifact(artifact)}
+                  onClick={() => {
+                    try {
+                      saveNewArtifact(artifact);
+                      // If you have a toast library
+                      // toast.success("Artifact saved successfully");
+                    } catch (error) {
+                      console.error("Failed to save artifact:", error);
+                      // If you have a toast library
+                      // toast.error("Failed to save artifact");
+                    }
+                  }}
                 >
                   Save
                 </button>
@@ -480,7 +572,8 @@ function PureArtifact({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 bg-white dark:bg-gray-800">
-              <artifactDefinition.content
+              <SafeArtifactContent
+                artifactDefinition={artifactDefinition}
                 title={artifact.title}
                 content={
                   isCurrentVersion
