@@ -161,7 +161,8 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    if (!session.user.id) {
+    // Type guard to ensure session.user is defined before accessing .id
+    if (!session.user || !session.user.id) {
       console.error("User session or ID is undefined");
       return;
     }
