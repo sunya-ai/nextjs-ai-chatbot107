@@ -28,8 +28,8 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { MDXProvider } from "@mdx-js/react";
 import { createDocumentAction, updateDocumentAction } from "@/app/(chat)/actions";
-import { ErrorBoundary } from "react-error-boundary";
-import { toast } from "sonner"; // Add sonner for toast notifications
+import { ErrorBoundary } from "react-error-boundary"; // Updated import
+import { toast } from "sonner";
 
 // Fallback component for error states
 function ErrorFallback({ error, resetErrorBoundary }) {
