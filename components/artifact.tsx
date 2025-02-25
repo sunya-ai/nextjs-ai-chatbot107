@@ -26,8 +26,8 @@ import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
-import { TableArtifact } from './TableArtifact'; // New import
-import { ChartArtifact } from './ChartArtifact'; // New import
+import { TableArtifact } from './TableArtifact';
+import { ChartArtifact } from './ChartArtifact';
 import equal from 'fast-deep-equal';
 
 export const artifactDefinitions = [
@@ -37,15 +37,16 @@ export const artifactDefinitions = [
   sheetArtifact,
   {
     kind: 'table',
-    content: ({ content }) => <TableArtifact content={content} />,
+    content: ({ content }: { content: string }) => <TableArtifact content={content} />, // Typed content as string
     initialize: () => {},
   },
   {
     kind: 'chart',
-    content: ({ content }) => <ChartArtifact content={content} />,
+    content: ({ content }: { content: string }) => <ChartArtifact content={content} />, // Typed content as string
     initialize: () => {},
   },
-];
+] as const;
+
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
 export interface UIArtifact {
