@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useState,
+  ReactNode,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
@@ -29,6 +30,33 @@ import { textArtifact } from '@/artifacts/text/client';
 import { TableArtifact } from './TableArtifact';
 import { ChartArtifact } from './ChartArtifact';
 import equal from 'fast-deep-equal';
+import { DataStreamDelta } from './data-stream-handler';
+
+// Define ArtifactDefinition type
+interface ArtifactDefinition {
+  kind: ArtifactKind;
+  content: (props: {
+    title: string;
+    content: string;
+    mode: 'edit' | 'diff';
+    status: 'streaming' | 'idle';
+    currentVersionIndex: number;
+    suggestions: any[];
+    onSaveContent: (content: string, debounce: boolean) => void;
+    isInline: boolean;
+    isCurrentVersion: boolean;
+    getDocumentContentById: (index: number) => string;
+    isLoading: boolean;
+    metadata: any;
+    setMetadata: any;
+  }) => ReactNode;
+  initialize?: (options: { documentId: string; setMetadata: any }) => void;
+  onStreamPart?: (options: {
+    streamPart: DataStreamDelta;
+    setArtifact: (artifact: UIArtifact | ((prev: UIArtifact) => UIArtifact)) => void;
+    setMetadata: any;
+  }) => void;
+}
 
 export const artifactDefinitions = [
   textArtifact,
@@ -37,13 +65,15 @@ export const artifactDefinitions = [
   sheetArtifact,
   {
     kind: 'table',
-    content: ({ content }: { content: string }) => <TableArtifact content={content} />, // Typed content as string
+    content: ({ content }: { content: string }) => <TableArtifact content={content} />,
     initialize: () => {},
+    onStreamPart: undefined, // Optional for data-stream-handler.tsx
   },
   {
     kind: 'chart',
-    content: ({ content }: { content: string }) => <ChartArtifact content={content} />, // Typed content as string
+    content: ({ content }: { content: string }) => <ChartArtifact content={content} />,
     initialize: () => {},
+    onStreamPart: undefined, // Optional for data-stream-handler.tsx
   },
 ] as const;
 
@@ -91,12 +121,30 @@ async function saveNewArtifact(artifact: UIArtifact) {
     return true;
   } catch (error) {
     console.error("Failed to save artifact:", error);
-    throw error; // Re-throw to handle in the UI
+    throw error;
   }
 }
 
-// Safe Artifact Content component to catch rendering errors
-function SafeArtifactContent({ artifactDefinition, ...props }) {
+// Fixed SafeArtifactContent with proper types
+function SafeArtifactContent({
+  artifactDefinition,
+  ...props
+}: {
+  artifactDefinition: ArtifactDefinition;
+  title: string;
+  content: string;
+  mode: 'edit' | 'diff';
+  status: 'streaming' | 'idle';
+  currentVersionIndex: number;
+  suggestions: any[];
+  onSaveContent: (content: string, debounce: boolean) => void;
+  isInline: boolean;
+  isCurrentVersion: boolean;
+  getDocumentContentById: (index: number) => string;
+  isLoading: boolean;
+  metadata: any;
+  setMetadata: any;
+}) {
   const [hasError, setHasError] = useState(false);
   
   useEffect(() => {
@@ -191,7 +239,6 @@ function PureArtifact({
     const latestMessage = messages[messages.length - 1];
     if (latestMessage?.role === 'assistant' && artifact.isVisible) {
       try {
-        // Only try parsing if content is a string
         if (typeof latestMessage.content === 'string') {
           const content = JSON.parse(latestMessage.content);
           if (Array.isArray(content)) {
@@ -205,7 +252,6 @@ function PureArtifact({
           }
         }
       } catch (e) {
-        // Silent catch - content isn't JSON parseable
         console.debug("Not a parseable JSON artifact:", e);
       }
     }
@@ -335,7 +381,6 @@ function PureArtifact({
 
   if (!artifactDefinition) {
     console.error(`Artifact definition not found for kind: ${artifact.kind}`);
-    // Return an error component instead of throwing
     return (
       <AnimatePresence>
         {artifact.isVisible && (
@@ -548,12 +593,10 @@ function PureArtifact({
                   onClick={() => {
                     try {
                       saveNewArtifact(artifact);
-                      // If you have a toast library
-                      // toast.success("Artifact saved successfully");
+                      // toast.success("Artifact saved successfully"); // Uncomment if using toast
                     } catch (error) {
                       console.error("Failed to save artifact:", error);
-                      // If you have a toast library
-                      // toast.error("Failed to save artifact");
+                      // toast.error("Failed to save artifact"); // Uncomment if using toast
                     }
                   }}
                 >
