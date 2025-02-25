@@ -17,7 +17,7 @@ interface WorkflowStatusProps {
 }
 
 // Extend HTMLMotionProps to include className for Tailwind CSS compatibility
-type MotionDivProps = HTMLMotionProps<'div'> & { className: string }; // Changed to required string for stricter typing
+type MotionDivProps = HTMLMotionProps<'div'> & { className: string }; // Changed to required string
 
 const thinkingMessages = [
   'Give me a sec… this response needs seasoning.',
@@ -105,7 +105,7 @@ export function WorkflowStatus({
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={cn('flex items-center justify-between py-0.5')} // Ensure cn returns a string
+              className={cn('flex items-center justify-between py-0.5')}
             >
               <div className="flex items-center gap-2">
                 <div
