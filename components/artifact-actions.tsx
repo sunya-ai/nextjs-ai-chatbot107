@@ -1,9 +1,8 @@
 // components/artifact-actions.tsx
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { artifactDefinitions, UIArtifact } from './artifact';
+import { artifactDefinitions, UIArtifact, ArtifactDefinition } from './artifact'; // Import ArtifactDefinition
 import { Dispatch, memo, SetStateAction, useState } from 'react';
-import { Artifact, ArtifactActionContext } from './create-artifact'; // Import Artifact type
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -30,14 +29,14 @@ function PureArtifactActions<K extends string, M>({
   const [isLoading, setIsLoading] = useState(false);
 
   const artifactDefinition = artifactDefinitions.find(
-    (definition) => definition.kind === artifact.kind,
-  ) as Artifact<K, M> | undefined; // Assert it's an Artifact or undefined
+    (definition: ArtifactDefinition) => definition.kind === artifact.kind, // Type definition
+  ); // No need for assertion since actions is now in ArtifactDefinition
 
   if (!artifactDefinition) {
     throw new Error('Artifact definition not found!');
   }
 
-  const actionContext: ArtifactActionContext = {
+  const actionContext = {
     content: artifact.content,
     handleVersionChange,
     currentVersionIndex,
