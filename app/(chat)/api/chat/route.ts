@@ -26,9 +26,16 @@ import { compile } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import { put } from '@vercel/blob'; // Add this import for file storage
+import { put } from '@vercel/blob'; // For file storage
 
 export const maxDuration = 240;
+
+// Define the Metadata type to include fileUrl as optional
+type Metadata = {
+  isArtifact: boolean;
+  kind: string;
+  fileUrl?: string;
+};
 
 type RateLimitInfo = {
   shortTermCount: number;
@@ -335,7 +342,7 @@ export async function POST(request: Request) {
               const assistantMessage = response.messages.find(m => m.role === 'assistant');
               if (assistantMessage) {
                 let content = convertContentToString(assistantMessage.content);
-                let metadata = null;
+                let metadata: Metadata | null = null;
 
                 try {
                   const parsedContent = JSON.parse(content);
@@ -345,12 +352,11 @@ export async function POST(request: Request) {
                       isArtifact: true,
                       kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
                     };
-                    // If it's a table or chart, save as a file
                     if (metadata.kind === 'table' || metadata.kind === 'chart') {
                       const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
                         access: 'public',
                       });
-                      metadata.fileUrl = blob.url; // Store the URL in metadata
+                      metadata.fileUrl = blob.url; // Now allowed because fileUrl is optional in Metadata type
                       content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
                     }
                   } else {
@@ -377,7 +383,7 @@ export async function POST(request: Request) {
                     role: 'assistant',
                     content,
                     createdAt: new Date(),
-                    metadata: metadata ? JSON.stringify(metadata) : null, // Store metadata with file URL if applicable
+                    metadata: metadata, // Pass the metadata object directly, Drizzle handles JSON serialization
                     migrationRetry: '', // Dummy field for migration
                     retryTimestamp: new Date(), // Dummy field for migration
                     retryCounter: 999, // Dummy field for migration
