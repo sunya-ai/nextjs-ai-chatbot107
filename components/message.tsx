@@ -1,3 +1,4 @@
+// components/message.tsx
 'use client';
 
 import type { ChatRequestOptions, Message } from 'ai';
@@ -27,6 +28,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
+
+// Extend Message type with metadata
+interface UIMessage extends Message {
+  metadata?: string | null; // Matches route.ts
+}
 
 // Custom component for company logos
 const Logo = ({ company }: { company: string }) => {
@@ -80,11 +86,11 @@ const PurePreviewMessage = ({
   isReadonly,
 }: {
   chatId: string;
-  message: Message;
+  message: UIMessage; // Use extended type
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
+    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
   ) => void;
   reload: (
     chatRequestOptions?: ChatRequestOptions,
