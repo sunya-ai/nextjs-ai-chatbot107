@@ -95,57 +95,53 @@ export function WorkflowStatus({
       </div>
 
       <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="space-y-0.5 p-2"
-        >
+        <div className="space-y-0.5 p-2">
           {files.map((file, index) => (
             <motion.div
               key={file.path}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={cn('flex items-center justify-between py-0.5')}
             >
-              <div className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    'h-2.5 w-2.5 rounded-full flex items-center justify-center',
-                    file.status === 'complete'
-                      ? 'bg-[#454b1b]/10 ring-1 ring-[#454b1b]'
-                      : file.status === 'generating'
-                        ? 'bg-[#1a365d]/10 ring-1 ring-[#1a365d]'
-                        : 'bg-gray-400/10 dark:bg-zinc-500/10 ring-1 ring-gray-400 dark:ring-zinc-500',
-                  )}
-                >
-                  <Circle
+              <div className={cn('flex items-center justify-between py-0.5')}>
+                <div className="flex items-center gap-2">
+                  <div
                     className={cn(
-                      'h-1.5 w-1.5',
+                      'h-2.5 w-2.5 rounded-full flex items-center justify-center',
                       file.status === 'complete'
-                        ? 'fill-[#454b1b] text-[#454b1b]'
+                        ? 'bg-[#454b1b]/10 ring-1 ring-[#454b1b]'
                         : file.status === 'generating'
-                          ? 'fill-[#1a365d] text-[#1a365d]'
-                          : 'fill-gray-400 dark:fill-zinc-500 text-gray-400 dark:text-zinc-500',
+                          ? 'bg-[#1a365d]/10 ring-1 ring-[#1a365d]'
+                          : 'bg-gray-400/10 dark:bg-zinc-500/10 ring-1 ring-gray-400 dark:ring-zinc-500',
                     )}
-                  />
+                  >
+                    <Circle
+                      className={cn(
+                        'h-1.5 w-1.5',
+                        file.status === 'complete'
+                          ? 'fill-[#454b1b] text-[#454b1b]'
+                          : file.status === 'generating'
+                            ? 'fill-[#1a365d] text-[#1a365d]'
+                            : 'fill-gray-400 dark:fill-zinc-500 text-gray-400 dark:text-zinc-500',
+                      )}
+                    />
+                  </div>
+                  <span className="text-xs font-mono text-gray-500 dark:text-zinc-400">
+                    {file.path}
+                  </span>
                 </div>
-                <span className="text-xs font-mono text-gray-500 dark:text-zinc-400">
-                  {file.path}
-                </span>
+                <motion.span
+                  key={file.status}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-zinc-400"
+                >
+                  {file.status}
+                </motion.span>
               </div>
-              <motion.span
-                key={file.status}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-zinc-400"
-              >
-                {file.status}
-              </motion.span>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       </AnimatePresence>
     </div>
   );
