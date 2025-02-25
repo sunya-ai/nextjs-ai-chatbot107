@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signIn } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Chat } from "@/components/chat";
 import { useChat } from "ai/react";
 import type { Message } from "ai";
@@ -28,96 +28,119 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { MDXProvider } from "@mdx-js/react";
 import { createDocumentAction, updateDocumentAction } from "@/app/(chat)/actions";
+import { ErrorBoundary } from "react-error-boundary";
+import { toast } from "sonner"; // Add sonner for toast notifications
+
+// Fallback component for error states
+function ErrorFallback({ error, resetErrorBoundary }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h2 className="text-xl font-semibold mb-4">Something went wrong</h2>
+      <pre className="text-sm bg-red-50 dark:bg-red-900/10 p-4 rounded-lg mb-4">{error.message}</pre>
+      <Button onClick={resetErrorBoundary}>Try again</Button>
+    </div>
+  );
+}
 
 type SpreadsheetRow = [string, string, number];
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
 export default function Home() {
-  // Move ALL hooks to the top level - before any conditional returns
-  const { data: session, status } = useSession();
+  // Session management with required flag
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      signIn();
+    },
+  });
+
+  // Theme and UI state
   const { theme } = useTheme();
+  const [isClient, setIsClient] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null);
   const [documentId] = useState<string>(generateUUID());
   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar");
   const [isSaving, setIsSaving] = useState(false);
-  const [stableChatId] = useState(() => generateUUID());
 
+  // Chat state
+  const [stableChatId] = useState(() => generateUUID());
   const initialWelcomeMessage: Message = {
     id: crypto.randomUUID(),
     role: "assistant",
     content: "Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., \"Add a new solar deal for $1M on 2025-03-01\").",
   };
 
-  const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading } = useChat({
+  // Handle hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading, append } = useChat({
     api: "/api/chat",
     id: stableChatId,
     initialMessages: [initialWelcomeMessage],
     onError: (error) => {
-      console.error("useChat error on load:", error);
+      console.error("Chat error:", error);
+      toast.error("An error occurred with the chat");
     },
     onResponse: (response) => {
-      console.log("useChat initial response:", response);
+      console.log("useChat response:", response);
     },
   });
 
-  // Handle loading state
-  if (status === "loading") {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  // Loading states (combine session and hydration)
+  if (status === "loading" || !isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+      </div>
+    );
   }
 
-  // Handle unauthenticated state with automatic redirect
-  if (!session) {
-    signIn();
-    return <div className="min-h-screen flex items-center justify-center">Redirecting to sign in...</div>;
+  // Ensure session.user is defined before proceeding
+  if (!session?.user) {
+    console.error("Session user data is undefined after authentication");
+    return <div className="min-h-screen flex items-center justify-center">Session data loading...</div>;
   }
 
-  // Ensure session is defined for TypeScript safety
-  if (!session) {
-    throw new Error("Session is unexpectedly undefined after authentication check");
-  }
-
-  // Rest of your component code remains exactly the same...
-  // All the existing functions (handleFileDrop, handleDrop, etc.) and the return statement remain unchanged
-
+  // File handling functions with improved error handling
   const handleFileDrop = async (file: File) => {
-    if (!file || !session?.user?.id) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("messages", JSON.stringify(messages));
-    formData.append("selectedChatModel", 'google("gemini-2.0-flash")');
-    formData.append("id", documentId);
-
+    if (!file || !session.user.id) return;
     try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("messages", JSON.stringify(messages));
+      formData.append("selectedChatModel", 'google("gemini-2.0-flash")');
+      formData.append("id", documentId);
+
       const response = await fetch("/api/chat", {
         method: "POST",
         body: formData,
       });
-      if (!response) {
-        console.error("No response from /api/chat");
-        return; // Prevent further processing if response is undefined
-      }
-      if (!response.ok) {
-        console.error("Upload failed, status:", response.status);
-        throw new Error("File upload failed");
-      }
+
+      if (!response.ok) throw new Error("Upload failed");
+
       const data = await response.json();
-      const newMessage: ExtendedMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: `Uploaded ${file.name}`,
-        metadata: null, // Optional metadata
-      };
-      setMessages((prev) => [...prev, newMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          content: `Uploaded ${file.name}`,
+        },
+      ]);
     } catch (error) {
       console.error("File upload error:", error);
+      toast.error("Failed to upload file");
     }
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    handleFileDrop(e.dataTransfer.files[0]);
+    const file = e.dataTransfer.files[0];
+    handleFileDrop(file);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -131,7 +154,7 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    if (!session?.user?.id) {
+    if (!session.user.id) {
       console.error("User session or ID is undefined");
       return;
     }
@@ -157,6 +180,7 @@ export default function Home() {
       console.log("Spreadsheet saved, document ID:", newDocumentId);
     } catch (error) {
       console.error("Error in saveSpreadsheet:", error);
+      toast.error("Failed to save spreadsheet");
     } finally {
       setIsSaving(false);
     }
@@ -247,67 +271,69 @@ export default function Home() {
   };
 
   return (
-    <div
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      className={cn("min-h-screen bg-gray-100 dark:bg-gray-950 flex")}
-    >
-      <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
-        <MDXProvider components={{}}>
-          <Chat
-            id={documentId}
-            initialMessages={messages}
-            selectedChatModel={'google("gemini-2.0-flash")'}
-            selectedVisibilityType="private"
-            isReadonly={false}
-            onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
-          />
-        </MDXProvider>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">Drag and drop PDFs or documents here to analyze energy data.</p>
-      </div>
-      <div className="w-1/2 p-2 flex flex-col gap-2">
-        <div className="bg-gray-50 dark:bg-gray-800 p-2 border-b dark:border-gray-700">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Energy Research</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Analyze and visualize energy transactions.</p>
-          <select
-            value={chartType}
-            onChange={(e) => setChartType(e.target.value as "bar" | "line" | "pie")}
-            className="mt-2 p-2 border rounded dark:bg-gray-700 dark:text-white text-sm"
-          >
-            <option value="bar">Bar Chart (Largest to Smallest)</option>
-            <option value="line">Line Chart</option>
-            <option value="pie">Pie Chart</option>
-          </select>
-          <Button
-            onClick={saveSpreadsheet}
-            disabled={isSaving}
-            className={cn(
-              "mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700",
-              { "opacity-50 cursor-not-allowed": isSaving }
-            )}
-          >
-            {isSaving ? "Saving..." : "Save Spreadsheet"}
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <ResponsiveContainer width="100%" height={300}>
-            {renderChart()}
-          </ResponsiveContainer>
-        </div>
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent side="right" className="w-full max-w-2xl bg-gray-50 dark:bg-gray-900">
-            <SheetHeader>
-              <SheetTitle className="text-2xl font-semibold text-gray-900 dark:text-white">Generated Spreadsheet</SheetTitle>
-            </SheetHeader>
-            <FinanceEditor
-              initialData={spreadsheetData || [["Date", "Deal Type", "Amount"], ["2025-02-23", "Solar M&A", 1000000]]}
-              documentId={documentId}
-              onSave={() => console.log("Saved spreadsheet")}
-              onDataChange={setSpreadsheetData}
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        className={cn("min-h-screen bg-gray-100 dark:bg-gray-950 flex")}
+      >
+        <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
+          <MDXProvider components={{}}>
+            <Chat
+              id={documentId}
+              initialMessages={messages}
+              selectedChatModel={'google("gemini-2.0-flash")'}
+              selectedVisibilityType="private"
+              isReadonly={false}
+              onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
             />
-          </SheetContent>
-        </Sheet>
+          </MDXProvider>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">Drag and drop PDFs or documents here to analyze energy data.</p>
+        </div>
+        <div className="w-1/2 p-2 flex flex-col gap-2">
+          <div className="bg-gray-50 dark:bg-gray-800 p-2 border-b dark:border-gray-700">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Energy Research</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Analyze and visualize energy transactions.</p>
+            <select
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value as "bar" | "line" | "pie")}
+              className="mt-2 p-2 border rounded dark:bg-gray-700 dark:text-white text-sm"
+            >
+              <option value="bar">Bar Chart (Largest to Smallest)</option>
+              <option value="line">Line Chart</option>
+              <option value="pie">Pie Chart</option>
+            </select>
+            <Button
+              onClick={saveSpreadsheet}
+              disabled={isSaving}
+              className={cn(
+                "mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700",
+                { "opacity-50 cursor-not-allowed": isSaving }
+              )}
+            >
+              {isSaving ? "Saving..." : "Save Spreadsheet"}
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <ResponsiveContainer width="100%" height={300}>
+              {renderChart()}
+            </ResponsiveContainer>
+          </div>
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetContent side="right" className="w-full max-w-2xl bg-gray-50 dark:bg-gray-900">
+              <SheetHeader>
+                <SheetTitle className="text-2xl font-semibold text-gray-900 dark:text-white">Generated Spreadsheet</SheetTitle>
+              </SheetHeader>
+              <FinanceEditor
+                initialData={spreadsheetData || [["Date", "Deal Type", "Amount"], ["2025-02-23", "Solar M&A", 1000000]]}
+                documentId={documentId}
+                onSave={() => console.log("Saved spreadsheet")}
+                onDataChange={setSpreadsheetData}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
