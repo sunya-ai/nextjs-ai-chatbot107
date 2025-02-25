@@ -33,6 +33,9 @@ import { ChartArtifact } from './ChartArtifact';
 import equal from 'fast-deep-equal';
 import { DataStreamDelta } from './data-stream-handler';
 
+// Define ArtifactKind independently to avoid circular reference
+export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'table' | 'chart';
+
 export interface ArtifactDefinition {
   kind: ArtifactKind;
   content: ComponentType<any> | ((props: {
@@ -102,8 +105,6 @@ export const artifactDefinitions = [
     actions: [],
   },
 ] as const satisfies ArtifactDefinition[];
-
-export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
 export interface UIArtifact {
   title: string;
