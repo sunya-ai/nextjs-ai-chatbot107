@@ -124,7 +124,9 @@
   },
   "pnpm": {
     "overrides": {
-      "@ai-sdk/provider": "1.0.8"
+      "@ai-sdk/provider": "1.0.8",
+      "vfile": "^6.0.3",           
+      "vfile-message": "^4.0.2"    
     }
   }
 }
