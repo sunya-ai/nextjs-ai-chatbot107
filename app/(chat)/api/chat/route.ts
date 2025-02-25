@@ -1,53 +1,24 @@
-import {
-  type Message,
-  type CoreAssistantMessage,
-  createDataStreamResponse,
-  smoothStream,
-  streamText,
-  generateText,
-} from 'ai';
+import { streamText, generateText } from 'ai';
+import { google } from '@ai-sdk/google';
+import { openai } from '@ai-sdk/openai';
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
-import { myProvider } from '@/lib/ai/models';
 import { systemPrompt } from '@/lib/ai/prompts';
-import {
-  deleteChatById,
-  getChatById,
-  saveChat,
-  saveMessages,
-} from '@/lib/db/queries';
-import {
-  generateUUID,
-  getMostRecentUserMessage,
-  sanitizeResponseMessages,
-} from '@/lib/utils';
+import { generateUUID, getMostRecentUserMessage } from '@/lib/utils';
+import { saveMessages, getChatById, saveChat } from '@/lib/db/queries';
 import { generateTitleFromUserMessage } from '@/app/(chat)/actions';
 import { createDocument } from '@/lib/ai/tools/create-document';
 import { updateDocument } from '@/lib/ai/tools/update-document';
 import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
 import { getWeather } from '@/lib/ai/tools/get-weather';
 import { createAssistantsEnhancer } from '@/lib/ai/enhancers/assistants';
-import { inferDomains } from '@/lib/ai/tools/infer-domains';
-import { google } from '@ai-sdk/google';
-import { openai } from '@ai-sdk/openai';
-import markdownIt from 'markdown-it';
-import compromise from 'compromise';
 import { compile } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 
-export const maxDuration = 240;
-
-type RateLimitInfo = {
-  shortTermCount: number;
-  shortTermResetTime: number;
-  longTermCount: number;
-  longTermResetTime: number;
-};
-
-const requestsMap = new Map<string, RateLimitInfo>();
-
+// Rate limiting setup
+const requestsMap = new Map<string, { shortTermCount: number; shortTermResetTime: number; longTermCount: number; longTermResetTime: number }>();
 const SHORT_MAX_REQUESTS = 50;
 const SHORT_WINDOW_TIME = 2 * 60 * 60_000;
 const LONG_MAX_REQUESTS = 100;
@@ -55,34 +26,24 @@ const LONG_WINDOW_TIME = 12 * 60 * 60_000;
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
-  let userData = requestsMap.get(userId);
-
-  if (!userData) {
-    userData = {
-      shortTermCount: 0,
-      shortTermResetTime: now + SHORT_WINDOW_TIME,
-      longTermCount: 0,
-      longTermResetTime: now + LONG_WINDOW_TIME,
-    };
-  }
+  let userData = requestsMap.get(userId) || {
+    shortTermCount: 0,
+    shortTermResetTime: now + SHORT_WINDOW_TIME,
+    longTermCount: 0,
+    longTermResetTime: now + LONG_WINDOW_TIME,
+  };
 
   if (now > userData.shortTermResetTime) {
     userData.shortTermCount = 0;
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
   }
-  if (userData.shortTermCount >= SHORT_MAX_REQUESTS) {
-    console.log('[rateLimiter] Over short-term limit for user:', userId);
-    return false;
-  }
+  if (userData.shortTermCount >= SHORT_MAX_REQUESTS) return false;
 
   if (now > userData.longTermResetTime) {
     userData.longTermCount = 0;
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
   }
-  if (userData.longTermCount >= LONG_MAX_REQUESTS) {
-    console.log('[rateLimiter] Over long-term limit for user:', userId);
-    return false;
-  }
+  if (userData.longTermCount >= LONG_MAX_REQUESTS) return false;
 
   userData.shortTermCount++;
   userData.longTermCount++;
@@ -90,152 +51,65 @@ function rateLimiter(userId: string): boolean {
   return true;
 }
 
-function isFollowUp(messages: Message[]): boolean {
-  const userMessage = getMostRecentUserMessage(messages);
-  if (!userMessage) return false;
-  const prevMessage = messages[messages.length - 2];
-  if (!prevMessage || prevMessage.role !== 'assistant') return false;
-  const content = userMessage.content.toLowerCase();
-  return (
-    content.includes('this') ||
-    content.includes('that') ||
-    content.includes('more') ||
-    !!content.match(/^\w+$/)
-  );
-}
+// Assistants enhancer from assistants.ts
+const assistantsEnhancer = createAssistantsEnhancer(process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id');
 
-const assistantsEnhancer = createAssistantsEnhancer(
-  process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
-);
-
-/**
- * Helper to convert message content to a string for MDX compilation.
- */
+// Convert content to string
 function convertContentToString(content: any): string {
   if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((item) => {
-        if (typeof item === 'string') return item;
-        if (item && typeof item.text === 'string') return item.text;
-        return '';
-      })
-      .join('');
-  }
+  if (Array.isArray(content)) return content.map(item => typeof item === 'string' ? item : item?.text || '').join('');
   return '';
 }
 
-/**
- * For the initial analysis we use generateText to get a complete text result, compiled as MDX.
- */
-async function getInitialAnalysis(
-  messages: Message[],
-  fileBuffer?: ArrayBuffer,
-  fileMime?: string
-): Promise<string> {
-  console.log('[getInitialAnalysis] Starting with Gemini Flash 2.0');
-
-  const initialAnalysisPrompt = `
-You are an energy research query refiner. Process any uploaded file and reframe each query to optimize for energy sector search results.
-
-If a file is provided, extract key text (max 10,000 characters) and summarize:
-- Identify energy transactions (e.g., solar M&A, oil trends, geothermal deals).
-- Extract dates, companies, amounts, and deal types.
-
-Format your response as:
-Original: [user's exact question]
-File Summary: [brief summary of file content, if any]
-Refined: [reframed query optimized for energy sector search]
-Terms: [3-5 key energy industry search terms]
-
-Keep it brief, search-focused, and exclude file content from long-term storage.
-If query/file seems unrelated to energy, find relevant energy sector angles.
-`;
-
+// Initial analysis with Gemini Flash 2.0
+async function getInitialAnalysis(messages: Message[], fileBuffer?: ArrayBuffer, fileMime?: string): Promise<string> {
   const userMessage = getMostRecentUserMessage(messages);
-  if (!userMessage) {
-    console.log('[getInitialAnalysis] No user message found');
-    return '';
-  }
+  if (!userMessage) return '';
 
-  const contentParts: any[] = [
-    {
-      type: 'text',
-      text: userMessage.content,
-    },
-  ];
+  const initialPrompt = `
+    You are an energy research query refiner. Process any uploaded file and reframe each query for energy sector search results.
+    File Summary (if provided): Extract key text (max 10,000 chars) and summarize energy transactions (e.g., solar M&A, oil trends).
+    Format: Original: [query] | Refined: [reframed query] | Terms: [3-5 energy terms]
+  `;
 
-  if (fileBuffer) {
-    console.log('[getInitialAnalysis] Processing file, mime:', fileMime);
-    contentParts.push({
-      type: 'file',
-      data: fileBuffer,
-      mimeType: fileMime || 'application/pdf',
-    });
-  }
+  const contentParts = [{ type: 'text', text: userMessage.content }];
+  if (fileBuffer) contentParts.push({ type: 'file', data: fileBuffer, mimeType: fileMime || 'application/pdf' });
 
   try {
     const { text } = await generateText({
-      model: google('gemini-2.0-flash', {
-        useSearchGrounding: true,
-        structuredOutputs: false,
-      }),
-      system: initialAnalysisPrompt,
+      model: google('gemini-2.0-flash', { useSearchGrounding: true }),
+      system: initialPrompt,
       messages: [{ role: 'user', content: contentParts }],
     });
-    console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
-
-    const compiledMdx = await compile(text, {
-      outputFormat: 'function-body',
-      remarkPlugins: [remarkGfm],
-      rehypePlugins: [rehypeHighlight, rehypeRaw],
-    });
-    return compiledMdx.toString();
+    return text;
   } catch (error) {
-    console.error('[getInitialAnalysis] Error:', error);
-    return ''; // Return empty string on error to prevent breaking the chain
+    console.error('Gemini Flash 2.0 Error:', error);
+    return userMessage.content; // Fallback
   }
 }
 
+// Enhance context using assistants.ts
 async function enhanceContext(initialAnalysis: string): Promise<string> {
-  console.log('[enhanceContext] Starting');
   try {
     const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
-    console.log('[enhanceContext] Enhanced context received');
-
-    const compiledMdx = await compile(enhancedContext, {
-      outputFormat: 'function-body',
-      remarkPlugins: [remarkGfm],
-      rehypePlugins: [rehypeHighlight, rehypeRaw],
-    });
-    return compiledMdx.toString();
-  } catch (err) {
-    console.error('[enhanceContext] Error:', err);
-    return initialAnalysis; // Fallback to initial analysis on error
+    return enhancedContext || initialAnalysis; // Fallback to initial if empty
+  } catch (error) {
+    console.error('Assistants Enhancer Error:', error);
+    return initialAnalysis; // Fallback
   }
 }
 
-/**
- * Helper function to generate or update spreadsheet data based on user input.
- */
-async function processSpreadsheetUpdate(
-  messages: Message[],
-  currentData?: any
-): Promise<any> {
+// Process spreadsheet updates
+async function processSpreadsheetUpdate(messages: Message[], currentData?: any): Promise<any> {
   const userMessage = getMostRecentUserMessage(messages);
-  if (!userMessage) return currentData;
+  if (!userMessage) return currentData || [['Date', 'Deal Type', 'Amount']];
 
-  const content = userMessage.content.toLowerCase();
   const spreadsheetPrompt = `
-You are an energy deal spreadsheet manager. Based on the user's message and any existing data, generate or update a spreadsheet with columns: Date, Deal Type, Amount.
-
-- If the message requests adding a deal (e.g., "Add a solar deal for $1M on 2025-03-01"), append a new row.
-- If no existing data is provided, start with headers: ["Date", "Deal Type", "Amount"].
-- Parse the message for date (YYYY-MM-DD), deal type (e.g., "Solar M&A", "Oil Trends", "Geothermal Deals"), and amount (in dollars, e.g., $1M or 1000000).
-- Return the updated 2D array directly (no additional text).
-
-Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']])}.
-`;
+    Generate or update a spreadsheet with columns: Date, Deal Type, Amount.
+    Parse user message for date (YYYY-MM-DD), deal type (e.g., "Solar M&A"), and amount (e.g., $1M).
+    Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']])}.
+    Return a 2D array.
+  `;
 
   try {
     const { text } = await generateText({
@@ -243,280 +117,123 @@ Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']]
       system: spreadsheetPrompt,
       messages: [{ role: 'user', content: userMessage.content }],
     });
-    return JSON.parse(text); // Expecting a 2D array like [["Date", "Deal Type", "Amount"], ["2025-03-01", "Solar M&A", 1000000]]
+    return JSON.parse(text);
   } catch (error) {
-    console.error('[processSpreadsheetUpdate] Error:', error);
-    return currentData || [['Date', 'Deal Type', 'Amount']]; // Fallback to existing or default
+    console.error('Spreadsheet Update Error:', error);
+    return currentData || [['Date', 'Deal Type', 'Amount']];
   }
+}
+
+// Select final model
+function getFinalModel(selectedModel: string) {
+  if (selectedModel.startsWith('openai')) {
+    return openai(selectedModel.replace('openai("', '').replace('")', ''));
+  } else if (selectedModel.startsWith('google')) {
+    return google(selectedModel.replace('google("', '').replace('")', ''));
+  }
+  return google('gemini-2.0-flash'); // Default
 }
 
 export async function POST(request: Request) {
-  console.log('[POST] Initial load or chat request received');
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      console.log('[POST] Unauthorized => 401');
-      return new Response('Unauthorized', { status: 401 });
-    }
+  const session = await auth();
+  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 });
 
-    if (!rateLimiter(session.user.id)) {
-      console.log('[POST] Rate limit exceeded');
-      return new Response('Too Many Requests', { status: 429 });
-    }
+  if (!rateLimiter(session.user.id)) return new Response('Too Many Requests', { status: 429 });
 
-    const contentType = request.headers.get('content-type');
-    let body: any;
+  const formData = await request.formData();
+  const body = {
+    messages: JSON.parse(formData.get('messages')?.toString() || '[]'),
+    selectedChatModel: formData.get('selectedChatModel')?.toString() || 'google("gemini-2.0-flash")',
+    id: formData.get('id')?.toString() || generateUUID(),
+    file: formData.get('file') as File | null,
+    currentData: formData.get('currentData') ? JSON.parse(formData.get('currentData') as string) : undefined,
+  };
 
-    if (contentType?.includes('application/json')) {
-      body = await request.json().catch(() => ({ messages: [] }));
-    } else {
-      const formData = await request.formData();
-      body = {
-        messages: JSON.parse(formData.get('messages')?.toString() || '[]'),
-        selectedChatModel: formData.get('selectedChatModel')?.toString() || 'google("gemini-2.0-flash")',
-        id: formData.get('id')?.toString() || generateUUID(),
-        file: formData.get('file') as File | null,
-        currentData: formData.get('currentData') ? JSON.parse(formData.get('currentData') as string) : undefined,
-      };
-    }
-
-    console.log('[POST] Request body:', body);
-
-    // Ensure messages is an array, even if empty
-    const messages: Message[] = Array.isArray(body.messages) ? body.messages : [];
-    const id = body.id || generateUUID();
-    const selectedChatModel = body.selectedChatModel || 'google("gemini-2.0-flash")';
-    const file = body.file instanceof File ? body.file : null;
-    let currentData = body.currentData;
-
-    // Handle empty messages with a welcome response
-    if (messages.length === 0) {
-      console.log('[POST] Empty messages, returning welcome message');
-      return new Response(JSON.stringify({
-        messages: [{
-          id: generateUUID(),
-          role: 'assistant',
-          content: 'Welcome! How can I assist you today?',
-        }],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    // Check if the message is a spreadsheet update request
-    const userMessage = getMostRecentUserMessage(messages);
-    if (!userMessage) {
-      console.log('[POST] No user message found => 400');
-      return new Response('No user message found', { status: 400 });
-    }
-
-    const content = userMessage.content.toLowerCase();
-    const isSpreadsheetUpdate = content.includes('add') && (content.includes('deal') || content.includes('spreadsheet'));
-
-    if (isSpreadsheetUpdate) {
-      console.log('[POST] Detected spreadsheet update request');
-      const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
-      return new Response(JSON.stringify({ updatedData: updatedSpreadsheet }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const chat = await getChatById({ id });
-    if (!chat) {
-      console.log('[POST] no chat => creating new');
-      const title = await generateTitleFromUserMessage({ message: userMessage });
-      await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
-    }
-
-    await saveMessages({
-      messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }],
-    });
-
-    let fileBuffer: ArrayBuffer | undefined;
-    let fileMime: string | undefined;
-    if (file) {
-      console.log('[POST] file found => read as arrayBuffer');
-      fileBuffer = await file.arrayBuffer();
-      fileMime = file.type;
-    }
-
-    console.log('[POST] => createDataStreamResponse => multi-pass');
-    return createDataStreamResponse({
-      status: 200,
-      statusText: 'OK',
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-      },
-      execute: async (dataStream) => {
-        try {
-          const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime).catch(() => '');
-          const enhancedContext = await enhanceContext(initialAnalysis).catch(() => initialAnalysis);
-
-          let finalModel;
-          if (selectedChatModel.startsWith('openai')) {
-            finalModel = openai(selectedChatModel.replace('openai("', '').replace('")', ''));
-          } else if (selectedChatModel.startsWith('google')) {
-            finalModel = google(selectedChatModel.replace('google("', '').replace('")', ''));
-          } else {
-            finalModel = google('gemini-2.0-flash'); // Default fallback
-          }
-
-          const result = await streamText({
-            model: finalModel,
-            system: `${systemPrompt({ selectedChatModel })}\n\nEnhanced Context:\n${enhancedContext}`,
-            messages,
-            maxSteps: 5,
-            experimental_transform: smoothStream({ chunking: 'line' }),
-            experimental_generateMessageId: generateUUID,
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({ session, dataStream }),
-            },
-            onChunk: async (event) => {
-              const { chunk } = event;
-              if (chunk.type === 'text-delta' && chunk.textDelta.trim()) {
-                dataStream.writeData(chunk.textDelta);
-              }
-              if (chunk.type === 'reasoning') {
-                dataStream.writeMessageAnnotation({
-                  type: 'thinking',
-                  content: chunk.textDelta,
-                });
-              }
-            },
-            onFinish: async ({ response, reasoning }) => {
-              if (session.user?.id) {
-                try {
-                  let content = response.messages[response.messages.length - 1]?.content || '';
-                  if (typeof content !== 'string') {
-                    content = convertContentToString(content);
-                  }
-
-                  const md = new markdownIt();
-                  const tokens = md.parse(content, {});
-                  const companyNames: string[] = [];
-                  const sources: { id: string; url: string }[] = [];
-
-                  tokens.forEach(token => {
-                    if (token.type === 'inline' && token.content) {
-                      const doc = compromise(token.content);
-                      const companies = doc.match('#Organization+').out('array') as string[];
-                      companyNames.push(...companies.filter(name => name.trim()));
-
-                      const citationRegex = /\[\d+(,\s*\d+)*\]/g;
-                      let match;
-                      while ((match = citationRegex.exec(token.content)) !== null) {
-                        const citationIds = match[0]
-                          .replace(/[\[\]]/g, '')
-                          .split(',')
-                          .map((id) => id.trim())
-                          .map(Number);
-                        citationIds.forEach((id) => {
-                          sources.push({ id: `source-${id}`, url: `https://example.com/source-${id}` });
-                        });
-                      }
-                    }
-                  });
-
-                  const uniqueCompanies = [...new Set(companyNames)];
-                  const logoMap = await inferDomains(uniqueCompanies);
-
-                  for (const [company, logoUrl] of Object.entries(logoMap)) {
-                    if (logoUrl !== 'unknown') {
-                      content = content.replace(new RegExp(`\\b${company}\\b`, 'g'), `[${company}](logo:${logoUrl})`);
-                    }
-                  }
-
-                  const compiledMdx = await compile(content, {
-                    outputFormat: 'function-body',
-                    remarkPlugins: [remarkGfm],
-                    rehypePlugins: [rehypeHighlight, rehypeRaw],
-                  });
-
-                  const sanitizedMessages = sanitizeResponseMessages({
-                    messages: response.messages
-                      .filter(m => m.role === 'assistant')
-                      .map((m, index) => ({
-                        ...m,
-                        id: m.id || generateUUID(),
-                        role: 'assistant',
-                        content: compiledMdx.toString(),
-                      }) as CoreAssistantMessage & { id: string }),
-                    reasoning: reasoning || 'Generated reasoning for assistant response',
-                  });
-
-                  await saveMessages({
-                    messages: sanitizedMessages.map((message) => ({
-                      id: message.id,
-                      chatId: id,
-                      role: message.role,
-                      content: message.content,
-                      createdAt: new Date(),
-                      metadata: JSON.stringify({
-                        sources: [...new Set(sources)],
-                        reasoning: reasoning || 'No reasoning provided',
-                      }),
-                    })),
-                  });
-                } catch (error) {
-                  console.error('Failed to save chat', error);
-                }
-              }
-            },
-          });
-
-          await result.mergeIntoDataStream(dataStream, {
-            sendReasoning: true,
-            sendSources: true,
-          });
-        } catch (err) {
-          console.error('[EXECUTE] Error during processing:', err);
-          throw err; // Throw the error instead of using writeError
-        }
-      },
-      onError: (error) => {
-        console.error('[createDataStreamResponse] Final error handler:', error);
-        return 'Internal Server Error'; // Return string instead of Response
-      },
-    });
-  } catch (error) {
-    console.error('[POST] Error in POST handler:', error);
-    return new Response('Internal Server Error', { status: 500 });
+  const { messages, selectedChatModel, id, file, currentData } = body;
+  if (!messages.length) {
+    return new Response(JSON.stringify({
+      messages: [{ id: generateUUID(), role: 'assistant', content: 'Welcome! How can I assist you today?' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
+
+  const userMessage = getMostRecentUserMessage(messages);
+  if (!userMessage) return new Response('No user message found', { status: 400 });
+
+  const isSpreadsheetUpdate = userMessage.content.toLowerCase().includes('add') && 
+    (userMessage.content.toLowerCase().includes('deal') || userMessage.content.toLowerCase().includes('spreadsheet'));
+  if (isSpreadsheetUpdate) {
+    const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
+    return new Response(JSON.stringify({ updatedData: updatedSpreadsheet }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const chat = await getChatById({ id });
+  if (!chat) {
+    const title = await generateTitleFromUserMessage({ message: userMessage });
+    await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
+  }
+  await saveMessages({
+    messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }],
+  });
+
+  const fileBuffer = file ? await file.arrayBuffer() : undefined;
+  const fileMime = file?.type;
+
+  const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
+  const enhancedContext = await enhanceContext(initialAnalysis);
+  const finalPrompt = `Context:\n${enhancedContext}\n\nQuery: ${initialAnalysis}`;
+
+  const finalModel = getFinalModel(selectedChatModel);
+  const result = await streamText({
+    model: finalModel,
+    system: systemPrompt({ selectedChatModel }),
+    messages: [{ role: 'user', content: finalPrompt }],
+    tools: {
+      getWeather,
+      createDocument: createDocument({ session }),
+      updateDocument: updateDocument({ session }),
+      requestSuggestions: requestSuggestions({ session }),
+    },
+    onFinish: async ({ response }) => {
+      const assistantMessage = response.messages.find(m => m.role === 'assistant');
+      if (assistantMessage) {
+        const content = convertContentToString(assistantMessage.content);
+        const compiledMdx = await compile(content, {
+          outputFormat: 'function-body',
+          remarkPlugins: [remarkGfm],
+          rehypePlugins: [rehypeHighlight, rehypeRaw],
+        });
+        await saveMessages({
+          messages: [{
+            id: generateUUID(),
+            chatId: id,
+            role: 'assistant',
+            content: compiledMdx.toString(),
+            createdAt: new Date(),
+            metadata: null,
+          }],
+        });
+      }
+    },
+  });
+
+  return result.toDataStreamResponse();
 }
 
 export async function DELETE(request: Request) {
-  console.log('[DELETE] => /api/chat');
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
-  if (!id) {
-    console.log('[DELETE] no id => 404');
-    return new Response('Not Found', { status: 404 });
-  }
+  if (!id) return new Response('Not Found', { status: 404 });
 
   const session = await auth();
-  if (!session?.user) {
-    console.log('[DELETE] unauthorized => 401');
-    return new Response('Unauthorized', { status: 401 });
-  }
+  if (!session?.user) return new Response('Unauthorized', { status: 401 });
 
-  try {
-    console.log('[DELETE] Checking chat =>', id);
-    const chat = await getChatById({ id });
-    if (!chat || chat.userId !== session.user.id) {
-      console.log('[DELETE] not found/owned => 401');
-      return new Response('Unauthorized', { status: 401 });
-    }
+  const chat = await getChatById({ id });
+  if (!chat || chat.userId !== session.user.id) return new Response('Unauthorized', { status: 401 });
 
-    console.log('[DELETE] Deleting =>', id);
-    await deleteChatById({ id });
-    return new Response('Chat deleted', { status: 200 });
-  } catch (error) {
-    console.error('[DELETE] Error =>', error);
-    return new Response('An error occurred while processing your request', {
-      status: 500,
-    });
-  }
+  await deleteChatById({ id });
+  return new Response('Chat deleted', { status: 200 });
 }
