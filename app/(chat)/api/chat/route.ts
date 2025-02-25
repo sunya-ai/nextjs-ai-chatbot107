@@ -371,9 +371,11 @@ export async function POST(request: Request) {
         return 'Internal Server Error';
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[POST] Error in POST handler:', error);
-    const message = error.message.includes('file') ? 'File processing failed' : 'Internal Server Error';
+    const message = error instanceof Error && error.message.includes('file')
+      ? 'File processing failed'
+      : 'Internal Server Error';
     return new Response(message, { status: 500 });
   }
 }
