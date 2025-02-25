@@ -1,10 +1,12 @@
+// components/messages.tsx
 import { ChatRequestOptions, Message } from 'ai';
 import { PreviewMessage, ThinkingMessage } from './message';
 import { useScrollToBottom } from './use-scroll-to-bottom';
 import { Overview } from './overview';
-import { memo, useState, useEffect } from 'react';
+import { memo } from 'react';
 import { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
+import { cn } from '@/lib/utils'; // Import cn from utils.ts
 
 interface MessagesProps {
   chatId: string;
@@ -12,13 +14,14 @@ interface MessagesProps {
   votes: Array<Vote> | undefined;
   messages: Array<Message>;
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
+    messages: Message[] | ((messages: Message[]) => Message[])
   ) => void;
   reload: (
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
   isArtifactVisible: boolean;
+  className?: string; // Added className prop
 }
 
 function PureMessages({
@@ -30,28 +33,18 @@ function PureMessages({
   reload,
   isReadonly,
   isArtifactVisible,
+  className, // Destructure className
 }: MessagesProps) {
-  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
-  const [artifactData, setArtifactData] = useState<any>(null);
-
-  useEffect(() => {
-    const latestMessage = messages[messages.length - 1];
-    if (latestMessage?.role === 'assistant' && isArtifactVisible) {
-      try {
-        const parsed = JSON.parse(latestMessage.content);
-        if (Array.isArray(parsed)) {
-          setArtifactData(parsed); // Pass to Artifact via global state or prop
-        }
-      } catch (e) {
-        setArtifactData(null);
-      }
-    }
-  }, [messages, isArtifactVisible]);
+  const [messagesContainerRef, messagesEndRef] =
+    useScrollToBottom<HTMLDivElement>();
 
   return (
     <div
       ref={messagesContainerRef}
-      className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4"
+      className={cn(
+        "flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4",
+        className // Merge with passed className
+      )}
     >
       {messages.length === 0 && <Overview />}
 
