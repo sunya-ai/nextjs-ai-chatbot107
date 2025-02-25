@@ -1,7 +1,7 @@
 // components/artifact-actions.tsx
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { artifactDefinitions, UIArtifact, ArtifactDefinition } from './artifact'; // Import ArtifactDefinition
+import { artifactDefinitions, UIArtifact, ArtifactDefinition } from './artifact';
 import { Dispatch, memo, SetStateAction, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -29,8 +29,8 @@ function PureArtifactActions<K extends string, M>({
   const [isLoading, setIsLoading] = useState(false);
 
   const artifactDefinition = artifactDefinitions.find(
-    (definition: ArtifactDefinition) => definition.kind === artifact.kind, // Type definition
-  ); // No need for assertion since actions is now in ArtifactDefinition
+    (definition: ArtifactDefinition) => definition.kind === artifact.kind,
+  );
 
   if (!artifactDefinition) {
     throw new Error('Artifact definition not found!');
@@ -48,7 +48,7 @@ function PureArtifactActions<K extends string, M>({
 
   return (
     <div className="flex flex-row gap-1">
-      {artifactDefinition.actions.map((action) => (
+      {artifactDefinition.actions.map((action: ArtifactDefinition['actions'][number]) => ( // Type action
         <Tooltip key={action.description}>
           <TooltipTrigger asChild>
             <Button
