@@ -105,7 +105,7 @@ export function WorkflowStatus({
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={cn('flex items-center justify-between py-0.5')} // Now TypeScript-safe with extended props
+              className={cn('flex items-center justify-between py-0.5')}
             >
               <div className="flex items-center gap-2">
                 <div
