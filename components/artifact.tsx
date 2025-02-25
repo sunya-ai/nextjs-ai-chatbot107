@@ -58,7 +58,7 @@ export interface ArtifactDefinition {
     setArtifact: (artifact: UIArtifact | ((prev: UIArtifact) => UIArtifact)) => void;
     setMetadata: any;
   }) => void;
-  toolbar?: Array<ArtifactToolbarItem>;
+  toolbar: Array<ArtifactToolbarItem>;
   actions: Array<{
     description: string;
     icon: ReactNode;
@@ -94,16 +94,16 @@ export const artifactDefinitions = [
     content: ({ content }: { content: string }) => <TableArtifact content={content} />,
     initialize: () => {},
     onStreamPart: undefined,
+    toolbar: [],
     actions: [],
-    toolbar: [], // Explicitly add empty toolbar
   },
   {
     kind: 'chart',
     content: ({ content }: { content: string }) => <ChartArtifact content={content} />,
     initialize: () => {},
     onStreamPart: undefined,
+    toolbar: [],
     actions: [],
-    toolbar: [], // Explicitly add empty toolbar
   },
 ] as const satisfies ArtifactDefinition[];
 
@@ -406,13 +406,27 @@ function PureArtifact({
     (def) => def.kind === artifact.kind,
   );
 
+  // Moved useEffect outside of conditional
+  useEffect(() => {
+    if (artifactDefinition && artifact.documentId !== 'init' && typeof artifactDefinition.initialize === 'function') {
+      try {
+        artifactDefinition.initialize({
+          documentId: artifact.documentId,
+          setMetadata,
+        });
+      } catch (error) {
+        console.error(`Error initializing ${artifact.kind} artifact:`, error);
+      }
+    }
+  }, [artifact.documentId, artifactDefinition, setMetadata]);
+
   if (!artifactDefinition) {
     console.error(`Artifact definition not found for kind: ${artifact.kind}`);
     return (
       <AnimatePresence>
         {artifact.isVisible && (
           <motion.div className="fixed top-4 right-4 bg-red-100 text-red-800 p-4 rounded-lg shadow-lg">
-            Error: Unknown artifact type '{artifact.kind}'. Please refresh the page.
+            Error: Unknown artifact type &#39;{artifact.kind}&#39;. Please refresh the page.
             <button 
               className="ml-2 bg-red-200 p-1 rounded"
               onClick={() => setArtifact(prev => ({...prev, isVisible: false}))}
@@ -424,19 +438,6 @@ function PureArtifact({
       </AnimatePresence>
     );
   }
-
-  useEffect(() => {
-    if (artifact.documentId !== 'init' && typeof artifactDefinition.initialize === 'function') {
-      try {
-        artifactDefinition.initialize({
-          documentId: artifact.documentId,
-          setMetadata,
-        });
-      } catch (error) {
-        console.error(`Error initializing ${artifact.kind} artifact:`, error);
-      }
-    }
-  }, [artifact.documentId, artifactDefinition, setMetadata]);
 
   return (
     <AnimatePresence>
