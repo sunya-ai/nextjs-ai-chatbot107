@@ -130,14 +130,9 @@ export function WorkflowStatus({
                     {file.path}
                   </span>
                 </div>
-                <motion.span
-                  key={file.status}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-zinc-400"
-                >
+                <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-zinc-400">
                   {file.status}
-                </motion.span>
+                </span>
               </div>
             </motion.div>
           ))}
