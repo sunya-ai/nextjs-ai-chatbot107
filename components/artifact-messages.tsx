@@ -12,10 +12,10 @@ interface ArtifactMessagesProps {
   votes: Array<Vote> | undefined;
   messages: Array<Message>;
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
+    messages: Message[] | ((messages: Message[]) => Message[])
   ) => void;
   reload: (
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
   artifactStatus: UIArtifact['status'];
@@ -30,20 +30,23 @@ function PureArtifactMessages({
   reload,
   isReadonly,
 }: ArtifactMessagesProps) {
-  const [messagesContainerRef, messagesEndRef] =
-    useScrollToBottom<HTMLDivElement>();
+  // Remove the explicit type parameter <HTMLDivElement> from useScrollToBottom
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
+
+  // Ensure messages is always an array with a safe fallback
+  const safeMessages = Array.isArray(messages) ? messages : [];
 
   return (
     <div
       ref={messagesContainerRef}
       className="flex flex-col gap-4 h-full items-center overflow-y-scroll px-4 pt-20"
     >
-      {messages.map((message, index) => (
+      {safeMessages.map((message, index) => (
         <PreviewMessage
           chatId={chatId}
           key={message.id}
           message={message}
-          isLoading={isLoading && index === messages.length - 1}
+          isLoading={isLoading && safeMessages.length - 1 === index}
           vote={
             votes
               ? votes.find((vote) => vote.messageId === message.id)
@@ -67,16 +70,27 @@ function areEqual(
   prevProps: ArtifactMessagesProps,
   nextProps: ArtifactMessagesProps,
 ) {
+  // Check if both props have artifactStatus as 'streaming'
   if (
     prevProps.artifactStatus === 'streaming' &&
     nextProps.artifactStatus === 'streaming'
   )
     return true;
 
+  // Safer length comparison with optional chaining
+  if (prevProps.messages?.length !== nextProps.messages?.length) return false;
+
+  try {
+    // Use deep equality check for votes, wrapped in try/catch for safety
+    if (!equal(prevProps.votes, nextProps.votes)) return false;
+  } catch (error) {
+    console.error('Error comparing votes:', error);
+    return false;
+  }
+
+  // Additional checks for loading state
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.isLoading && nextProps.isLoading) return false;
-  if (prevProps.messages.length !== nextProps.messages.length) return false;
-  if (!equal(prevProps.votes, nextProps.votes)) return false;
 
   return true;
 }
