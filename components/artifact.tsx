@@ -57,6 +57,29 @@ interface ArtifactDefinition {
     setMetadata: any;
   }) => void;
   toolbar?: Array<ArtifactToolbarItem>; // Optional toolbar property
+  actions: Array<{
+    description: string;
+    icon: ReactNode;
+    onClick: (context: {
+      content: string;
+      handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
+      currentVersionIndex: number;
+      isCurrentVersion: boolean;
+      mode: 'edit' | 'diff';
+      metadata: any;
+      setMetadata: Dispatch<SetStateAction<any>>;
+    }) => void | Promise<void>;
+    label?: string;
+    isDisabled?: (context: {
+      content: string;
+      handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
+      currentVersionIndex: number;
+      isCurrentVersion: boolean;
+      mode: 'edit' | 'diff';
+      metadata: any;
+      setMetadata: Dispatch<SetStateAction<any>>;
+    }) => boolean;
+  }>; // Add actions to match imported artifacts
 }
 
 export const artifactDefinitions = [
@@ -69,14 +92,16 @@ export const artifactDefinitions = [
     content: ({ content }: { content: string }) => <TableArtifact content={content} />,
     initialize: () => {},
     onStreamPart: undefined,
+    actions: [], // No actions for table
   },
   {
     kind: 'chart',
     content: ({ content }: { content: string }) => <ChartArtifact content={content} />,
     initialize: () => {},
     onStreamPart: undefined,
+    actions: [], // No actions for chart
   },
-] as const satisfies ArtifactDefinition[]; // Enforce ArtifactDefinition type
+] as const satisfies ArtifactDefinition[];
 
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
