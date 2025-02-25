@@ -1,3 +1,4 @@
+// components/document-preview.tsx
 'use client';
 
 import {
@@ -21,6 +22,8 @@ import { useArtifact } from '@/hooks/use-artifact';
 import equal from 'fast-deep-equal';
 import { SpreadsheetEditor } from './sheet-editor';
 import { ImageEditor } from './image-editor';
+import { TableArtifact } from './TableArtifact'; // Add for table rendering
+import { ChartArtifact } from './ChartArtifact'; // Add for chart rendering
 
 interface DocumentPreviewProps {
   isReadonly: boolean;
@@ -81,10 +84,11 @@ export function DocumentPreview({
   }
 
   if (isDocumentsFetching) {
-    return <LoadingSkeleton artifactKind={result.kind ?? args.kind} />;
+    return <LoadingSkeleton artifactKind={result?.kind ?? args?.kind} />;
   }
 
-  const document: Document | null = previewDocument
+  // Widen type to include ArtifactKind and allow null
+  const document: { id: string; createdAt: Date; title: string; content: string | null; kind: ArtifactKind; userId: string } | null = previewDocument
     ? previewDocument
     : artifact.status === 'streaming'
       ? {
@@ -116,7 +120,7 @@ export function DocumentPreview({
   );
 }
 
-const LoadingSkeleton = ({ artifactKind }: { artifactKind: ArtifactKind }) => (
+const LoadingSkeleton = ({ artifactKind }: { artifactKind?: ArtifactKind }) => (
   <div className="w-full">
     <div className="p-4 border rounded-t-2xl flex flex-row gap-2 items-center justify-between dark:bg-muted h-[57px] dark:border-zinc-700 border-b-0">
       <div className="flex flex-row items-center gap-3">
@@ -146,7 +150,7 @@ const PureHitboxLayer = ({
   result,
   setArtifact,
 }: {
-  hitboxRef: React.RefObject<HTMLDivElement | null>; // Updated to allow null
+  hitboxRef: React.RefObject<HTMLDivElement | null>;
   result: any;
   setArtifact: (
     updaterFn: UIArtifact | ((currentArtifact: UIArtifact) => UIArtifact),
@@ -230,11 +234,10 @@ const PureDocumentHeader = ({
 const DocumentHeader = memo(PureDocumentHeader, (prevProps, nextProps) => {
   if (prevProps.title !== nextProps.title) return false;
   if (prevProps.isStreaming !== nextProps.isStreaming) return false;
-
   return true;
 });
 
-const DocumentContent = ({ document }: { document: Document }) => {
+const DocumentContent = ({ document }: { document: { id: string; createdAt: Date; title: string; content: string | null; kind: ArtifactKind; userId: string } }) => {
   const { artifact } = useArtifact();
 
   const containerClassName = cn(
@@ -252,16 +255,17 @@ const DocumentContent = ({ document }: { document: Document }) => {
     status: artifact.status,
     saveContent: () => {},
     suggestions: [],
+    onSaveContent: () => {}, // Added for Editor/CodeEditor compatibility
   };
 
   return (
     <div className={containerClassName}>
       {document.kind === 'text' ? (
-        <Editor {...commonProps} onSaveContent={() => {}} />
+        <Editor {...commonProps} />
       ) : document.kind === 'code' ? (
         <div className="flex flex-1 relative w-full">
           <div className="absolute inset-0">
-            <CodeEditor {...commonProps} onSaveContent={() => {}} />
+            <CodeEditor {...commonProps} />
           </div>
         </div>
       ) : document.kind === 'sheet' ? (
@@ -279,6 +283,10 @@ const DocumentContent = ({ document }: { document: Document }) => {
           status={artifact.status}
           isInline={true}
         />
+      ) : document.kind === 'table' ? (
+        <TableArtifact content={document.content ?? ''} />
+      ) : document.kind === 'chart' ? (
+        <ChartArtifact content={document.content ?? ''} />
       ) : null}
     </div>
   );
