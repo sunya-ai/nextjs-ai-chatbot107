@@ -392,7 +392,8 @@ const PureToolbar = ({
     throw new Error('Artifact definition not found!');
   }
 
-  const toolsByArtifactKind = artifactDefinition.toolbar || []; // Default to empty array if undefined
+  // Use optional chaining or provide a default to handle optional toolbar
+  const toolsByArtifactKind = artifactDefinition.toolbar ?? [];
 
   if (toolsByArtifactKind.length === 0) {
     return null;
