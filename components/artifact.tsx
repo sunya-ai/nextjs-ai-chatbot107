@@ -67,13 +67,13 @@ export const artifactDefinitions = [
     kind: 'table',
     content: ({ content }: { content: string }) => <TableArtifact content={content} />,
     initialize: () => {},
-    onStreamPart: undefined, // Optional for data-stream-handler.tsx
+    onStreamPart: undefined,
   },
   {
     kind: 'chart',
     content: ({ content }: { content: string }) => <ChartArtifact content={content} />,
     initialize: () => {},
-    onStreamPart: undefined, // Optional for data-stream-handler.tsx
+    onStreamPart: undefined,
   },
 ] as const;
 
@@ -125,7 +125,6 @@ async function saveNewArtifact(artifact: UIArtifact) {
   }
 }
 
-// Fixed SafeArtifactContent with proper types
 function SafeArtifactContent({
   artifactDefinition,
   ...props
@@ -258,7 +257,7 @@ function PureArtifact({
   }, [messages, artifact, setArtifact]);
 
   useEffect(() => {
-    if (documents?.length > 0) {
+    if (Array.isArray(documents) && documents.length > 0) { // Stricter type guard
       const mostRecentDocument = documents.at(-1);
       if (mostRecentDocument) {
         setDocument(mostRecentDocument);
