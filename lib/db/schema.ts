@@ -43,15 +43,15 @@ export const message = pgTable('Message', {
   role: varchar('role').notNull(),
   content: json('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
-  metadata: json('metadata'), // Optional JSON field for sources and reasoning
-  migrationRetry: text('migration_retry').default('Force migration now 2025-02-25'), // Updated dummy value
-  retryTimestamp: timestamp('retry_timestamp').defaultNow(), // Keep existing
-  retryCounter: integer('retry_counter').default(999), // Keep existing
-  retryFlag: boolean('retry_flag').default(true), // Keep existing
-  retryDate: date('retry_date').default('2025-02-25'), // Keep existing
-  retryMarker: text('retry_marker').default('Final migration push'), // Keep existing
-  retryNumber: integer('retry_number').default(12345), // Keep existing
-  retryBoolean: boolean('retry_boolean').default(false), // New dummy boolean field
+  metadata: json('metadata'), // JSON field for file URLs or metadata, already present but confirmed
+  migrationRetry: text('migration_retry').default('Force migration now 2025-02-25'), // Keep dummy for migration
+  retryTimestamp: timestamp('retry_timestamp').defaultNow(), // Keep dummy for migration
+  retryCounter: integer('retry_counter').default(999), // Keep dummy for migration
+  retryFlag: boolean('retry_flag').default(true), // Keep dummy for migration
+  retryDate: date('retry_date').default('2025-02-25'), // Keep dummy for migration
+  retryMarker: text('retry_marker').default('Final migration push'), // Keep dummy for migration
+  retryNumber: integer('retry_number').default(12345), // Keep dummy for migration
+  retryBoolean: boolean('retry_boolean').default(false), // Keep dummy for migration
 });
 
 export type Message = InferSelectModel<typeof message>;
@@ -82,7 +82,7 @@ export const document = pgTable(
     id: uuid('id').notNull().defaultRandom(),
     createdAt: timestamp('createdAt').notNull(),
     title: text('title').notNull(),
-    content: text('content'),
+    content: text('content'), // Keep as text for file content or references
     kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] })
       .notNull()
       .default('text'),
