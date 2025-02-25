@@ -53,7 +53,7 @@ type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
 export default function Home() {
-  // Session management with required flag and detailed debugging
+  // Call all Hooks at the top level, unconditionally
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -61,18 +61,6 @@ export default function Home() {
     },
   });
 
-  console.log("Session status:", status, "Session data:", session);
-
-  // Delay rendering until session is fully loaded and user is defined
-  if (status === "loading" || !session || !session.user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
-      </div>
-    );
-  }
-
-  // Theme and UI state
   const { theme } = useTheme();
   const [isClient, setIsClient] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -81,7 +69,6 @@ export default function Home() {
   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Chat state, only initialize if session is valid
   const [stableChatId] = useState(() => generateUUID());
   const initialWelcomeMessage: Message = {
     id: crypto.randomUUID(),
@@ -89,16 +76,14 @@ export default function Home() {
     content: "Welcome! Upload a spreadsheet or ask me to update one with energy deal data (e.g., \"Add a new solar deal for $1M on 2025-03-01\").",
   };
 
-  // Handle hydration
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Ensure useChat only runs when session and client are ready
   const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading, append } = useChat({
     api: "/api/chat",
     id: stableChatId,
-    initialMessages: isClient && session ? [initialWelcomeMessage] : [], // Only initialize if client and session are ready
+    initialMessages: isClient && session ? [initialWelcomeMessage] : [],
     onError: (error) => {
       console.error("useChat error:", error, error.stack, "Session:", session);
     },
@@ -106,6 +91,17 @@ export default function Home() {
       console.log("useChat response:", response, "Session:", session);
     },
   });
+
+  console.log("Session status:", status, "Session data:", session);
+
+  // Loading states (combine session, hydration, and session.user)
+  if (status === "loading" || !session || !session.user || !isClient) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="size-8 animate-spin border-b-2 border-gray-900 dark:border-white" /> {/* Updated to use size shorthand */}
+      </div>
+    );
+  }
 
   // File handling functions with improved error handling and type safety
   const handleFileDrop = async (file: File) => {
