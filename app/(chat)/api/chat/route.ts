@@ -225,14 +225,13 @@ export async function POST(request: Request) {
       return new Response('Too Many Requests', { status: 429 });
     }
 
-    // Parse JSON body instead of formData
     const body = await request.json();
     console.log('[POST] Request body:', body);
 
     const messages: Message[] = Array.isArray(body.messages) ? body.messages : [];
     const id = body.id || generateUUID();
     const selectedChatModel = body.selectedChatModel || 'google("gemini-2.0-flash")';
-    const file = body.file || null; // Handle file if sent as JSON (might need adjustment)
+    const file = body.file || null;
     let currentData = body.currentData;
 
     if (messages.length === 0) {
@@ -272,16 +271,21 @@ export async function POST(request: Request) {
     }
 
     await saveMessages({
-      messages: [{ ...userMessage, createdAt: new Date(), chatId: id, metadata: null }],
+      messages: [{
+        ...userMessage,
+        createdAt: new Date(),
+        chatId: id,
+        metadata: null,
+        migrationRetry: '', // Default for dummy field
+        retryTimestamp: new Date(), // Default for dummy field
+      }],
     });
 
     let fileBuffer: ArrayBuffer | undefined;
     let fileMime: string | undefined;
     if (file) {
-      // Handle file if sent as JSON (e.g., base64 or Buffer). Adjust based on how the client sends it
       if (typeof file === 'string') {
-        // Assuming file is sent as base64 string
-        const binaryString = atob(file.split(',')[1]); // Handle base64 format
+        const binaryString = atob(file.split(',')[1]);
         fileBuffer = new ArrayBuffer(binaryString.length);
         const uint8Array = new Uint8Array(fileBuffer);
         for (let i = 0; i < binaryString.length; i++) {
@@ -290,7 +294,7 @@ export async function POST(request: Request) {
         fileMime = file.split(';')[0].split(':')[1] || 'application/octet-stream';
       } else if (file instanceof ArrayBuffer) {
         fileBuffer = file;
-        fileMime = 'application/octet-stream'; // Default; adjust if known
+        fileMime = 'application/octet-stream';
       }
     }
 
@@ -355,6 +359,8 @@ export async function POST(request: Request) {
                     content,
                     createdAt: new Date(),
                     metadata: metadata ? JSON.stringify(metadata) : null,
+                    migrationRetry: '', // Default for dummy field
+                    retryTimestamp: new Date(), // Default for dummy field
                   }],
                 });
               }
