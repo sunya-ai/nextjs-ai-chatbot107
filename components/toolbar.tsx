@@ -39,8 +39,14 @@ import {
   SummarizeIcon,
 } from './icons';
 import { artifactDefinitions, ArtifactKind } from './artifact';
-import { ArtifactToolbarItem } from './create-artifact';
 import { UseChatHelpers } from 'ai/react';
+
+// Export ArtifactToolbarItem
+export type ArtifactToolbarItem = {
+  description: string;
+  icon: ReactNode;
+  onClick: ({ appendMessage }: { appendMessage: UseChatHelpers['append'] }) => void;
+};
 
 type ToolProps = {
   description: string;
