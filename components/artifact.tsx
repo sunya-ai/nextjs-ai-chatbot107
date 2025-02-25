@@ -1,4 +1,30 @@
-// components/artifact.tsx
+// Update ArtifactDefinition near the top
+interface ArtifactDefinition {
+  kind: ArtifactKind;
+  content: React.ComponentType<any> | ((props: {
+    title: string;
+    content: string;
+    mode: 'edit' | 'diff';
+    status: 'streaming' | 'idle';
+    currentVersionIndex: number;
+    suggestions: any[];
+    onSaveContent: (content: string, debounce: boolean) => void;
+    isInline: boolean;
+    isCurrentVersion: boolean;
+    getDocumentContentById: (index: number) => string;
+    isLoading: boolean;
+    metadata: any;
+    setMetadata: any;
+  }) => ReactNode);
+  initialize?: (options: { documentId: string; setMetadata: any }) => void;
+  onStreamPart?: (options: {
+    streamPart: DataStreamDelta;
+    setArtifact: (artifact: UIArtifact | ((prev: UIArtifact) => UIArtifact)) => void;
+    setMetadata: any;
+  }) => void;
+}
+
+// Full updated file
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -10,6 +36,7 @@ import {
   useEffect,
   useState,
   ReactNode,
+  ComponentType,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
@@ -32,10 +59,9 @@ import { ChartArtifact } from './ChartArtifact';
 import equal from 'fast-deep-equal';
 import { DataStreamDelta } from './data-stream-handler';
 
-// Define ArtifactDefinition type
 interface ArtifactDefinition {
   kind: ArtifactKind;
-  content: (props: {
+  content: ComponentType<any> | ((props: {
     title: string;
     content: string;
     mode: 'edit' | 'diff';
@@ -49,7 +75,7 @@ interface ArtifactDefinition {
     isLoading: boolean;
     metadata: any;
     setMetadata: any;
-  }) => ReactNode;
+  }) => ReactNode);
   initialize?: (options: { documentId: string; setMetadata: any }) => void;
   onStreamPart?: (options: {
     streamPart: DataStreamDelta;
@@ -160,7 +186,7 @@ function SafeArtifactContent({
   }
   
   try {
-    return artifactDefinition.content({ ...props });
+    return <artifactDefinition.content {...props} />;
   } catch (error) {
     console.error("Error rendering artifact content:", error);
     setHasError(true);
@@ -257,7 +283,7 @@ function PureArtifact({
   }, [messages, artifact, setArtifact]);
 
   useEffect(() => {
-    if (Array.isArray(documents) && documents.length > 0) { // Stricter type guard
+    if (Array.isArray(documents) && documents.length > 0) {
       const mostRecentDocument = documents.at(-1);
       if (mostRecentDocument) {
         setDocument(mostRecentDocument);
@@ -592,10 +618,8 @@ function PureArtifact({
                   onClick={() => {
                     try {
                       saveNewArtifact(artifact);
-                      // toast.success("Artifact saved successfully"); // Uncomment if using toast
                     } catch (error) {
                       console.error("Failed to save artifact:", error);
-                      // toast.error("Failed to save artifact"); // Uncomment if using toast
                     }
                   }}
                 >
