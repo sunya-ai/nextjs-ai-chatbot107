@@ -1,9 +1,7 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef } from 'react';
 
-export function useScrollToBottom<T extends HTMLElement>(): [
-  RefObject<T>,
-  RefObject<T>,
-] {
+// We'll change the return type to match what useRef actually returns
+export function useScrollToBottom<T extends HTMLElement>() {
   const containerRef = useRef<T>(null);
   const endRef = useRef<T>(null);
 
@@ -27,5 +25,6 @@ export function useScrollToBottom<T extends HTMLElement>(): [
     }
   }, []);
 
+  // Return the refs without specifying a type, letting TypeScript infer it correctly
   return [containerRef, endRef];
 }
