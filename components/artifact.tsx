@@ -33,7 +33,7 @@ import { ChartArtifact } from './ChartArtifact';
 import equal from 'fast-deep-equal';
 import { DataStreamDelta } from './data-stream-handler';
 
-interface ArtifactDefinition {
+export interface ArtifactDefinition {
   kind: ArtifactKind;
   content: ComponentType<any> | ((props: {
     title: string;
@@ -56,7 +56,7 @@ interface ArtifactDefinition {
     setArtifact: (artifact: UIArtifact | ((prev: UIArtifact) => UIArtifact)) => void;
     setMetadata: any;
   }) => void;
-  toolbar?: Array<ArtifactToolbarItem>; // Optional toolbar property
+  toolbar?: Array<ArtifactToolbarItem>;
   actions: Array<{
     description: string;
     icon: ReactNode;
@@ -79,7 +79,7 @@ interface ArtifactDefinition {
       metadata: any;
       setMetadata: Dispatch<SetStateAction<any>>;
     }) => boolean;
-  }>; // Add actions to match imported artifacts
+  }>;
 }
 
 export const artifactDefinitions = [
@@ -92,14 +92,14 @@ export const artifactDefinitions = [
     content: ({ content }: { content: string }) => <TableArtifact content={content} />,
     initialize: () => {},
     onStreamPart: undefined,
-    actions: [], // No actions for table
+    actions: [],
   },
   {
     kind: 'chart',
     content: ({ content }: { content: string }) => <ChartArtifact content={content} />,
     initialize: () => {},
     onStreamPart: undefined,
-    actions: [], // No actions for chart
+    actions: [],
   },
 ] as const satisfies ArtifactDefinition[];
 
