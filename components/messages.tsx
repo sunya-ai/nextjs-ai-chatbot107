@@ -1,4 +1,3 @@
-// components/messages.tsx
 import type { ChatRequestOptions, Message } from "ai";
 import { PreviewMessage, ThinkingMessage } from "./message";
 import { useScrollToBottom } from "./use-scroll-to-bottom";
@@ -19,18 +18,22 @@ interface MessagesProps {
 }
 
 function PureMessages({ chatId, isLoading, votes, messages, setMessages, reload, isReadonly }: MessagesProps) {
-  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
+  // Remove the explicit type parameter <HTMLDivElement> from useScrollToBottom
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
+
+  // Ensure messages is always an array with a safe fallback
+  const safeMessages = Array.isArray(messages) ? messages : [];
 
   return (
     <div ref={messagesContainerRef} className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4">
-      {messages.length === 0 && <Overview />}
+      {safeMessages.length === 0 && <Overview />}
 
-      {messages.map((message, index) => (
+      {safeMessages.map((message, index) => (
         <PreviewMessage
           key={message.id}
           chatId={chatId}
           message={message}
-          isLoading={isLoading && messages.length - 1 === index}
+          isLoading={isLoading && safeMessages.length - 1 === index}
           vote={votes ? votes.find((vote) => vote.messageId === message.id) : undefined}
           setMessages={setMessages}
           reload={reload}
@@ -38,10 +41,9 @@ function PureMessages({ chatId, isLoading, votes, messages, setMessages, reload,
         />
       ))}
 
-      {isLoading && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+      {isLoading && safeMessages.length > 0 && safeMessages[safeMessages.length - 1].role === "user" && (
         <ThinkingMessage
-          currentMessage={messages[messages.length - 1].content}
-          // Removed files={undefined}
+          currentMessage={safeMessages[safeMessages.length - 1].content}
         />
       )}
 
@@ -51,13 +53,24 @@ function PureMessages({ chatId, isLoading, votes, messages, setMessages, reload,
 }
 
 export const Messages = memo(PureMessages, (prevProps, nextProps) => {
+  // Check if both props have isArtifactVisible set to true
   if (prevProps.isArtifactVisible && nextProps.isArtifactVisible) return true;
 
+  // Safer length comparison with optional chaining
+  if (prevProps.messages?.length !== nextProps.messages?.length) return false;
+
+  try {
+    // Use deep equality check for messages and votes, wrapped in try/catch for safety
+    if (!equal(prevProps.messages, nextProps.messages)) return false;
+    if (!equal(prevProps.votes, nextProps.votes)) return false;
+  } catch (error) {
+    console.error('Error comparing messages or votes:', error);
+    return false;
+  }
+
+  // Additional checks for loading state
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.isLoading && nextProps.isLoading) return false;
-  if (prevProps.messages.length !== nextProps.messages.length) return false;
-  if (!equal(prevProps.messages, nextProps.messages)) return false;
-  if (!equal(prevProps.votes, nextProps.votes)) return false;
 
   return true;
 });
