@@ -1,4 +1,3 @@
-// lib/db/schema.ts
 import type { InferSelectModel } from 'drizzle-orm';
 import {
   pgTable,
@@ -43,6 +42,8 @@ export const message = pgTable('Message', {
   content: json('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
   metadata: json('metadata'), // Optional JSON field for sources and reasoning
+  migrationRetry: text('migration_retry').default(''), // Dummy field to trigger migration
+  retryTimestamp: timestamp('retry_timestamp').defaultNow(), // New dummy field to ensure change
 });
 
 export type Message = InferSelectModel<typeof message>;
@@ -74,7 +75,7 @@ export const document = pgTable(
     createdAt: timestamp('createdAt').notNull(),
     title: text('title').notNull(),
     content: text('content'),
-    kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] }) // Add 'table' and 'chart'
+    kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] })
       .notNull()
       .default('text'),
     userId: uuid('userId')
