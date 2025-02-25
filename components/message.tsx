@@ -7,8 +7,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useMemo, useState, useEffect } from 'react';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import rehypeRaw from 'rehype-raw';
+import rehypeHighlight from 'rehype-highlight'; // Ensure version 7.x or latest
+import rehypeRaw from 'rehype-raw'; // Ensure version 7.x or latest
 
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
@@ -31,7 +31,7 @@ import { MessageReasoning } from './message-reasoning';
 
 // Extend Message type with metadata
 interface UIMessage extends Message {
-  metadata?: string | null; // Matches route.ts
+  metadata?: string | null;
 }
 
 // Custom component for company logos
@@ -86,7 +86,7 @@ const PurePreviewMessage = ({
   isReadonly,
 }: {
   chatId: string;
-  message: UIMessage; // Use extended type
+  message: UIMessage;
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: (
