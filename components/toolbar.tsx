@@ -335,8 +335,8 @@ const PureToolbar = ({
   setMessages: Dispatch<SetStateAction<Message[]>>;
   artifactKind: ArtifactKind;
 }) => {
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null); // Fixed: Added null as initial value
+  const toolbarRef = useRef<HTMLElement>(null); // Changed from HTMLDivElement to HTMLElement
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
