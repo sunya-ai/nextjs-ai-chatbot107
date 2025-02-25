@@ -335,7 +335,8 @@ const PureToolbar = ({
   setMessages: Dispatch<SetStateAction<Message[]>>;
   artifactKind: ArtifactKind;
 }) => {
-  const toolbarRef = useRef<HTMLElement>(null);
+  // Change to HTMLDivElement to match what motion.div expects
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
