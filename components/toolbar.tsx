@@ -1,3 +1,4 @@
+// components/toolbar.tsx
 'use client';
 
 import type { ChatRequestOptions, CreateMessage, Message } from 'ai';
@@ -335,7 +336,6 @@ const PureToolbar = ({
   setMessages: Dispatch<SetStateAction<Message[]>>;
   artifactKind: ArtifactKind;
 }) => {
-  // Change to HTMLDivElement to match what motion.div expects
   const toolbarRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -386,7 +386,7 @@ const PureToolbar = ({
     throw new Error('Artifact definition not found!');
   }
 
-  const toolsByArtifactKind = artifactDefinition.toolbar;
+  const toolsByArtifactKind = artifactDefinition.toolbar || []; // Default to empty array if undefined
 
   if (toolsByArtifactKind.length === 0) {
     return null;
