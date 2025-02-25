@@ -26,6 +26,7 @@ import { compile } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
+import { put } from '@vercel/blob'; // Add this import for file storage
 
 export const maxDuration = 240;
 
@@ -257,7 +258,11 @@ export async function POST(request: Request) {
     if (isSpreadsheetUpdate) {
       console.log('[POST] Detected spreadsheet update request');
       const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
-      return new Response(JSON.stringify({ updatedData: updatedSpreadsheet }), {
+      // Save spreadsheet as a file in Vercel Blob
+      const blob = await put(`spreadsheets/${generateUUID()}.csv`, JSON.stringify(updatedSpreadsheet), {
+        access: 'public',
+      });
+      return new Response(JSON.stringify({ updatedData: { fileUrl: blob.url } }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -275,15 +280,15 @@ export async function POST(request: Request) {
         ...userMessage,
         createdAt: new Date(),
         chatId: id,
-        metadata: null,
-        migrationRetry: '', // Default for dummy field
-        retryTimestamp: new Date(), // Default for dummy field (timestamp, so Date is correct)
-        retryCounter: 999, // Default for dummy integer field
-        retryFlag: true, // Default for dummy boolean field
-        retryDate: '2025-02-25', // Default for dummy date field
-        retryMarker: 'Final migration push', // Default for dummy text field
-        retryNumber: 12345, // Default for dummy integer field
-        retryBoolean: false, // Default for new dummy boolean field
+        metadata: null, // Default to null, will be updated with file URLs if needed
+        migrationRetry: '', // Dummy field for migration
+        retryTimestamp: new Date(), // Dummy field for migration
+        retryCounter: 999, // Dummy field for migration
+        retryFlag: true, // Dummy field for migration
+        retryDate: '2025-02-25', // Dummy field for migration
+        retryMarker: 'Final migration push', // Dummy field for migration
+        retryNumber: 12345, // Dummy field for migration
+        retryBoolean: false, // Dummy field for migration
       }],
     });
 
@@ -340,6 +345,14 @@ export async function POST(request: Request) {
                       isArtifact: true,
                       kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
                     };
+                    // If it's a table or chart, save as a file
+                    if (metadata.kind === 'table' || metadata.kind === 'chart') {
+                      const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
+                        access: 'public',
+                      });
+                      metadata.fileUrl = blob.url; // Store the URL in metadata
+                      content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
+                    }
                   } else {
                     const compiledMdx = await compile(content, {
                       outputFormat: 'function-body',
@@ -364,15 +377,15 @@ export async function POST(request: Request) {
                     role: 'assistant',
                     content,
                     createdAt: new Date(),
-                    metadata: metadata ? JSON.stringify(metadata) : null,
-                    migrationRetry: '', // Default for dummy field
-                    retryTimestamp: new Date(), // Default for dummy field (timestamp, so Date is correct)
-                    retryCounter: 999, // Default for dummy integer field
-                    retryFlag: true, // Default for dummy boolean field
-                    retryDate: '2025-02-25', // Default for dummy date field
-                    retryMarker: 'Final migration push', // Default for dummy text field
-                    retryNumber: 12345, // Default for dummy integer field
-                    retryBoolean: false, // Default for new dummy boolean field
+                    metadata: metadata ? JSON.stringify(metadata) : null, // Store metadata with file URL if applicable
+                    migrationRetry: '', // Dummy field for migration
+                    retryTimestamp: new Date(), // Dummy field for migration
+                    retryCounter: 999, // Dummy field for migration
+                    retryFlag: true, // Dummy field for migration
+                    retryDate: '2025-02-25', // Dummy field for migration
+                    retryMarker: 'Final migration push', // Dummy field for migration
+                    retryNumber: 12345, // Dummy field for migration
+                    retryBoolean: false, // Dummy field for migration
                   }],
                 });
               }
