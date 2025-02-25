@@ -76,7 +76,7 @@ export const artifactDefinitions = [
     initialize: () => {},
     onStreamPart: undefined,
   },
-] as const;
+] as const satisfies ArtifactDefinition[]; // Enforce ArtifactDefinition type
 
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
