@@ -29,38 +29,19 @@ import { Button } from "@/components/ui/button";
 import { MDXProvider } from "@mdx-js/react";
 import { createDocumentAction, updateDocumentAction } from "@/app/(chat)/actions";
 
-// Define types for better TypeScript safety
-type SpreadsheetRow = [string, string, number]; // [Date, Deal Type, Amount]
+type SpreadsheetRow = [string, string, number];
 type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
 export default function Home() {
-  // Properly handle session loading state with TypeScript safety
+  // Move ALL hooks to the top level - before any conditional returns
   const { data: session, status } = useSession();
-
-  // Add loading state check before any other code executes
-  if (status === "loading") {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
-  // If no session and not loading, redirect to sign in
-  if (!session && status === "unauthenticated") {
-    signIn();
-    return <div className="min-h-screen flex items-center justify-center">Redirecting to sign in...</div>;
-  }
-
-  // Ensure session is defined before proceeding (TypeScript safety)
-  if (!session) {
-    throw new Error("Session is unexpectedly undefined after authentication check");
-  }
-
   const { theme } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spreadsheetData, setSpreadsheetData] = useState<SpreadsheetData>(null);
   const [documentId] = useState<string>(generateUUID());
   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar");
   const [isSaving, setIsSaving] = useState(false);
-
   const [stableChatId] = useState(() => generateUUID());
 
   const initialWelcomeMessage: Message = {
@@ -72,7 +53,7 @@ export default function Home() {
   const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading } = useChat({
     api: "/api/chat",
     id: stableChatId,
-    initialMessages: [initialWelcomeMessage], // Always include a valid initial message
+    initialMessages: [initialWelcomeMessage],
     onError: (error) => {
       console.error("useChat error on load:", error);
     },
@@ -81,7 +62,25 @@ export default function Home() {
     },
   });
 
-  // Safe file drop handler using ExtendedMessage
+  // Handle loading state
+  if (status === "loading") {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  // Handle unauthenticated state with automatic redirect
+  if (!session) {
+    signIn();
+    return <div className="min-h-screen flex items-center justify-center">Redirecting to sign in...</div>;
+  }
+
+  // Ensure session is defined for TypeScript safety
+  if (!session) {
+    throw new Error("Session is unexpectedly undefined after authentication check");
+  }
+
+  // Rest of your component code remains exactly the same...
+  // All the existing functions (handleFileDrop, handleDrop, etc.) and the return statement remain unchanged
+
   const handleFileDrop = async (file: File) => {
     if (!file || !session?.user?.id) return;
     const formData = new FormData();
