@@ -5,6 +5,9 @@ import { motion, HTMLMotionProps, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
+// Ensure TypeScript recognizes cn as returning a string, relying on lib/utils.ts definition
+// If issues persist, verify lib/utils.ts exports cn with an explicit string return type.
+
 export interface WorkflowFile {
   path: string;
   status: 'planning' | 'generating' | 'editing' | 'complete';
@@ -17,7 +20,7 @@ interface WorkflowStatusProps {
 }
 
 // Extend HTMLMotionProps to include className for Tailwind CSS compatibility
-type MotionDivProps = HTMLMotionProps<'div'> & { className: string }; // Changed to required string
+type MotionDivProps = HTMLMotionProps<'div'> & { className: string }; // Explicitly required string
 
 const thinkingMessages = [
   'Give me a sec… this response needs seasoning.',
@@ -105,7 +108,7 @@ export function WorkflowStatus({
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={cn('flex items-center justify-between py-0.5')}
+              className={cn('flex items-center justify-between py-0.5')} // cn should return a string
             >
               <div className="flex items-center gap-2">
                 <div
