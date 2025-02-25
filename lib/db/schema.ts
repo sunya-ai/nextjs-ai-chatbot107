@@ -9,7 +9,7 @@ import {
   primaryKey,
   foreignKey,
   boolean,
-  integer, // Added for retryCounter
+  integer,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -46,7 +46,8 @@ export const message = pgTable('Message', {
   migrationRetry: text('migration_retry').default('Force migration now 2025-02-25'), // Updated dummy value
   retryTimestamp: timestamp('retry_timestamp').defaultNow(), // Keep existing
   retryCounter: integer('retry_counter').default(999), // Keep existing
-  retryFlag: boolean('retry_flag').default(true), // New dummy boolean field
+  retryFlag: boolean('retry_flag').default(true), // Keep existing
+  retryDate: date('retry_date').default('2025-02-25'), // New dummy date field
 });
 
 export type Message = InferSelectModel<typeof message>;
