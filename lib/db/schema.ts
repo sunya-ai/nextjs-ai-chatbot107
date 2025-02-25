@@ -1,4 +1,4 @@
-// lib/db/schema.ts
+// lib/db/schema.ts 
 import type { InferSelectModel } from 'drizzle-orm';
 import {
   pgTable,
