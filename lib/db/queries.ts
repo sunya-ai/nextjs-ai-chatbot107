@@ -106,14 +106,6 @@ export async function saveMessages({ messages }: { messages: Array<Message> }) {
     const formattedMessages = messages.map((msg) => ({
       ...msg,
       metadata: msg.metadata || null, // Ensure metadata is always a valid value (e.g., JSON for file URLs)
-      migrationRetry: '', // Dummy field for migration
-      retryTimestamp: new Date(), // Dummy field for migration
-      retryCounter: 999, // Dummy field for migration
-      retryFlag: true, // Dummy field for migration
-      retryDate: '2025-02-25', // Dummy field for migration
-      retryMarker: 'Final migration push', // Dummy field for migration
-      retryNumber: 12345, // Dummy field for migration
-      retryBoolean: false, // Dummy field for migration
     }));
 
     return await db.insert(message).values(formattedMessages);
@@ -125,7 +117,7 @@ export async function saveMessages({ messages }: { messages: Array<Message> }) {
 
 export async function getMessagesByChatId({ id }: { id: string }) {
   try {
-    // Select metadata, handling cases where it might be null or missing
+    // Select essential fields, handling cases where metadata might be null or missing
     const messages = await db
       .select({
         id: message.id,
@@ -134,14 +126,6 @@ export async function getMessagesByChatId({ id }: { id: string }) {
         content: message.content,
         createdAt: message.createdAt,
         metadata: message.metadata, // Include metadata, default to null if missing
-        migrationRetry: message.migrationRetry,
-        retryTimestamp: message.retryTimestamp,
-        retryCounter: message.retryCounter,
-        retryFlag: message.retryFlag,
-        retryDate: message.retryDate,
-        retryMarker: message.retryMarker,
-        retryNumber: message.retryNumber,
-        retryBoolean: message.retryBoolean,
       })
       .from(message)
       .where(eq(message.chatId, id))
