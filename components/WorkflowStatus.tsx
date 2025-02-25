@@ -5,6 +5,9 @@ import { motion, HTMLMotionProps, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
+// Ensure cn is typed to return a string, if not already done in lib/utils
+declare const cn: (...classes: (string | undefined | null | false | 0)[]) => string;
+
 export interface WorkflowFile {
   path: string;
   status: 'planning' | 'generating' | 'editing' | 'complete';
@@ -17,7 +20,7 @@ interface WorkflowStatusProps {
 }
 
 // Extend HTMLMotionProps to include className for Tailwind CSS compatibility
-type MotionDivProps = HTMLMotionProps<'div'> & { className?: string };
+type MotionDivProps = HTMLMotionProps<'div'> & { className: string };
 
 const thinkingMessages = [
   'Give me a sec… this response needs seasoning.',
