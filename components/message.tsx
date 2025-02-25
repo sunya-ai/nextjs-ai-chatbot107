@@ -1,14 +1,22 @@
 'use client';
 
-import type React from 'react';
 import type { ChatRequestOptions, Message } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useState, useEffect, useCallback } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
+import { MDXRemote } from 'next-mdx-remote/rsc';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeRaw from 'rehype-raw';
+
 import type { Vote } from '@/lib/db/schema';
 import { DocumentToolCall, DocumentToolResult } from './document';
-import { PencilEditIcon, SparklesIcon } from './icons';
-import { Markdown } from './markdown'; // Updated to MDX version
+import {
+  ChevronDownIcon,
+  LoaderIcon,
+  PencilEditIcon,
+  SparklesIcon,
+} from './icons';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
@@ -19,11 +27,47 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
-import { useTheme } from 'next-themes'; // For theme-aware rendering
 
-type MessageProps = Message & {
-  sources?: { id: string; url: string }[]; // For v0-style source previews
-  isThinking?: boolean; // For Grok 3 thinking state
+// Custom component for company logos
+const Logo = ({ company }: { company: string }) => {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const domain = company.toLowerCase().replace(/\s/g, '') + '.com';
+        const response = await fetch(`https://logo.clearbit.com/${domain}`);
+        if (response.ok) setLogoUrl(response.url);
+      } catch (error) {
+        console.error(`Failed to fetch logo for ${company}:`, error);
+      }
+    };
+    fetchLogo();
+  }, [company]);
+
+  return logoUrl ? (
+    <img src={logoUrl} alt={`${company} Logo`} className="inline-block h-6 w-6 mr-2" />
+  ) : (
+    <span>{company}</span>
+  );
+};
+
+// Custom component for source preview boxes (V0-inspired)
+const SourcePreview = ({ url }: { url: string }) => (
+  <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-600">
+    Source: <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">{url}</a>
+  </div>
+);
+
+const mdxComponents = {
+  img: (props: any) => {
+    if (props.src?.startsWith('logo:')) {
+      const company = props.alt || props.src.replace('logo:', '');
+      return <Logo company={company} />;
+    }
+    return <img {...props} className="max-w-full h-auto" />;
+  },
+  SourcePreview,
 };
 
 const PurePreviewMessage = ({
@@ -36,33 +80,20 @@ const PurePreviewMessage = ({
   isReadonly,
 }: {
   chatId: string;
-  message: MessageProps;
+  message: Message;
   vote: Vote | undefined;
   isLoading: boolean;
-  setMessages: (messages: Message[] | ((messages: Message[]) => Message[])) => void;
-  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
+  setMessages: (
+    messages: Message[] | ((messages: Message[]) => Message[]),
+  ) => void;
+  reload: (
+    chatRequestOptions?: ChatRequestOptions,
+  ) => Promise<string | null | undefined>;
   isReadonly: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
-  const { theme } = useTheme();
-  const [renderedContent, setRenderedContent] = useState<string | null>(null);
-
-  // Parse Clearbit logos from content (assumes markdown links like [Company](logo:https://logo.clearbit.com/domain))
-  const parseLogos = useCallback((text: string) => {
-    const logoRegex = /\[([^\]]+)\]\(logo:([^)]+)\)/g;
-    return text.replace(logoRegex, (match, company, logoUrl) => {
-      return `<img src="${logoUrl}" alt="${company} logo" className="inline h-6 w-auto mr-2" />${company}`;
-    });
-  }, []);
-
-  useEffect(() => {
-    if (typeof message.content === 'string') {
-      const contentWithLogos = parseLogos(message.content);
-      setRenderedContent(contentWithLogos);
-    } else {
-      setRenderedContent(null); // Handle non-string content (e.g., MDX object)
-    }
-  }, [message.content, parseLogos]);
+  const metadata = message.metadata ? JSON.parse(message.metadata) : null;
+  const sources = metadata?.sources || [];
 
   return (
     <AnimatePresence>
@@ -84,7 +115,7 @@ const PurePreviewMessage = ({
           {message.role === 'assistant' && (
             <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
               <div className="translate-y-px">
-                <SparklesIcon size={12} /> {/* Use size prop */}
+                <SparklesIcon size={14} />
               </div>
             </div>
           )}
@@ -93,12 +124,20 @@ const PurePreviewMessage = ({
             {message.experimental_attachments && (
               <div className="flex flex-row justify-end gap-2">
                 {message.experimental_attachments.map((attachment) => (
-                  <PreviewAttachment key={attachment.url} attachment={attachment} />
+                  <PreviewAttachment
+                    key={attachment.url}
+                    attachment={attachment}
+                  />
                 ))}
               </div>
             )}
 
-            {message.reasoning && <MessageReasoning isLoading={isLoading} reasoning={message.reasoning} />}
+            {message.reasoning && (
+              <MessageReasoning
+                isLoading={isLoading}
+                reasoning={message.reasoning}
+              />
+            )}
 
             {(message.content || message.reasoning) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
@@ -108,9 +147,11 @@ const PurePreviewMessage = ({
                       <Button
                         variant="ghost"
                         className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
-                        onClick={() => setMode('edit')}
+                        onClick={() => {
+                          setMode('edit');
+                        }}
                       >
-                        <PencilEditIcon size={12} /> {/* Use size prop */}
+                        <PencilEditIcon />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Edit message</TooltipContent>
@@ -118,14 +159,27 @@ const PurePreviewMessage = ({
                 )}
 
                 <div
-                  className={cn('flex flex-col gap-4', {
-                    'bg-primary text-primary-foreground px-3 py-2 rounded-xl': message.role === 'user',
+                  className={cn('flex flex-col gap-4 prose', {
+                    'bg-primary text-primary-foreground px-3 py-2 rounded-xl':
+                      message.role === 'user',
                   })}
                 >
-                  {renderedContent ? (
-                    <Markdown>{renderedContent}</Markdown>
-                  ) : (
-                    <div>Loading content...</div> // Fallback while content loads
+                  <MDXRemote
+                    source={message.content as string}
+                    components={mdxComponents}
+                    options={{
+                      mdxOptions: {
+                        remarkPlugins: [remarkGfm],
+                        rehypePlugins: [rehypeHighlight, rehypeRaw],
+                      },
+                    }}
+                  />
+                  {sources.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {sources.map((source: { id: string; url: string }) => (
+                        <SourcePreview key={source.id} url={source.url} />
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
@@ -134,7 +188,6 @@ const PurePreviewMessage = ({
             {message.content && mode === 'edit' && (
               <div className="flex flex-row gap-2 items-start">
                 <div className="size-8" />
-
                 <MessageEditor
                   key={message.id}
                   message={message}
@@ -158,11 +211,22 @@ const PurePreviewMessage = ({
                         {toolName === 'getWeather' ? (
                           <Weather weatherAtLocation={result} />
                         ) : toolName === 'createDocument' ? (
-                          <DocumentPreview isReadonly={isReadonly} result={result} />
+                          <DocumentPreview
+                            isReadonly={isReadonly}
+                            result={result}
+                          />
                         ) : toolName === 'updateDocument' ? (
-                          <DocumentToolResult type="update" result={result} isReadonly={isReadonly} />
+                          <DocumentToolResult
+                            type="update"
+                            result={result}
+                            isReadonly={isReadonly}
+                          />
                         ) : toolName === 'requestSuggestions' ? (
-                          <DocumentToolResult type="request-suggestions" result={result} isReadonly={isReadonly} />
+                          <DocumentToolResult
+                            type="request-suggestions"
+                            result={result}
+                            isReadonly={isReadonly}
+                          />
                         ) : (
                           <pre>{JSON.stringify(result, null, 2)}</pre>
                         )}
@@ -181,9 +245,17 @@ const PurePreviewMessage = ({
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview isReadonly={isReadonly} args={args} />
                       ) : toolName === 'updateDocument' ? (
-                        <DocumentToolCall type="update" args={args} isReadonly={isReadonly} />
+                        <DocumentToolCall
+                          type="update"
+                          args={args}
+                          isReadonly={isReadonly}
+                        />
                       ) : toolName === 'requestSuggestions' ? (
-                        <DocumentToolCall type="request-suggestions" args={args} isReadonly={isReadonly} />
+                        <DocumentToolCall
+                          type="request-suggestions"
+                          args={args}
+                          isReadonly={isReadonly}
+                        />
                       ) : null}
                     </div>
                   );
@@ -200,11 +272,6 @@ const PurePreviewMessage = ({
                 isLoading={isLoading}
               />
             )}
-            {message.sources && message.sources.length > 0 && (
-              <div className="mt-4">
-                <Markdown>{`Sources: ${message.sources.map((s, i) => `[${i + 1}](${s.url})`).join(', ')}`}</Markdown>
-              </div>
-            )}
           </div>
         </div>
       </motion.div>
@@ -212,29 +279,32 @@ const PurePreviewMessage = ({
   );
 };
 
-PurePreviewMessage.displayName = 'PreviewMessage';
+export const PreviewMessage = memo(
+  PurePreviewMessage,
+  (prevProps, nextProps) => {
+    if (prevProps.isLoading !== nextProps.isLoading) return false;
+    if (prevProps.message.reasoning !== nextProps.message.reasoning)
+      return false;
+    if (prevProps.message.content !== nextProps.message.content) return false;
+    if (
+      !equal(
+        prevProps.message.toolInvocations,
+        nextProps.message.toolInvocations,
+      )
+    )
+      return false;
+    if (!equal(prevProps.vote, nextProps.vote)) return false;
 
-export const PreviewMessage = memo(PurePreviewMessage, (prevProps, nextProps) => {
-  if (prevProps.isLoading !== nextProps.isLoading) return false;
-  if (prevProps.message.reasoning !== nextProps.message.reasoning) return false;
-  if (prevProps.message.content !== nextProps.message.content) return false;
-  if (!equal(prevProps.message.toolInvocations, nextProps.message.toolInvocations)) return false;
-  if (!equal(prevProps.vote, nextProps.vote)) return false;
-  if (!equal(prevProps.message.sources, nextProps.message.sources)) return false; // Add sources comparison
+    return true;
+  },
+);
 
-  return true;
-});
-
-interface ThinkingMessageProps {
-  currentMessage?: string;
-}
-
-export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage }) => {
+export const ThinkingMessage = () => {
   const role = 'assistant';
 
   return (
     <motion.div
-      className="w-full mx-auto max-w-3xl px-4 group/message"
+      className="w-full mx-auto max-w-3xl px-4 group/message "
       initial={{ y: 5, opacity: 0 }}
       animate={{ y: 0, opacity: 1, transition: { delay: 1 } }}
       data-role={role}
@@ -247,16 +317,13 @@ export const ThinkingMessage: React.FC<ThinkingMessageProps> = ({ currentMessage
           },
         )}
       >
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
-          <SparklesIcon size={12} /> {/* Use size prop */}
+        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
+          <SparklesIcon size={14} />
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <div className="text-zinc-500 dark:text-zinc-400 animate-pulse flex items-center gap-2">
-            <span>Thinking</span>
-            <span className="thinking-dots" />
-            <span className="thinking-dots" />
-            <span className="thinking-dots" />
+          <div className="flex flex-col gap-4 text-muted-foreground">
+            Thinking...
           </div>
         </div>
       </div>
