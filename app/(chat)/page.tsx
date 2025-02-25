@@ -53,13 +53,15 @@ type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
 export default function Home() {
-  // Session management with required flag
+  // Session management with required flag and debugging
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       signIn();
     },
   });
+
+  console.log("Session status:", status, "Session data:", session);
 
   // Theme and UI state
   const { theme } = useTheme();
@@ -88,8 +90,7 @@ export default function Home() {
     id: stableChatId,
     initialMessages: [initialWelcomeMessage],
     onError: (error) => {
-      console.error("Chat error:", error);
-      toast.error("An error occurred with the chat");
+      console.error("useChat error:", error, error.stack);
     },
     onResponse: (response) => {
       console.log("useChat response:", response);
@@ -113,7 +114,6 @@ export default function Home() {
 
   // File handling functions with improved error handling and type safety
   const handleFileDrop = async (file: File) => {
-    // Type guard to ensure session.user is defined before accessing .id
     if (!file || !session.user || !session.user.id) return;
     try {
       const formData = new FormData();
@@ -161,7 +161,6 @@ export default function Home() {
   };
 
   const saveSpreadsheet = async () => {
-    // Type guard to ensure session.user is defined before accessing .id
     if (!session.user || !session.user.id) {
       console.error("User session or ID is undefined");
       return;
@@ -287,14 +286,16 @@ export default function Home() {
       >
         <div className="w-1/2 p-2 bg-gray-50 dark:bg-gray-800">
           <MDXProvider components={{}}>
-            <Chat
-              id={documentId}
-              initialMessages={messages}
-              selectedChatModel={'google("gemini-2.0-flash")'}
-              selectedVisibilityType="private"
-              isReadonly={false}
-              onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
-            />
+            <ErrorBoundary FallbackComponent={ErrorFallback}>
+              <Chat
+                id={documentId}
+                initialMessages={messages}
+                selectedChatModel={'google("gemini-2.0-flash")'}
+                selectedVisibilityType="private"
+                isReadonly={false}
+                onSpreadsheetDataUpdate={handleSpreadsheetDataUpdate}
+              />
+            </ErrorBoundary>
           </MDXProvider>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">Drag and drop PDFs or documents here to analyze energy data.</p>
         </div>
