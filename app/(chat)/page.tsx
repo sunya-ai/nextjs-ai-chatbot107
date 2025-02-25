@@ -53,7 +53,7 @@ type SpreadsheetData = SpreadsheetRow[] | null;
 type ChartData = { name: string; solar: number; oil: number; geothermal: number }[];
 
 export default function Home() {
-  // Session management with required flag and debugging
+  // Session management with required flag and detailed debugging
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -62,6 +62,15 @@ export default function Home() {
   });
 
   console.log("Session status:", status, "Session data:", session);
+
+  // Delay rendering until session is fully loaded and user is defined
+  if (status === "loading" || !session || !session.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
+      </div>
+    );
+  }
 
   // Theme and UI state
   const { theme } = useTheme();
@@ -72,7 +81,7 @@ export default function Home() {
   const [chartType, setChartType] = useState<"bar" | "line" | "pie">("bar");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Chat state
+  // Chat state, only initialize if session is valid
   const [stableChatId] = useState(() => generateUUID());
   const initialWelcomeMessage: Message = {
     id: crypto.randomUUID(),
@@ -85,27 +94,18 @@ export default function Home() {
     setIsClient(true);
   }, []);
 
-  // Ensure useChat only runs when session is ready
+  // Ensure useChat only runs when session and client are ready
   const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading, append } = useChat({
     api: "/api/chat",
     id: stableChatId,
-    initialMessages: [initialWelcomeMessage],
+    initialMessages: isClient && session ? [initialWelcomeMessage] : [], // Only initialize if client and session are ready
     onError: (error) => {
-      console.error("useChat error:", error, error.stack);
+      console.error("useChat error:", error, error.stack, "Session:", session);
     },
     onResponse: (response) => {
-      console.log("useChat response:", response);
+      console.log("useChat response:", response, "Session:", session);
     },
   });
-
-  // Loading states (combine session, hydration, and session.user)
-  if (status === "loading" || !isClient || !session?.user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
-      </div>
-    );
-  }
 
   // File handling functions with improved error handling and type safety
   const handleFileDrop = async (file: File) => {
