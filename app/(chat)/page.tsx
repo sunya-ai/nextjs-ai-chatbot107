@@ -85,6 +85,7 @@ export default function Home() {
     setIsClient(true);
   }, []);
 
+  // Ensure useChat only runs when session is ready
   const { messages, input, handleInputChange, handleSubmit, setMessages, isLoading, append } = useChat({
     api: "/api/chat",
     id: stableChatId,
@@ -97,19 +98,13 @@ export default function Home() {
     },
   });
 
-  // Loading states (combine session and hydration)
-  if (status === "loading" || !isClient) {
+  // Loading states (combine session, hydration, and session.user)
+  if (status === "loading" || !isClient || !session?.user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white" />
       </div>
     );
-  }
-
-  // Ensure session.user is defined before proceeding
-  if (!session?.user) {
-    console.error("Session user data is undefined after authentication");
-    return <div className="min-h-screen flex items-center justify-center">Session data loading...</div>;
   }
 
   // File handling functions with improved error handling and type safety
