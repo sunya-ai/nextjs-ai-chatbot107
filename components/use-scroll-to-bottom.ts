@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 
-// Remove explicit return type annotation to avoid type issues
-export function useScrollToBottom<T extends HTMLElement>() {
-  const containerRef = useRef<T | null>(null);
-  const endRef = useRef<T | null>(null);
+// Remove the explicit return type annotation that's causing the build error
+export function useScrollToBottom() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const container = containerRef.current;
