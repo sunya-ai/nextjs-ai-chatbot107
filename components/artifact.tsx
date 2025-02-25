@@ -1,3 +1,4 @@
+// components/artifact.tsx
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -11,9 +12,6 @@ import {
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
-import { HotTable } from '@handsontable/react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import 'handsontable/dist/handsontable.full.min.css';
 import type { Document, Vote } from '@/lib/db/schema';
 import { fetcher } from '@/lib/utils';
 import { MultimodalInput } from './multimodal-input';
@@ -28,6 +26,8 @@ import { imageArtifact } from '@/artifacts/image/client';
 import { codeArtifact } from '@/artifacts/code/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
+import { TableArtifact } from './TableArtifact'; // New import
+import { ChartArtifact } from './ChartArtifact'; // New import
 import equal from 'fast-deep-equal';
 
 export const artifactDefinitions = [
@@ -37,33 +37,12 @@ export const artifactDefinitions = [
   sheetArtifact,
   {
     kind: 'table',
-    content: ({ content, onSaveContent, isCurrentVersion }) => (
-      <HotTable
-        data={JSON.parse(content)}
-        colHeaders={true}
-        rowHeaders={true}
-        stretchH="all"
-        className="text-sm"
-        afterChange={(changes) =>
-          changes &&
-          isCurrentVersion &&
-          onSaveContent(JSON.stringify(JSON.parse(content)))
-        }
-      />
-    ),
+    content: ({ content }) => <TableArtifact content={content} />,
     initialize: () => {},
   },
   {
     kind: 'chart',
-    content: ({ content }) => (
-      <LineChart width={300} height={200} data={JSON.parse(content)}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="x" />
-        <YAxis />
-        <Tooltip />
-        <Line type="monotone" dataKey="y" stroke="#8884d8" />
-      </LineChart>
-    ),
+    content: ({ content }) => <ChartArtifact content={content} />,
     initialize: () => {},
   },
 ];
@@ -84,7 +63,6 @@ export interface UIArtifact {
   };
 }
 
-// Persistence functions (localStorage for now)
 async function fetchSavedArtifacts(): Promise<UIArtifact[]> {
   return JSON.parse(localStorage.getItem('savedArtifacts') || '[]');
 }
@@ -126,9 +104,7 @@ function PureArtifact({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
-    event?: {
-      preventDefault?: () => void;
-    },
+    event?: { preventDefault?: () => void },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
   reload: (
@@ -156,12 +132,10 @@ function PureArtifact({
 
   const { open: isSidebarOpen } = useSidebar();
 
-  // Load saved artifacts
   useEffect(() => {
     fetchSavedArtifacts().then(setSavedArtifacts);
   }, []);
 
-  // Update artifact from messages
   useEffect(() => {
     const latestMessage = messages[messages.length - 1];
     if (latestMessage?.role === 'assistant' && artifact.isVisible) {
