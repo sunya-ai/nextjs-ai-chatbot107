@@ -102,7 +102,21 @@ export async function getChatById({ id }: { id: string }) {
 
 export async function saveMessages({ messages }: { messages: Array<Message> }) {
   try {
-    return await db.insert(message).values(messages);
+    // Handle metadata as optional, defaulting to null if not provided
+    const formattedMessages = messages.map((msg) => ({
+      ...msg,
+      metadata: msg.metadata || null, // Ensure metadata is always a valid value (e.g., JSON for file URLs)
+      migrationRetry: '', // Dummy field for migration
+      retryTimestamp: new Date(), // Dummy field for migration
+      retryCounter: 999, // Dummy field for migration
+      retryFlag: true, // Dummy field for migration
+      retryDate: '2025-02-25', // Dummy field for migration
+      retryMarker: 'Final migration push', // Dummy field for migration
+      retryNumber: 12345, // Dummy field for migration
+      retryBoolean: false, // Dummy field for migration
+    }));
+
+    return await db.insert(message).values(formattedMessages);
   } catch (error) {
     console.error('Failed to save messages in database', error);
     throw error;
@@ -111,11 +125,33 @@ export async function saveMessages({ messages }: { messages: Array<Message> }) {
 
 export async function getMessagesByChatId({ id }: { id: string }) {
   try {
-    return await db
-      .select()
+    // Select metadata, handling cases where it might be null or missing
+    const messages = await db
+      .select({
+        id: message.id,
+        chatId: message.chatId,
+        role: message.role,
+        content: message.content,
+        createdAt: message.createdAt,
+        metadata: message.metadata, // Include metadata, default to null if missing
+        migrationRetry: message.migrationRetry,
+        retryTimestamp: message.retryTimestamp,
+        retryCounter: message.retryCounter,
+        retryFlag: message.retryFlag,
+        retryDate: message.retryDate,
+        retryMarker: message.retryMarker,
+        retryNumber: message.retryNumber,
+        retryBoolean: message.retryBoolean,
+      })
       .from(message)
       .where(eq(message.chatId, id))
       .orderBy(asc(message.createdAt));
+
+    // Map to ensure metadata is always present (null if missing or JSON for file URLs)
+    return messages.map((msg) => ({
+      ...msg,
+      metadata: msg.metadata || null,
+    }));
   } catch (error) {
     console.error('Failed to get messages by chat id from database', error);
     throw error;
