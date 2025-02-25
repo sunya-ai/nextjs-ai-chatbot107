@@ -288,14 +288,6 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null, // Default to null, will be updated with file URLs if needed
-        migrationRetry: '', // Dummy field for migration
-        retryTimestamp: new Date(), // Dummy field for migration
-        retryCounter: 999, // Dummy field for migration
-        retryFlag: true, // Dummy field for migration
-        retryDate: '2025-02-25', // Dummy field for migration
-        retryMarker: 'Final migration push', // Dummy field for migration
-        retryNumber: 12345, // Dummy field for migration
-        retryBoolean: false, // Dummy field for migration
       }],
     });
 
@@ -356,7 +348,7 @@ export async function POST(request: Request) {
                       const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
                         access: 'public',
                       });
-                      metadata.fileUrl = blob.url; // Now allowed because fileUrl is optional in Metadata type
+                      metadata.fileUrl = blob.url; // Allowed because of Metadata type
                       content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
                     }
                   } else {
@@ -383,15 +375,7 @@ export async function POST(request: Request) {
                     role: 'assistant',
                     content,
                     createdAt: new Date(),
-                    metadata: metadata, // Pass the metadata object directly, Drizzle handles JSON serialization
-                    migrationRetry: '', // Dummy field for migration
-                    retryTimestamp: new Date(), // Dummy field for migration
-                    retryCounter: 999, // Dummy field for migration
-                    retryFlag: true, // Dummy field for migration
-                    retryDate: '2025-02-25', // Dummy field for migration
-                    retryMarker: 'Final migration push', // Dummy field for migration
-                    retryNumber: 12345, // Dummy field for migration
-                    retryBoolean: false, // Dummy field for migration
+                    metadata: metadata, // Pass directly, Drizzle handles JSON
                   }],
                 });
               }
