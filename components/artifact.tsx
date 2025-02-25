@@ -1,30 +1,4 @@
-// Update ArtifactDefinition near the top
-interface ArtifactDefinition {
-  kind: ArtifactKind;
-  content: React.ComponentType<any> | ((props: {
-    title: string;
-    content: string;
-    mode: 'edit' | 'diff';
-    status: 'streaming' | 'idle';
-    currentVersionIndex: number;
-    suggestions: any[];
-    onSaveContent: (content: string, debounce: boolean) => void;
-    isInline: boolean;
-    isCurrentVersion: boolean;
-    getDocumentContentById: (index: number) => string;
-    isLoading: boolean;
-    metadata: any;
-    setMetadata: any;
-  }) => ReactNode);
-  initialize?: (options: { documentId: string; setMetadata: any }) => void;
-  onStreamPart?: (options: {
-    streamPart: DataStreamDelta;
-    setArtifact: (artifact: UIArtifact | ((prev: UIArtifact) => UIArtifact)) => void;
-    setMetadata: any;
-  }) => void;
-}
-
-// Full updated file
+// components/artifact.tsx
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -43,7 +17,7 @@ import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
 import type { Document, Vote } from '@/lib/db/schema';
 import { fetcher } from '@/lib/utils';
 import { MultimodalInput } from './multimodal-input';
-import { Toolbar } from './toolbar';
+import { Toolbar, ArtifactToolbarItem } from './toolbar';
 import { VersionFooter } from './version-footer';
 import { ArtifactActions } from './artifact-actions';
 import { ArtifactCloseButton } from './artifact-close-button';
@@ -82,6 +56,7 @@ interface ArtifactDefinition {
     setArtifact: (artifact: UIArtifact | ((prev: UIArtifact) => UIArtifact)) => void;
     setMetadata: any;
   }) => void;
+  toolbar?: Array<ArtifactToolbarItem>; // Optional toolbar property
 }
 
 export const artifactDefinitions = [
