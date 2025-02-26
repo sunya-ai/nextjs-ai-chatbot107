@@ -103,6 +103,7 @@ export function convertToUIMessages(
     const toolInvocations: Array<ToolInvocation> = [];
     const sources: { title: string; url: string }[] = message.sources ?? [];
     const metadata: any | null = message.metadata ?? null;
+    let reasoning: string[] = [];
 
     if (typeof message.content === 'string') {
       textContent = message.content;
@@ -137,6 +138,29 @@ export function convertToUIMessages(
 
     return chatMessages;
   }, []);
+}
+
+/**
+ * Converts CustomMessage array to Message array for UI rendering compatibility
+ * Handles the conversion of the reasoning property from string[] to string
+ */
+export function convertCustomToMessages(messages: Array<CustomMessage>): Array<Message> {
+  return messages.map(message => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt,
+    // Convert reasoning array to string if it exists
+    ...(message.reasoning && {
+      reasoning: Array.isArray(message.reasoning) 
+        ? message.reasoning.join('\n') 
+        : message.reasoning
+    }),
+    // Include other properties as needed
+    ...(message.metadata && { metadata: message.metadata }),
+    ...(message.sources && { sources: message.sources }),
+    ...(message.toolInvocations && { toolInvocations: message.toolInvocations })
+  })) as Message[];
 }
 
 type ResponseMessageWithoutId = CoreToolMessage | CoreAssistantMessage;
