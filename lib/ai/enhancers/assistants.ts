@@ -23,23 +23,20 @@ export const createAssistantsEnhancer = (assistantId: string): ((message: string
   return async (message: string, fileBuffer?: ArrayBuffer, fileMime?: string): Promise<EnhancerResponse> => {
     console.log('[assistants] Starting context enhancement for message (first 100 chars):', message.slice(0, 100));
 
-    const initialAnalysisPrompt = `
-You are an energy research query refiner. Process any uploaded file and reframe each query to optimize for energy sector search results.
+    const enhancementPrompt = `
+You are an energy research context enhancer. Refine and enrich the user's query or context for energy sector analysis, processing any uploaded file to extract key details. Your goal is to provide a comprehensive, data-rich foundation for energy finance analysis, focusing on transactions, companies, and financial metrics.
 
 If a file is provided, extract key text (max 10,000 characters) and summarize:
 - Identify energy transactions (e.g., solar M&A, oil trends, geothermal deals).
 - Extract dates, companies, amounts, and deal types.
 
 Format your response as:
-Original: [user's exact question]
-File Summary: [brief summary of file content, if any]
-Refined: [reframed query optimized for energy sector search]
-Terms: [3-5 key energy industry search terms]
-Reasoning: [step-by-step reasoning for refinement]
+Refined Context: [enriched query or context for energy sector analysis]
+Reasoning: [step-by-step reasoning for refinement and enrichment]
 Sources: [list of relevant sources with titles and URLs]
 
-Keep it brief, search-focused, and exclude file content from long-term storage.
-If query/file seems unrelated to energy, find relevant energy sector angles.
+Keep it concise, data-focused, and exclude file content from long-term storage.
+If the query or file seems unrelated to energy, find relevant energy sector angles or return the original query with minimal reasoning.
 `;
 
     const contentParts: any[] = [
@@ -59,18 +56,18 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
     }
 
     try {
-      // Step 1: Initial analysis with Gemini Flash 2.0 (non-streaming)
-      console.log('[assistants] Step 1: Initial analysis with Gemini Flash 2.0');
+      // Step 1: Initial enhancement with Gemini Flash 2.0 (non-streaming)
+      console.log('[assistants] Step 1: Initial enhancement with Gemini Flash 2.0');
       const initialResult = await generateText({
         model: google('gemini-2.0-flash', {
           useSearchGrounding: true,
           structuredOutputs: true,
         }),
-        system: initialAnalysisPrompt,
+        system: enhancementPrompt,
         messages: [{ role: 'user', content: contentParts }],
         schema: z.object({
-          text: z.string().describe('Refined query and summary'),
-          reasoning: z.array(z.string()).describe('Step-by-step reasoning'),
+          text: z.string().describe('Refined context for energy sector analysis'),
+          reasoning: z.array(z.string()).describe('Step-by-step reasoning for refinement'),
           sources: z.array(z.object({
             title: z.string(),
             url: z.string().url(),
@@ -81,7 +78,7 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
       const { text: initialText, reasoning: initialReasoning, sources: initialSources } = initialResult;
       console.log('[assistants] Gemini Flash 2.0 completed, initial text length:', initialText.length);
 
-      // Step 2: Perplexity search (non-streaming)
+      // Step 2: Perplexity search for additional sources (non-streaming)
       console.log('[assistants] Step 2: Perplexity search for:', initialText.slice(0, 100));
       const perplexityResult = await generateText({
         model: Perplexity('sonar-large'),
@@ -97,14 +94,14 @@ If query/file seems unrelated to energy, find relevant energy sector angles.
       const perplexitySources = perplexityResult.sources || [];
       console.log('[assistants] Perplexity search completed, sources count:', perplexitySources.length);
 
-      // Step 3: Enhance with Gemini 2.0 Pro (non-streaming)
+      // Step 3: Ground with Gemini 2.0 Pro (non-streaming)
       console.log('[assistants] Step 3: Grounding with Gemini 2.0 Pro');
       const groundingPrompt = `
-Ground the following query in energy sector context using the provided sources. Return:
-- Text: [grounded response]
-- Reasoning: [step-by-step reasoning]
+Ground the following context in energy sector analysis using the provided sources. Return:
+- Text: [grounded and enriched context]
+- Reasoning: [step-by-step reasoning for grounding]
 
-Query: ${initialText}
+Context: ${initialText}
 Sources: ${JSON.stringify([...initialSources, ...perplexitySources])}
 `;
 
@@ -115,8 +112,8 @@ Sources: ${JSON.stringify([...initialSources, ...perplexitySources])}
         }),
         prompt: groundingPrompt,
         schema: z.object({
-          text: z.string().describe('Grounded response'),
-          reasoning: z.array(z.string()).describe('Step-by-step reasoning'),
+          text: z.string().describe('Grounded and enriched context'),
+          reasoning: z.array(z.string()).describe('Step-by-step reasoning for grounding'),
         }),
       });
 
