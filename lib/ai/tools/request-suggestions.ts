@@ -87,7 +87,7 @@ export const requestSuggestions = ({
         return {
           id: documentId,
           title: document.title,
-          kind: document.kind,
+          kind: document.kind as ArtifactKind,
           message: 'Suggestions have been added to the document',
         };
       } catch (error) {
