@@ -464,7 +464,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
+                updateDocument: updateDocument({ session, dataStream }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -548,7 +548,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
+                updateDocument: updateDocument({ session, dataStream }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
