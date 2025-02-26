@@ -43,9 +43,9 @@ export const message = pgTable('Message', {
   role: varchar('role').notNull(),
   content: jsonb('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
-  metadata: jsonb('metadata').default(sql`'{}'::jsonb'),
-  reasoning: jsonb('reasoning').default(sql`'[]'::jsonb'),
-  sources: jsonb('sources').default(sql`'[]'::jsonb'),
+metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
+reasoning: jsonb('reasoning').default(sql`'[]'::jsonb`),
+sources: jsonb('sources').default(sql`'[]'::jsonb`),
 }, (table) => ({
   chatIdIdx: index('message_chat_id_idx').on(table.chatId),
   createdAtIdx: index('message_created_at_idx').on(table.createdAt),
