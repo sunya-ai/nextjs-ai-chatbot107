@@ -31,11 +31,20 @@ import { z } from 'zod';
 import { ArtifactKind } from '@/components/artifact';
 import { CustomMessage } from '@/lib/types';
 
-export const maxDuration = 240;
+// Define SourceUIPart locally if not imported from 'ai'
+type SourceUIPart = {
+  type: 'source';
+  source: {
+    title: string;
+    url: string;
+  };
+};
 
-function isSourcePart(part: any): part is { type: 'source'; source: { title: string; url: string } } {
-  return part.type === 'source' && 'source' in part && part.source?.url;
+function isSourcePart(part: any): part is SourceUIPart {
+  return part.type === 'source' && 'source' in part && typeof part.source === 'object' && 'url' in part.source;
 }
+
+export const maxDuration = 240;
 
 type Metadata = {
   isArtifact: boolean;
@@ -126,7 +135,7 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
   if (message.parts) {
     return message.parts
       .filter(isSourcePart)
-      .map((part: { type: 'source'; source: { title: string; url: string } }) => ({
+      .map(part => ({
         title: part.source.title || 'Unknown Source',
         url: part.source.url || ''
       }))
