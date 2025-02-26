@@ -135,7 +135,7 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
   if (message.parts) {
     return message.parts
       .filter(isSourcePart)
-      .map(part => ({
+      .map((part: SourceUIPart) => ({
         title: part.source.title || 'Unknown Source',
         url: part.source.url || ''
       }))
