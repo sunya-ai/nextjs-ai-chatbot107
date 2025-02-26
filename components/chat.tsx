@@ -36,6 +36,7 @@ export function Chat({
     stop,
     reload,
     append,
+    setMessages, // Explicitly destructure setMessages for clarity
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
@@ -44,7 +45,7 @@ export function Chat({
     sendExtraMessageFields: true,
     generateId: generateUUID,
     onFinish: (message) => {
-      append(message); // Remove the second 'true' argument, relying on default UI update behavior
+      append(message); // Default UI update behavior
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
@@ -74,7 +75,7 @@ export function Chat({
         chatId={id}
         isLoading={isLoading}
         messages={messages}
-        setMessages={(msgs) => setMessages(msgs)}
+        setMessages={setMessages} // Pass setMessages directly, no lambda
         reload={reload}
         isReadonly={isReadonly}
         isArtifactVisible={isArtifactVisible}
