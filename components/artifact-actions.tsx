@@ -1,10 +1,18 @@
 // components/artifact-actions.tsx
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { artifactDefinitions, UIArtifact, ArtifactDefinition } from './artifact'; // Import ArtifactDefinition
+import {
+  artifactDefinitions,
+  UIArtifact,
+  ArtifactDefinition,
+  ArtifactAction, // Import ArtifactAction explicitly
+} from './artifact';
 import { Dispatch, memo, SetStateAction, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+
+// Import CustomMessage for type consistency (optional, if needed for metadata)
+import { CustomMessage } from '@/lib/types';
 
 interface ArtifactActionsProps<K extends string, M = any> {
   artifact: UIArtifact;
@@ -47,7 +55,7 @@ function PureArtifactActions<K extends string, M>({
 
   return (
     <div className="flex flex-row gap-1">
-      {artifactDefinition.actions.map((action) => (
+      {artifactDefinition.actions.map((action: ArtifactAction) => (
         <Tooltip key={action.description}>
           <TooltipTrigger asChild>
             <Button
@@ -85,10 +93,13 @@ function PureArtifactActions<K extends string, M>({
   );
 }
 
-export const ArtifactActions = memo(PureArtifactActions, (prevProps, nextProps) => {
-  if (prevProps.artifact.status !== nextProps.artifact.status) return false;
-  if (prevProps.currentVersionIndex !== nextProps.currentVersionIndex) return false;
-  if (prevProps.isCurrentVersion !== nextProps.isCurrentVersion) return false;
-  if (prevProps.artifact.content !== nextProps.artifact.content) return false;
-  return true;
-});
+export const ArtifactActions = memo(
+  PureArtifactActions,
+  (prevProps, nextProps) => {
+    if (prevProps.artifact.status !== nextProps.artifact.status) return false;
+    if (prevProps.currentVersionIndex !== nextProps.currentVersionIndex) return false;
+    if (prevProps.isCurrentVersion !== nextProps.isCurrentVersion) return false;
+    if (prevProps.artifact.content !== nextProps.artifact.content) return false;
+    return true;
+  },
+);
