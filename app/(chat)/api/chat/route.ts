@@ -33,8 +33,8 @@ import { ArtifactKind } from '@/components/artifact';
 // Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types'; // Adjust the path as needed
 
-// Extended Message interface that includes fields from Vercel AI SDK
-interface ExtendedMessage extends Message {
+// Use type intersection instead of interface extension for better compatibility
+type ExtendedMessage = Message & {
   parts?: Array<{
     type: string;
     text?: string;
@@ -46,7 +46,7 @@ interface ExtendedMessage extends Message {
       url: string;
     };
   }>;
-  reasoning?: string[] | string;
+  reasoning?: string; // Keep this as string | undefined to match Message
   sources?: Array<{
     id?: string;
     title?: string;
@@ -57,7 +57,7 @@ interface ExtendedMessage extends Message {
     contentType: string;
     url: string;
   }>;
-}
+};
 
 export const maxDuration = 240;
 
@@ -162,11 +162,9 @@ function extractSources(message: ExtendedMessage | null): Array<{ title?: string
 function extractReasoning(message: ExtendedMessage | null): string[] {
   if (!message) return [];
   
-  // Direct reasoning property (could be string or string[])
+  // Direct reasoning property (string only)
   if (message.reasoning) {
-    return Array.isArray(message.reasoning) 
-      ? message.reasoning 
-      : [message.reasoning];
+    return [message.reasoning]; // Always return as array for consistency
   }
   
   // Extract from parts if available
@@ -508,7 +506,7 @@ export async function POST(request: Request) {
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning: followUpReasoning,
+                      reasoning: followUpReasoning.length > 0 ? followUpReasoning[0] : undefined,
                       sources: sources,
                       metadata: metadata,
                     }],
@@ -592,7 +590,7 @@ export async function POST(request: Request) {
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning: combinedReasoning,
+                      reasoning: combinedReasoning.length > 0 ? combinedReasoning[0] : undefined,
                       sources: sources,
                       metadata: metadata,
                     }],
