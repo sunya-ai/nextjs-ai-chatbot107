@@ -481,10 +481,10 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'text', // Use valid kind values
                       };
-                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
-                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
+                      if (metadata.kind === 'sheet') {
+                        const blob = await put(`artifacts/${generateUUID()}.csv`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
@@ -565,10 +565,10 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'text', // Use valid kind values
                       };
-                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
-                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
+                      if (metadata.kind === 'sheet') {
+                        const blob = await put(`artifacts/${generateUUID()}.csv`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
