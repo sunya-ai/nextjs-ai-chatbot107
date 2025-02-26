@@ -313,6 +313,7 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null,
+        reasoning: userMessage.reasoning ?? undefined, // Added reasoning field with fallback to undefined
         sources: userMessage.sources ?? [], // Use existing sources or default to empty array
       }],
     });
@@ -425,7 +426,7 @@ export async function POST(request: Request) {
                       reasoning: followUpReasoning,
                       sources: sources, // Use sources from needsNewSearch or empty array
                       metadata: metadata,
-                    } as CustomMessage], // Cast to CustomMessage to ensure type safety
+                    }],
                   });
                 }
               },
@@ -509,7 +510,7 @@ export async function POST(request: Request) {
                       reasoning: combinedReasoning,
                       sources: sources, // Use sources from assistantsEnhancer or empty array
                       metadata: metadata,
-                    } as CustomMessage], // Cast to CustomMessage to ensure type safety
+                    }],
                   });
                 }
               },
