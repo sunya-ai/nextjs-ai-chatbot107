@@ -211,7 +211,7 @@ function PureArtifact({
   append,
   reload,
   isReadonly,
-  votes, // Already optional as Array<Vote> | undefined
+  votes, // Explicitly optional to ensure TypeScript clarity
 }: {
   chatId: string;
   input: string;
@@ -234,7 +234,7 @@ function PureArtifact({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
-  votes?: Array<Vote>; // Explicitly optional to ensure TypeScript clarity
+  votes?: Array<Vote>; // Made explicitly optional
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
   const { mutate } = useSWRConfig();
@@ -407,7 +407,7 @@ function PureArtifact({
     (def) => def.kind === artifact.kind,
   );
 
-  // Moved useEffect outside of conditional
+  // Fix useEffect missing dependency warning by adding artifact.kind
   useEffect(() => {
     if (artifactDefinition && artifact.documentId !== 'init' && typeof artifactDefinition.initialize === 'function') {
       try {
@@ -419,7 +419,7 @@ function PureArtifact({
         console.error(`Error initializing ${artifact.kind} artifact:`, error);
       }
     }
-  }, [artifact.documentId, artifactDefinition, setMetadata]);
+  }, [artifact.documentId, artifactDefinition, setMetadata, artifact.kind]); // Added artifact.kind
 
   if (!artifactDefinition) {
     console.error(`Artifact definition not found for kind: ${artifact.kind}`);
@@ -427,7 +427,7 @@ function PureArtifact({
       <AnimatePresence>
         {artifact.isVisible && (
           <motion.div className="fixed top-4 right-4 bg-red-100 text-red-800 p-4 rounded-lg shadow-lg">
-            Error: Unknown artifact type '{artifact.kind}'. Please refresh the page.
+            Error: Unknown artifact type \'{artifact.kind}\'. Please refresh the page.
             <button 
               className="ml-2 bg-red-200 p-1 rounded"
               onClick={() => setArtifact(prev => ({...prev, isVisible: false}))}
@@ -695,5 +695,5 @@ export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.input !== nextProps.input) return false;
   if (!equal(prevProps.messages, nextProps.messages)) return false;
-  return true; // Remove votes from memo comparison since it’s optional and might be undefined
+  return true; // Removed votes from memo comparison
 });
