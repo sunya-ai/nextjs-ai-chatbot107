@@ -6,6 +6,7 @@ import { memo } from 'react';
 import { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
 import { MDXRuntime } from '@mdx-js/runtime'; // Import MDX runtime
+import { useChat } from 'ai/react'; // Add for streaming
 
 interface MessagesProps {
   chatId: string;
@@ -47,6 +48,33 @@ function PureMessages({
   isReadonly,
 }: MessagesProps) {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
+  const { append } = useChat({ id: chatId }); // Integrate useChat for streaming
+
+  // Stream reasoning steps during loading
+  useEffect(() => {
+    if (isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user') {
+      append({
+        role: 'assistant',
+        content: '',
+        reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'],
+      });
+    }
+  }, [isLoading, messages, append]);
+
+  // Handle AI-driven edits from chat commands
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'user' && lastMessage.content.startsWith('Edit message')) {
+      const match = lastMessage.content.match(/Edit message (\w+) to say: (.+)/);
+      if (match) {
+        const messageId = match[1];
+        const newContent = match[2];
+        setMessages(prev => prev.map(m =>
+          m.id === messageId ? { ...m, content: newContent } : m
+        ));
+      }
+    }
+  }, [messages, setMessages]);
 
   return (
     <div
@@ -72,14 +100,20 @@ function PureMessages({
           />
           {message.sources && (
             <footer className="mt-2 p-2 bg-gray-800 rounded text-white text-sm">
-              <p>Sources:</p>
-              <ul className="list-disc pl-4">
+              <button
+                onClick={() => {/* Toggle visibility (implement if needed) */}}
+                className="flex items-center gap-1 mb-2 text-sm underline hover:text-blue-400"
+              >
+                Sources <ChevronDownIcon size={12} />
+              </button>
+              <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
                 {message.sources.map((source, index) => (
-                  <li key={index}>
+                  <li key={index} className="truncate">
                     <a
                       href={source.url}
                       target="_blank"
                       className="underline hover:text-blue-400"
+                      onMouseEnter={() => {/* Show tooltip with full URL (implement if needed) */}}
                     >
                       {source.title}
                     </a>
