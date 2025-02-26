@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/app/(auth)/auth';
 import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
-import { systemPrompt } from '@/lib/ai/prompts';
+import { systemPrompt, sheetPrompt, updateDocumentPrompt } from '@/lib/ai/prompts';
 import {
   deleteChatById,
   getChatById,
@@ -27,13 +27,15 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import { put } from '@vercel/blob';
+import { z } from 'zod'; // For structured outputs
+import { ArtifactKind } from '@/components/artifact';
 
 export const maxDuration = 240;
 
 // Define the Metadata type to include fileUrl as optional
 type Metadata = {
   isArtifact: boolean;
-  kind: string;
+  kind: ArtifactKind;
   fileUrl?: string;
 };
 
@@ -165,21 +167,11 @@ async function processSpreadsheetUpdate(
 
   console.log('[route] Processing spreadsheet update for message (first 100 chars):', userMessage.content.slice(0, 100));
 
-  const spreadsheetPrompt = `
-You are an energy deal spreadsheet manager. Based on the user's message and any existing data, generate or update a spreadsheet with columns: Date, Deal Type, Amount.
-
-- If the message requests adding a deal (e.g., "Add a solar deal for $1M on 2025-03-01"), append a new row.
-- If no existing data is provided, start with headers: ["Date", "Deal Type", "Amount"].
-- Parse the message for date (YYYY-MM-DD), deal type (e.g., "Solar M&A", "Oil Trends", "Geothermal Deals"), and amount (in dollars, e.g., $1M or 1000000).
-- Return the updated 2D array directly (no additional text).
-
-Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']])}.
-`;
-
+  const spreadsheetPromptText = sheetPrompt; // Use the sheetPrompt from prompts.ts
   try {
     const { text } = await generateText({
       model: google('gemini-2.0-flash'),
-      system: spreadsheetPrompt,
+      system: spreadsheetPromptText,
       messages: [{ role: 'user', content: userMessage.content }],
       schema: z.array(z.array(z.string())),
     });
@@ -322,7 +314,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -338,15 +330,15 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
                       };
-                      if (metadata.kind === 'table' || metadata.kind === 'chart') {
-                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
+                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
+                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
                         content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
-                        console.log('[route] Artifact generated, blob URL:', blob.url);
+                        console.log('[route] Artifact generated for follow-up, blob URL:', blob.url);
                       }
                     } else {
                       const compiledMdx = await compile(content, {
@@ -405,7 +397,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -421,15 +413,15 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
                       };
-                      if (metadata.kind === 'table' || metadata.kind === 'chart') {
-                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
+                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
+                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
                         content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
-                        console.log('[route] Artifact generated, blob URL:', blob.url);
+                        console.log('[route] Artifact generated for full process, blob URL:', blob.url);
                       }
                     } else {
                       const compiledMdx = await compile(content, {
