@@ -1,37 +1,13 @@
-// app/(chat)/actions.ts
 'use server';
-
 import { generateText, Message } from 'ai';
 import { cookies } from 'next/headers';
 import {
   deleteMessagesByChatIdAfterTimestamp,
   getMessageById,
   updateChatVisiblityById,
-  createDocument,
-  updateDocument,
 } from '@/lib/db/queries';
 import { VisibilityType } from '@/components/visibility-selector';
 import { myProvider } from '@/lib/ai/models';
-import { ArtifactKind } from '@/components/artifact';
-
-// Define the expected shape of a document, matching database schema
-type Document = {
-  id: string;
-  title: string;
-  content: string | null; // Changed to allow null
-  kind: ArtifactKind;
-  userId: string;
-};
-
-export async function createDocumentAction(data: { title: string; content: string; kind: ArtifactKind; userId: string }): Promise<Document> {
-  const results = await createDocument(data);
-  return results[0]; // Take the first document (assumes at least one result)
-}
-
-export async function updateDocumentAction(data: { id?: string; title: string; content: string; kind: ArtifactKind; userId: string }) {
-  if (!data.id) throw new Error('Document ID is required for update');
-  return await updateDocument({ ...data, id: data.id });
-}
 
 export async function saveChatModelAsCookie(model: string) {
   const cookieStore = await cookies();
@@ -58,7 +34,6 @@ export async function generateTitleFromUserMessage({
         - Do not use quotes or colons`,
       prompt: JSON.stringify(message),
     });
-
     return title.trim();
   } catch (error) {
     console.error('Failed to generate title from user message:', error);
@@ -69,11 +44,9 @@ export async function generateTitleFromUserMessage({
 export async function deleteTrailingMessages({ id }: { id: string }) {
   try {
     const [message] = await getMessageById({ id });
-
     if (!message) {
       throw new Error('Message not found');
     }
-
     await deleteMessagesByChatIdAfterTimestamp({
       chatId: message.chatId,
       timestamp: message.createdAt,
