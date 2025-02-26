@@ -11,7 +11,7 @@ import {
   boolean,
   index,
   sql,
-} from 'drizzle-orm/pg-core';
+} from 'drizzle-orm';
 
 export const user = pgTable('User', {
   id: uuid('id').primaryKey().notNull().defaultRandom(),
