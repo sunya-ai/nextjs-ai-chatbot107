@@ -5,7 +5,8 @@ import { Overview } from './overview';
 import { memo } from 'react';
 import { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
-import { MDXRuntime } from '@mdx-js/runtime'; // Import MDX runtime
+import { MDXRemote } from 'next-mdx-remote'; // Replace MDXRuntime with next-mdx-remote
+import { serialize } from 'next-mdx-remote/serialize'; // For build-time MDX processing
 import { useChat } from 'ai/react'; // Add for streaming
 
 interface MessagesProps {
@@ -75,6 +76,22 @@ function PureMessages({
       }
     }
   }, [messages, setMessages]);
+
+  // Pre-process MDX content at build time (static rendering)
+  const processedMessages = useMemo(() => {
+    return messages.map(async (message) => {
+      if (typeof message.content === 'string' && message.content.includes('.mdx')) {
+        const mdxSource = await serialize(message.content, {
+          mdxOptions: {
+            remarkPlugins: [require('remark-gfm')],
+            rehypePlugins: [require('rehype-highlight'), require('rehype-raw')],
+          },
+        });
+        return { ...message, mdxSource };
+      }
+      return message;
+    });
+  }, [messages]);
 
   return (
     <div
