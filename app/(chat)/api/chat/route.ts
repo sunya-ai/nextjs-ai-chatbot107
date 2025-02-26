@@ -26,7 +26,7 @@ import { compile } from '@mdx-js/mdx';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import { put } from '@vercel/blob'; // For file storage
+import { put } from '@vercel/blob';
 
 export const maxDuration = 240;
 
@@ -69,7 +69,7 @@ function rateLimiter(userId: string): boolean {
     userData.shortTermResetTime = now + SHORT_WINDOW_TIME;
   }
   if (userData.shortTermCount >= SHORT_MAX_REQUESTS) {
-    console.log('[rateLimiter] Over short-term limit for user:', userId);
+    console.log('[route] Rate limiter: Over short-term limit for user:', userId);
     return false;
   }
 
@@ -78,19 +78,18 @@ function rateLimiter(userId: string): boolean {
     userData.longTermResetTime = now + LONG_WINDOW_TIME;
   }
   if (userData.longTermCount >= LONG_MAX_REQUESTS) {
-    console.log('[rateLimiter] Over long-term limit for user:', userId);
+    console.log('[route] Rate limiter: Over long-term limit for user:', userId);
     return false;
   }
 
   userData.shortTermCount++;
   userData.longTermCount++;
   requestsMap.set(userId, userData);
+  console.log('[route] Rate limiter: Allowed request for user:', userId);
   return true;
 }
 
-const assistantsEnhancer = createAssistantsEnhancer(
-  process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id'
-);
+const assistantsEnhancer = createAssistantsEnhancer(process.env.OPENAI_ASSISTANT_ID || 'default-assistant-id');
 
 function convertContentToString(content: any): string {
   if (typeof content === 'string') return content;
@@ -106,76 +105,54 @@ function convertContentToString(content: any): string {
   return '';
 }
 
-async function getInitialAnalysis(
-  messages: Message[],
-  fileBuffer?: ArrayBuffer,
-  fileMime?: string
-): Promise<string> {
-  console.log('[getInitialAnalysis] Starting with Gemini Flash 2.0');
+async function checkIfFollowUp(
+  message: string,
+  previousMessages: Message[]
+): Promise<{ isFollowUp: boolean; text: string; reasoning: string[]; sources: { title: string; url: string }[] }> {
+  console.log('[route] Starting follow-up check with Gemini Flash 2.0 for message (first 100 chars):', message.slice(0, 100));
 
-  const initialAnalysisPrompt = `
-You are an energy research query refiner. Process any uploaded file and reframe each query to optimize for energy sector search results.
+  const followUpPrompt = `
+You are an energy research query classifier. Determine if the user's message is a follow-up question based on the conversation history. A follow-up is:
+- Brief and context-dependent (e.g., "What about solar?", "More details on that deal").
+- Refers to previous queries or context without new standalone information.
+- Not a new, independent energy sector query.
 
-If a file is provided, extract key text (max 10,000 characters) and summarize:
-- Identify energy transactions (e.g., solar M&A, oil trends, geothermal deals).
-- Extract dates, companies, amounts, and deal types.
+Previous messages: ${JSON.stringify(previousMessages)}
+Current message: ${message}
 
 Format your response as:
-Original: [user's exact question]
-File Summary: [brief summary of file content, if any]
-Refined: [reframed query optimized for energy sector search]
-Terms: [3-5 key energy industry search terms]
+- isFollowUp: [true/false]
+- Text: [refined query or context, if follow-up; original query, if not]
+- Reasoning: [step-by-step reasoning for the decision]
+- Sources: [list of relevant sources with titles and URLs, if any]
 
-Keep it brief, search-focused, and exclude file content from long-term storage.
-If query/file seems unrelated to energy, find relevant energy sector angles.
+Return only JSON with these fields.
 `;
 
-  const userMessage = getMostRecentUserMessage(messages);
-  if (!userMessage) {
-    console.log('[getInitialAnalysis] No user message found');
-    return '';
-  }
-
-  const contentParts: any[] = [
-    {
-      type: 'text',
-      text: userMessage.content,
-    },
-  ];
-
-  if (fileBuffer) {
-    console.log('[getInitialAnalysis] Processing file, mime:', fileMime);
-    contentParts.push({
-      type: 'file',
-      data: fileBuffer,
-      mimeType: fileMime || 'application/pdf',
-    });
-  }
-
   try {
-    const { text } = await generateText({
+    const result = await generateText({
       model: google('gemini-2.0-flash', {
         useSearchGrounding: true,
-        structuredOutputs: false,
+        structuredOutputs: true,
       }),
-      system: initialAnalysisPrompt,
-      messages: [{ role: 'user', content: contentParts }],
+      system: followUpPrompt,
+      messages: [{ role: 'user', content: message }],
+      schema: z.object({
+        isFollowUp: z.boolean(),
+        text: z.string(),
+        reasoning: z.array(z.string()),
+        sources: z.array(z.object({
+          title: z.string(),
+          url: z.string().url(),
+        })).optional(),
+      }),
     });
-    console.log('[getInitialAnalysis] Gemini Flash 2.0 success, text length:', text.length);
-    return text;
-  } catch (error) {
-    console.error('[getInitialAnalysis] Error:', error);
-    return userMessage.content;
-  }
-}
 
-async function enhanceContext(initialAnalysis: string): Promise<string> {
-  try {
-    const { enhancedContext } = await assistantsEnhancer.enhance(initialAnalysis);
-    return enhancedContext || initialAnalysis;
+    console.log('[route] Follow-up check completed, isFollowUp:', result.isFollowUp);
+    return result;
   } catch (error) {
-    console.error('Assistants Enhancer Error:', error);
-    return initialAnalysis;
+    console.error('[route] Follow-up check error:', error instanceof Error ? error.message : String(error));
+    return { isFollowUp: false, text: message, reasoning: [], sources: [] };
   }
 }
 
@@ -185,6 +162,8 @@ async function processSpreadsheetUpdate(
 ): Promise<any> {
   const userMessage = getMostRecentUserMessage(messages);
   if (!userMessage) return currentData || [['Date', 'Deal Type', 'Amount']];
+
+  console.log('[route] Processing spreadsheet update for message (first 100 chars):', userMessage.content.slice(0, 100));
 
   const spreadsheetPrompt = `
 You are an energy deal spreadsheet manager. Based on the user's message and any existing data, generate or update a spreadsheet with columns: Date, Deal Type, Amount.
@@ -202,10 +181,13 @@ Existing data: ${JSON.stringify(currentData || [['Date', 'Deal Type', 'Amount']]
       model: google('gemini-2.0-flash'),
       system: spreadsheetPrompt,
       messages: [{ role: 'user', content: userMessage.content }],
+      schema: z.array(z.array(z.string())),
     });
+
+    console.log('[route] Spreadsheet update completed, data length:', JSON.parse(text).length);
     return JSON.parse(text);
   } catch (error) {
-    console.error('[processSpreadsheetUpdate] Error:', error);
+    console.error('[route] Spreadsheet update error:', error instanceof Error ? error.message : String(error));
     return currentData || [['Date', 'Deal Type', 'Amount']];
   }
 }
@@ -220,21 +202,23 @@ function getFinalModel(selectedModel: string) {
 }
 
 export async function POST(request: Request) {
-  console.log('[POST] Initial load or chat request received');
+  console.log('[route] POST request received at /api/chat');
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      console.log('[POST] Unauthorized => 401');
+      console.log('[route] Unauthorized request => 401');
       return new Response('Unauthorized', { status: 401 });
     }
 
+    console.log('[route] User authenticated, userId:', session.user.id);
+
     if (!rateLimiter(session.user.id)) {
-      console.log('[POST] Rate limit exceeded');
+      console.log('[route] Rate limit exceeded for user:', session.user.id);
       return new Response('Too Many Requests', { status: 429 });
     }
 
     const body = await request.json();
-    console.log('[POST] Request body:', body);
+    console.log('[route] Request body parsed:', JSON.stringify(body, null, 2));
 
     const messages: Message[] = Array.isArray(body.messages) ? body.messages : [];
     const id = body.id || generateUUID();
@@ -243,7 +227,7 @@ export async function POST(request: Request) {
     let currentData = body.currentData;
 
     if (messages.length === 0) {
-      console.log('[POST] Empty messages, returning welcome message');
+      console.log('[route] Empty messages, returning welcome message');
       return new Response(JSON.stringify({
         messages: [{
           id: generateUUID(),
@@ -255,20 +239,22 @@ export async function POST(request: Request) {
 
     const userMessage = getMostRecentUserMessage(messages);
     if (!userMessage) {
-      console.log('[POST] No user message found => 400');
+      console.log('[route] No user message found => 400');
       return new Response('No user message found', { status: 400 });
     }
+
+    console.log('[route] Processing user message (first 100 chars):', userMessage.content.slice(0, 100));
 
     const content = userMessage.content.toLowerCase();
     const isSpreadsheetUpdate = content.includes('add') && (content.includes('deal') || content.includes('spreadsheet'));
 
     if (isSpreadsheetUpdate) {
-      console.log('[POST] Detected spreadsheet update request');
+      console.log('[route] Detected spreadsheet update request');
       const updatedSpreadsheet = await processSpreadsheetUpdate(messages, currentData);
-      // Save spreadsheet as a file in Vercel Blob
       const blob = await put(`spreadsheets/${generateUUID()}.csv`, JSON.stringify(updatedSpreadsheet), {
         access: 'public',
       });
+      console.log('[route] Spreadsheet updated, blob URL:', blob.url);
       return new Response(JSON.stringify({ updatedData: { fileUrl: blob.url } }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -277,23 +263,25 @@ export async function POST(request: Request) {
 
     const chat = await getChatById({ id });
     if (!chat) {
-      console.log('[POST] No chat => creating new');
+      console.log('[route] No chat found, creating new chat with ID:', id);
       const title = await generateTitleFromUserMessage({ message: userMessage });
       await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
     }
 
+    console.log('[route] Saving user message to DB for chat:', id);
     await saveMessages({
       messages: [{
         ...userMessage,
         createdAt: new Date(),
         chatId: id,
-        metadata: null, // Default to null, will be updated with file URLs if needed
+        metadata: null,
       }],
     });
 
     let fileBuffer: ArrayBuffer | undefined;
     let fileMime: string | undefined;
     if (file) {
+      console.log('[route] File detected, processing...');
       if (typeof file === 'string') {
         const binaryString = atob(file.split(',')[1]);
         fileBuffer = new ArrayBuffer(binaryString.length);
@@ -306,52 +294,70 @@ export async function POST(request: Request) {
         fileBuffer = file;
         fileMime = 'application/octet-stream';
       }
+      console.log('[route] File processed, mime:', fileMime);
     }
 
-    console.log('[POST] => createDataStreamResponse => multi-pass');
+    console.log('[route] => createDataStreamResponse => multi-pass with bypass');
     return createDataStreamResponse({
       status: 200,
       statusText: 'OK',
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       execute: async (dataStream) => {
         try {
-          const initialAnalysis = await getInitialAnalysis(messages, fileBuffer, fileMime);
-          const enhancedContext = await enhanceContext(initialAnalysis);
-          const finalPrompt = `Context:\n${enhancedContext}\n\nQuery: ${initialAnalysis}`;
+          // Step 1: Check if it’s a follow-up with Gemini Flash 2.0 (non-streaming)
+          console.log('[route] Checking if message is a follow-up...');
+          const { isFollowUp, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await checkIfFollowUp(userMessage.content, messages);
 
-          const finalModel = getFinalModel(selectedChatModel);
-          const result = await streamText({
-            model: finalModel,
-            system: systemPrompt({ selectedChatModel }),
-            messages: [{ role: 'user', content: finalPrompt }],
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({ session, dataStream }),
-            },
-            onFinish: async ({ response }) => {
-              const assistantMessage = response.messages.find(m => m.role === 'assistant');
-              if (assistantMessage) {
-                let content = convertContentToString(assistantMessage.content);
-                let metadata: Metadata | null = null;
+          if (isFollowUp) {
+            console.log('[route] Detected follow-up, bypassing full process');
+            // Direct to final model with minimal reasoning and sources
+            const finalPrompt = `Context: (Follow-up question)\nQuery: ${refinedText}`;
+            const finalModel = getFinalModel(selectedChatModel);
 
-                try {
-                  const parsedContent = JSON.parse(content);
-                  if (Array.isArray(parsedContent)) {
-                    content = JSON.stringify(parsedContent);
-                    metadata = {
-                      isArtifact: true,
-                      kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
-                    };
-                    if (metadata.kind === 'table' || metadata.kind === 'chart') {
-                      const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
-                        access: 'public',
+            console.log('[route] Streaming follow-up response with model:', selectedChatModel);
+            const result = await streamText({
+              model: finalModel,
+              system: systemPrompt({ selectedChatModel }),
+              messages: [{ role: 'user', content: finalPrompt }],
+              tools: {
+                getWeather,
+                createDocument: createDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream }),
+                requestSuggestions: requestSuggestions({ session, dataStream }),
+              },
+              onFinish: async ({ response }) => {
+                const assistantMessage = response.messages.find(m => m.role === 'assistant');
+                if (assistantMessage) {
+                  let content = convertContentToString(assistantMessage.content);
+                  let metadata: Metadata | null = null;
+
+                  console.log('[route] Processing final response for follow-up, content length:', content.length);
+                  try {
+                    const parsedContent = JSON.parse(content);
+                    if (Array.isArray(parsedContent)) {
+                      content = JSON.stringify(parsedContent);
+                      metadata = {
+                        isArtifact: true,
+                        kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
+                      };
+                      if (metadata.kind === 'table' || metadata.kind === 'chart') {
+                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
+                          access: 'public',
+                        });
+                        metadata.fileUrl = blob.url;
+                        content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
+                        console.log('[route] Artifact generated, blob URL:', blob.url);
+                      }
+                    } else {
+                      const compiledMdx = await compile(content, {
+                        outputFormat: 'function-body',
+                        remarkPlugins: [remarkGfm],
+                        rehypePlugins: [rehypeHighlight, rehypeRaw],
                       });
-                      metadata.fileUrl = blob.url; // Allowed because of Metadata type
-                      content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
+                      content = compiledMdx.toString();
                     }
-                  } else {
+                  } catch (e) {
+                    console.error('[route] MDX compilation error for follow-up:', e instanceof Error ? e.message : String(e));
                     const compiledMdx = await compile(content, {
                       outputFormat: 'function-body',
                       remarkPlugins: [remarkGfm],
@@ -359,45 +365,124 @@ export async function POST(request: Request) {
                     });
                     content = compiledMdx.toString();
                   }
-                } catch (e) {
-                  const compiledMdx = await compile(content, {
-                    outputFormat: 'function-body',
-                    remarkPlugins: [remarkGfm],
-                    rehypePlugins: [rehypeHighlight, rehypeRaw],
+
+                  console.log('[route] Saving follow-up response to DB');
+                  await saveMessages({
+                    messages: [{
+                      id: generateUUID(),
+                      chatId: id,
+                      role: 'assistant',
+                      content,
+                      createdAt: new Date(),
+                      reasoning: followUpReasoning,
+                      sources: followUpSources,
+                      metadata: metadata,
+                    }],
                   });
-                  content = compiledMdx.toString();
                 }
+              },
+            });
 
-                await saveMessages({
-                  messages: [{
-                    id: generateUUID(),
-                    chatId: id,
-                    role: 'assistant',
-                    content,
-                    createdAt: new Date(),
-                    metadata: metadata, // Pass directly, Drizzle handles JSON
-                  }],
-                });
-              }
-            },
-          });
+            await result.mergeIntoDataStream(dataStream, {
+              sendReasoning: true,
+              sendSources: true,
+            });
+          } else {
+            console.log('[route] Full process required, not a follow-up');
+            // Step 2: Enhanced context processing using assistantsEnhancer (non-streaming)
+            console.log('[route] Enhancing context with assistantsEnhancer for message:', userMessage.content.slice(0, 100));
+            const { text: finalContext, reasoning: combinedReasoning, sources: combinedSources } = await assistantsEnhancer(userMessage.content, fileBuffer, fileMime);
 
-          await result.mergeIntoDataStream(dataStream, {
-            sendReasoning: true,
-            sendSources: true,
-          });
+            // Step 3: Final response with streaming (only the final model streams)
+            const finalPrompt = `Context:\n${finalContext}\n\nQuery: ${userMessage.content}`;
+            const finalModel = getFinalModel(selectedChatModel);
+
+            console.log('[route] Streaming full response with model:', selectedChatModel);
+            const result = await streamText({
+              model: finalModel,
+              system: systemPrompt({ selectedChatModel }),
+              messages: [{ role: 'user', content: finalPrompt }],
+              tools: {
+                getWeather,
+                createDocument: createDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream }),
+                requestSuggestions: requestSuggestions({ session, dataStream }),
+              },
+              onFinish: async ({ response }) => {
+                const assistantMessage = response.messages.find(m => m.role === 'assistant');
+                if (assistantMessage) {
+                  let content = convertContentToString(assistantMessage.content);
+                  let metadata: Metadata | null = null;
+
+                  console.log('[route] Processing final response for full process, content length:', content.length);
+                  try {
+                    const parsedContent = JSON.parse(content);
+                    if (Array.isArray(parsedContent)) {
+                      content = JSON.stringify(parsedContent);
+                      metadata = {
+                        isArtifact: true,
+                        kind: Array.isArray(parsedContent[0]) ? 'table' : 'chart',
+                      };
+                      if (metadata.kind === 'table' || metadata.kind === 'chart') {
+                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'table' ? 'csv' : 'json'}`, content, {
+                          access: 'public',
+                        });
+                        metadata.fileUrl = blob.url;
+                        content = JSON.stringify({ message: 'Artifact generated', fileUrl: blob.url });
+                        console.log('[route] Artifact generated, blob URL:', blob.url);
+                      }
+                    } else {
+                      const compiledMdx = await compile(content, {
+                        outputFormat: 'function-body',
+                        remarkPlugins: [remarkGfm],
+                        rehypePlugins: [rehypeHighlight, rehypeRaw],
+                      });
+                      content = compiledMdx.toString();
+                    }
+                  } catch (e) {
+                    console.error('[route] MDX compilation error for full process:', e instanceof Error ? e.message : String(e));
+                    const compiledMdx = await compile(content, {
+                      outputFormat: 'function-body',
+                      remarkPlugins: [remarkGfm],
+                      rehypePlugins: [rehypeHighlight, rehypeRaw],
+                    });
+                    content = compiledMdx.toString();
+                  }
+
+                  console.log('[route] Saving full response to DB');
+                  await saveMessages({
+                    messages: [{
+                      id: generateUUID(),
+                      chatId: id,
+                      role: 'assistant',
+                      content,
+                      createdAt: new Date(),
+                      reasoning: combinedReasoning,
+                      sources: combinedSources,
+                      metadata: metadata,
+                    }],
+                  });
+                }
+              },
+            });
+
+            await result.mergeIntoDataStream(dataStream, {
+              sendReasoning: true,
+              sendSources: true,
+            });
+          }
         } catch (err) {
-          console.error('[EXECUTE] Error during processing:', err);
+          console.error('[route] Error during processing:', err instanceof Error ? err.message : String(err));
           throw err;
         }
       },
       onError: (error) => {
-        console.error('[createDataStreamResponse] Final error handler:', error);
+        console.error('[route] Final error handler:', error instanceof Error ? error.message : String(error));
         return 'Internal Server Error';
       },
     });
   } catch (error: unknown) {
-    console.error('[POST] Error in POST handler:', error);
+    console.error('[route] Error in POST handler:', error instanceof Error ? error.message : String(error));
     const message = error instanceof Error && error.message.includes('file')
       ? 'File processing failed'
       : 'Internal Server Error';
@@ -406,34 +491,34 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  console.log('[DELETE] => /api/chat');
+  console.log('[route] DELETE request received at /api/chat');
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
   if (!id) {
-    console.log('[DELETE] no id => 404');
+    console.log('[route] No chat ID provided => 404');
     return new Response('Not Found', { status: 404 });
   }
 
   const session = await auth();
   if (!session?.user) {
-    console.log('[DELETE] unauthorized => 401');
+    console.log('[route] Unauthorized DELETE request => 401');
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
-    console.log('[DELETE] Checking chat =>', id);
+    console.log('[route] Checking chat with ID:', id);
     const chat = await getChatById({ id });
     if (!chat || chat.userId !== session.user.id) {
-      console.log('[DELETE] not found/owned => 401');
+      console.log('[route] Chat not found or not owned => 401');
       return new Response('Unauthorized', { status: 401 });
     }
 
-    console.log('[DELETE] Deleting =>', id);
+    console.log('[route] Deleting chat with ID:', id);
     await deleteChatById({ id });
     return new Response('Chat deleted', { status: 200 });
   } catch (error) {
-    console.error('[DELETE] Error =>', error);
+    console.error('[route] Error during DELETE:', error instanceof Error ? error.message : String(error));
     return new Response('An error occurred while processing your request', {
       status: 500,
     });
