@@ -360,13 +360,15 @@ export async function POST(request: Request) {
     console.log('[route] Saving user message to DB for chat:', id);
     await saveMessages({
       messages: [{
-        ...userMessage,
+        id: userMessage.id,
+        role: userMessage.role,
+        content: userMessage.content,
         createdAt: new Date(),
         chatId: id,
         metadata: null,
         reasoning: (userMessage as CustomMessage).reasoning ?? [],
-        sources: (userMessage as CustomMessage).sources ?? [],
-      } as CustomMessage],
+        sources: (userMessage as CustomMessage).sources ?? []
+      }],
     });
 
     let fileBuffer: ArrayBuffer | undefined;
@@ -479,7 +481,7 @@ export async function POST(request: Request) {
                       reasoning,
                       sources,
                       metadata,
-                    } as CustomMessage],
+                    }],
                   });
                 }
               },
@@ -562,7 +564,7 @@ export async function POST(request: Request) {
                       reasoning,
                       sources,
                       metadata,
-                    } as CustomMessage],
+                    }],
                   });
                 }
               },
