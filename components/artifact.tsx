@@ -40,6 +40,9 @@ import * as Papa from 'papaparse'; // For CSV parsing
 // Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types';
 
+// Define artifact kinds first to avoid circular reference
+export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'chart';
+
 // Define and export ArtifactAction type
 export interface ArtifactAction {
   icon: React.ReactNode;
@@ -93,8 +96,6 @@ export const artifactDefinitions: ArtifactDefinition[] = [
   imageArtifact,
   sheetArtifact,
 ];
-
-export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
 export interface UIArtifact {
   title: string;
