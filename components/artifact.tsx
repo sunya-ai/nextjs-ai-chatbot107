@@ -407,7 +407,7 @@ function PureArtifact({
     (def) => def.kind === artifact.kind,
   );
 
-  // Fix useEffect missing dependency warning by adding artifact.kind
+  // Fix useEffect missing dependency warning
   useEffect(() => {
     if (artifactDefinition && artifact.documentId !== 'init' && typeof artifactDefinition.initialize === 'function') {
       try {
@@ -419,7 +419,7 @@ function PureArtifact({
         console.error(`Error initializing ${artifact.kind} artifact:`, error);
       }
     }
-  }, [artifact.documentId, artifactDefinition, setMetadata, artifact.kind]); // Added artifact.kind
+  }, [artifact.documentId, artifactDefinition, setMetadata, artifact.kind]);
 
   if (!artifactDefinition) {
     console.error(`Artifact definition not found for kind: ${artifact.kind}`);
@@ -501,7 +501,7 @@ function PureArtifact({
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
-                  votes={votes} // Pass votes here if needed, but it’s optional
+                  votes={votes} // Pass votes if provided, optional
                 />
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
