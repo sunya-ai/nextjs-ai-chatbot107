@@ -3,7 +3,7 @@ import { OpenAI } from 'openai';
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { z } from 'zod'; // For structured outputs
-import { Perplexity } from '@ai-sdk/perplexity'; // For Perplexity integration
+import { perplexity } from '@ai-sdk/perplexity'; // For Perplexity integration
 
 export type EnhancerResponse = {
   text: string;
