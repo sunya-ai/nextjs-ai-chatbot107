@@ -37,12 +37,63 @@ import axios from 'axios'; // For Clearbit API
 import { DataStreamWriter } from 'ai'; // For streaming progress
 import * as Papa from 'papaparse'; // For CSV parsing
 
-export const artifactDefinitions = [
+// Import CustomMessage from your local types file
+import { CustomMessage } from '@/lib/types';
+
+// Define and export ArtifactAction type
+export interface ArtifactAction {
+  icon: React.ReactNode;
+  label?: string;
+  description: string;
+  onClick: (context: {
+    content: any;
+    handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
+    currentVersionIndex: number;
+    isCurrentVersion: boolean;
+    mode: 'edit' | 'diff';
+    metadata: any;
+    setMetadata: Dispatch<SetStateAction<any>>;
+  }) => Promise<void> | void;
+  isDisabled?: (context: {
+    content: any;
+    handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
+    currentVersionIndex: number;
+    isCurrentVersion: boolean;
+    mode: 'edit' | 'diff';
+    metadata: any;
+    setMetadata: Dispatch<SetStateAction<any>>;
+  }) => boolean;
+}
+
+// Define and export ArtifactDefinition type
+export interface ArtifactDefinition {
+  kind: ArtifactKind;
+  actions: ArtifactAction[];
+  content: React.FC<{
+    title: string;
+    content: string;
+    mode: 'edit' | 'diff';
+    status: 'streaming' | 'idle';
+    currentVersionIndex: number;
+    suggestions: any[];
+    onSaveContent: (content: string, debounce: boolean) => void;
+    isInline: boolean;
+    isCurrentVersion: boolean;
+    getDocumentContentById: (index: number) => string;
+    isLoading: boolean;
+    metadata: any;
+    setMetadata: Dispatch<SetStateAction<any>>;
+  }>;
+  initialize?: (options: { documentId: string; setMetadata: Dispatch<SetStateAction<any>> }) => void;
+}
+
+export const artifactDefinitions: ArtifactDefinition[] = [
   textArtifact,
   codeArtifact,
   imageArtifact,
   sheetArtifact,
 ];
+
 export type ArtifactKind = (typeof artifactDefinitions)[number]['kind'];
 
 export interface UIArtifact {
@@ -84,11 +135,11 @@ function PureArtifact({
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
-  messages: Array<Message>;
-  setMessages: Dispatch<SetStateAction<Array<Message>>>;
+  messages: Array<CustomMessage>; // Updated to use CustomMessage
+  setMessages: Dispatch<SetStateAction<Array<CustomMessage>>>; // Updated to use CustomMessage
   votes: Array<Vote> | undefined;
   append: (
-    message: Message | CreateMessage,
+    message: CustomMessage | CreateMessage, // Updated to use CustomMessage
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
@@ -285,15 +336,15 @@ function PureArtifact({
     return [];
   }, [artifact.kind, artifact.content, parseSpreadsheetData]);
 
-  // Fetch logos for companies in spreadsheet data
+  // Fetch logos for companies in spreadsheet data with error handling and fallback
   const fetchLogo = async (company: string) => {
     try {
-      const domain = company.toLowerCase().replace(' ', '') + '.com';
+      const domain = company.toLowerCase().replace(/\s+/g, '') + '.com';
       const response = await axios.get(`https://logo.clearbit.com/${domain}`, { responseType: 'blob' });
       return URL.createObjectURL(response.data);
     } catch (error) {
       console.error('[artifact] Failed to fetch logo for', company, ':', error);
-      return null; // Return null or a default logo URL
+      return '/default-logo.png'; // Use a fallback logo
     }
   };
 
@@ -301,13 +352,13 @@ function PureArtifact({
   const loadLogos = useCallback(async () => {
     if (artifact.kind === 'sheet' && artifact.content && !showLogos) {
       const data = parseSpreadsheetData(artifact.content);
-      const newLogos = {};
+      const newLogos = { ...logoMap };
       for (const row of data) {
-        if (!logoMap[row.name] && row.name) {
+        if (!newLogos[row.name] && row.name) {
           newLogos[row.name] = await fetchLogo(row.name);
         }
       }
-      setLogoMap(prev => ({ ...prev, ...newLogos }));
+      setLogoMap(newLogos);
       setShowLogos(true);
       console.log('[artifact] Logos loaded for spreadsheet, count:', Object.keys(newLogos).length);
     }
@@ -321,14 +372,17 @@ function PureArtifact({
     }));
   }, [showLogos, chartData, logoMap]);
 
-  // Stream progress updates for artifacts
+  // Stream progress updates for artifacts with Vercel AI SDK 4.1 compatibility
   useEffect(() => {
     if (artifact.status === 'streaming' && (artifact.kind === 'sheet' || artifact.kind === 'chart')) {
       const totalRows = chartData.length || 1;
       for (let i = 0; i < totalRows; i++) {
-        dataStream.writeData({ type: 'artifactProgress', content: `Processing row ${i + 1} of ${totalRows}` });
-        console.log('[artifact] Artifact progress streamed:', `Processing row ${i + 1} of ${totalRows}`);
+        dataStream.write({
+          type: 'artifactProgress',
+          data: { message: `Processing row ${i + 1} of ${totalRows}` },
+        });
       }
+      dataStream.write({ type: 'artifactProgress', data: { message: 'Processing complete' } });
     }
   }, [artifact.status, artifact.kind, chartData.length, dataStream]);
 
@@ -414,6 +468,7 @@ function PureArtifact({
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
                   progress={progress} // Pass progress to display
+                  className="bg-background dark:bg-muted text-foreground dark:text-white" // Ensure UI consistency
                 />
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
@@ -428,7 +483,7 @@ function PureArtifact({
                     setAttachments={setAttachments}
                     messages={messages}
                     append={append}
-                    className="bg-background dark:bg-muted"
+                    className="bg-background dark:bg-muted text-foreground dark:text-white" // Ensure UI consistency
                     setMessages={setMessages}
                   />
                 </form>
@@ -574,12 +629,13 @@ function PureArtifact({
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
                     onAddLogos={() => loadLogos()} // Add logo fetching callback
+                    className="bg-background dark:bg-muted border-t dark:border-zinc-700" // Ensure UI consistency
                   />
                 )}
               </AnimatePresence>
 
               {showChart && artifact.kind === 'sheet' && chartWithLogos.length > 0 && (
-                <div className="p-4">
+                <div className="p-4 bg-background dark:bg-muted">
                   <button
                     onClick={() => setShowChart(false)}
                     className="mb-2 bg-red-500 text-white px-2 py-1 rounded"
@@ -635,6 +691,7 @@ function PureArtifact({
                   currentVersionIndex={currentVersionIndex}
                   documents={documents}
                   handleVersionChange={handleVersionChange}
+                  className="bg-background dark:bg-muted border-t dark:border-zinc-700" // Ensure UI consistency
                 />
               )}
             </AnimatePresence>
