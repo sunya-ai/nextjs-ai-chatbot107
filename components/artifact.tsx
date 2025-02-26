@@ -382,15 +382,15 @@ function PureArtifact({
   useEffect(() => {
     if (artifact.status === 'streaming' && (artifact.kind === 'sheet' || artifact.kind === 'chart')) {
       const totalRows = chartData.length || 1;
+      // Update local progress state for UI display only
       for (let i = 0; i < totalRows; i++) {
-        dataStream.write({
-          type: 'artifactProgress',
-          data: { message: `Processing row ${i + 1} of ${totalRows}` },
-        });
+        setProgress(`Processing row ${i + 1} of ${totalRows}`);
       }
-      dataStream.write({ type: 'artifactProgress', data: { message: 'Processing complete' } });
+      setTimeout(() => {
+        setProgress('Processing complete');
+      }, totalRows * 50);
     }
-  }, [artifact.status, artifact.kind, chartData.length, dataStream]);
+  }, [artifact.status, artifact.kind, chartData.length]);
 
   const handleChartEdit = useCallback((newConfig: any) => {
     setMetadata(prev => ({ ...prev, chartConfig: newConfig }));
