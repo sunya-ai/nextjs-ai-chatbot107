@@ -14,20 +14,20 @@ import {
   PencilEditIcon,
   SparklesIcon,
 } from './icons';
-import { MDXRuntime } from '@mdx-js/runtime'; // Import MDX runtime
+import { evaluate } from '@mdx-js/mdx'; // Replace MDXRuntime with evaluate
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tootip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
 import { useChat } from 'ai/react'; // Add for streaming
 
-// Define custom MDX components for interactivity (same as in messages.tsx)
+// Define custom MDX components for interactivity
 const customComponents = {
   button: ({ children, onClick }) => (
     <button onClick={onClick} className="bg-blue-500 text-white px-2 py-1 rounded">
@@ -77,6 +77,16 @@ const PurePreviewMessage = ({
       content: `Edit message ${message.id} to say: ${newContent}`,
     });
   }, [chatId, message.id, setMessages, append, isReadonly]);
+
+  // Evaluate MDX content dynamically (runtime)
+  const [MDXContent, setMDXContent] = useState<any>(null);
+  useEffect(() => {
+    if (typeof message.content === 'string') {
+      evaluate(message.content, {
+        components: customComponents,
+      }).then(setMDXContent).catch(console.error);
+    }
+  }, [message.content]);
 
   return (
     <AnimatePresence>
@@ -161,7 +171,7 @@ const PurePreviewMessage = ({
                       message.role === 'user',
                   })}
                 >
-                  <MDXRuntime components={customComponents}>{message.content as string}</MDXRuntime>
+                  {MDXContent ? MDXContent : message.content}
                 </div>
               </div>
             )}
