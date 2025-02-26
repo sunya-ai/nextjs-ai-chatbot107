@@ -3,7 +3,7 @@ import {
   pgTable,
   varchar,
   timestamp,
-  jsonb, // Updated from json to jsonb
+  jsonb, // Updated from json to jsonb for better performance
   uuid,
   text,
   primaryKey,
@@ -52,7 +52,7 @@ export const message = pgTable('Message', {
   metadataIdx: index('message_metadata_idx').using('gin', table.metadata),
   reasoningIdx: index('message_reasoning_idx').using('gin', table.reasoning),
   sourcesIdx: index('message_sources_idx').using('gin', table.sources),
-}));
+)));
 
 export type Message = InferSelectModel<typeof message>;
 
