@@ -1,16 +1,12 @@
-// components/message.tsx
 'use client';
 
 import type { ChatRequestOptions, Message } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useMemo, useState, useEffect } from 'react';
-import { MDXRemote } from 'next-mdx-remote/rsc';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight'; // Ensure version 7.x or latest
-import rehypeRaw from 'rehype-raw'; // Ensure version 7.x or latest
+import { memo, useMemo, useState } from 'react';
 
 import type { Vote } from '@/lib/db/schema';
+
 import { DocumentToolCall, DocumentToolResult } from './document';
 import {
   ChevronDownIcon,
@@ -18,6 +14,7 @@ import {
   PencilEditIcon,
   SparklesIcon,
 } from './icons';
+import { MDXRuntime } from '@mdx-js/runtime'; // Import MDX runtime instead of Markdown
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
@@ -29,51 +26,19 @@ import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
 
-// Extend Message type with metadata
-interface UIMessage extends Message {
-  metadata?: string | null;
-}
-
-// Custom component for company logos
-const Logo = ({ company }: { company: string }) => {
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchLogo = async () => {
-      try {
-        const domain = company.toLowerCase().replace(/\s/g, '') + '.com';
-        const response = await fetch(`https://logo.clearbit.com/${domain}`);
-        if (response.ok) setLogoUrl(response.url);
-      } catch (error) {
-        console.error(`Failed to fetch logo for ${company}:`, error);
-      }
-    };
-    fetchLogo();
-  }, [company]);
-
-  return logoUrl ? (
-    <img src={logoUrl} alt={`${company} Logo`} className="inline-block h-6 w-6 mr-2" />
-  ) : (
-    <span>{company}</span>
-  );
-};
-
-// Custom component for source preview boxes (V0-inspired)
-const SourcePreview = ({ url }: { url: string }) => (
-  <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-600">
-    Source: <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">{url}</a>
-  </div>
-);
-
-const mdxComponents = {
-  img: (props: any) => {
-    if (props.src?.startsWith('logo:')) {
-      const company = props.alt || props.src.replace('logo:', '');
-      return <Logo company={company} />;
-    }
-    return <img {...props} className="max-w-full h-auto" />;
-  },
-  SourcePreview,
+// Define custom MDX components for interactivity (same as in messages.tsx)
+const customComponents = {
+  button: ({ children, onClick }) => (
+    <button onClick={onClick} className="bg-blue-500 text-white px-2 py-1 rounded">
+      {children}
+    </button>
+  ),
+  form: ({ children, onSubmit }) => (
+    <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      {children}
+    </form>
+  ),
+  input: (props) => <input {...props} className="border p-1 rounded" />,
 };
 
 const PurePreviewMessage = ({
@@ -86,11 +51,11 @@ const PurePreviewMessage = ({
   isReadonly,
 }: {
   chatId: string;
-  message: UIMessage;
+  message: Message;
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: (
-    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
+    messages: Message[] | ((messages: Message[]) => Message[]),
   ) => void;
   reload: (
     chatRequestOptions?: ChatRequestOptions,
@@ -98,8 +63,6 @@ const PurePreviewMessage = ({
   isReadonly: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
-  const metadata = message.metadata ? JSON.parse(message.metadata) : null;
-  const sources = metadata?.sources || [];
 
   return (
     <AnimatePresence>
@@ -165,28 +128,12 @@ const PurePreviewMessage = ({
                 )}
 
                 <div
-                  className={cn('flex flex-col gap-4 prose', {
+                  className={cn('flex flex-col gap-4', {
                     'bg-primary text-primary-foreground px-3 py-2 rounded-xl':
                       message.role === 'user',
                   })}
                 >
-                  <MDXRemote
-                    source={message.content as string}
-                    components={mdxComponents}
-                    options={{
-                      mdxOptions: {
-                        remarkPlugins: [remarkGfm],
-                        rehypePlugins: [rehypeHighlight, rehypeRaw],
-                      },
-                    }}
-                  />
-                  {sources.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {sources.map((source: { id: string; url: string }) => (
-                        <SourcePreview key={source.id} url={source.url} />
-                      ))}
-                    </div>
-                  )}
+                  <MDXRuntime components={customComponents}>{message.content as string}</MDXRuntime>
                 </div>
               </div>
             )}
@@ -194,6 +141,7 @@ const PurePreviewMessage = ({
             {message.content && mode === 'edit' && (
               <div className="flex flex-row gap-2 items-start">
                 <div className="size-8" />
+
                 <MessageEditor
                   key={message.id}
                   message={message}
