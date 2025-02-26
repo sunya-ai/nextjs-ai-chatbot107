@@ -1,5 +1,5 @@
 import {
-  type Message,
+  type CustomMessage as Message,
   createDataStreamResponse,
   streamText,
   generateText,
@@ -267,6 +267,7 @@ export async function POST(request: Request) {
           id: generateUUID(),
           role: 'assistant',
           content: 'Welcome! How can I assist you today?',
+          sources: [], // Default to empty array for welcome message
         }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
@@ -309,6 +310,7 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null,
+        sources: userMessage.sources ?? [], // Use existing sources or default to empty array
       }],
     });
 
@@ -345,7 +347,7 @@ export async function POST(request: Request) {
           const previousContext = previousResponse ? { 
             text: convertContentToString(previousResponse.content), 
             reasoning: previousResponse.reasoning || [], 
-            sources: previousResponse.sources || [] 
+            sources: previousResponse.sources ?? [] 
           } : { text: '', reasoning: [], sources: [] };
 
           const { needsSearch, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await needsNewSearch(userMessage.content, previousMessages, previousContext);
@@ -372,6 +374,7 @@ export async function POST(request: Request) {
                 if (assistantMessage) {
                   let content = convertContentToString(assistantMessage.content);
                   let metadata: Metadata | null = null;
+                  let sources = followUpSources ?? []; // Use sources from needsNewSearch or default to empty
 
                   console.log('[route] Processing final response for follow-up, content length:', content.length);
                   try {
@@ -417,7 +420,7 @@ export async function POST(request: Request) {
                       content,
                       createdAt: new Date(),
                       reasoning: followUpReasoning,
-                      sources: followUpSources,
+                      sources: sources, // Use sources from needsNewSearch or empty array
                       metadata: metadata,
                     }],
                   });
@@ -427,7 +430,7 @@ export async function POST(request: Request) {
 
             await result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
-              sendSources: true,
+              sendSources: true, // Stream sources to the client
             });
           } else {
             console.log('[route] New search needed, running full context enhancement');
@@ -455,6 +458,7 @@ export async function POST(request: Request) {
                 if (assistantMessage) {
                   let content = convertContentToString(assistantMessage.content);
                   let metadata: Metadata | null = null;
+                  let sources = combinedSources ?? []; // Use sources from assistantsEnhancer or default to empty
 
                   console.log('[route] Processing final response for full process, content length:', content.length);
                   try {
@@ -500,7 +504,7 @@ export async function POST(request: Request) {
                       content,
                       createdAt: new Date(),
                       reasoning: combinedReasoning,
-                      sources: combinedSources,
+                      sources: sources, // Use sources from assistantsEnhancer or empty array
                       metadata: metadata,
                     }],
                   });
@@ -510,7 +514,7 @@ export async function POST(request: Request) {
 
             await result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
-              sendSources: true,
+              sendSources: true, // Stream sources to the client
             });
           }
         } catch (err) {
