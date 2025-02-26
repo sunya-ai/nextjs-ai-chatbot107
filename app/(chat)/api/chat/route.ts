@@ -126,7 +126,7 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
   if (message.parts) {
     return message.parts
       .filter(isSourcePart)
-      .map(part => ({
+      .map((part: { type: 'source'; source: { title: string; url: string } }) => ({
         title: part.source.title || 'Unknown Source',
         url: part.source.url || ''
       }))
@@ -558,7 +558,7 @@ export async function POST(request: Request) {
       },
       onError: (error) => {
         console.error('[route] Final error handler:', error instanceof Error ? error.message : String(error));
-        return 'Internal Server Error';
+        return new Response('Internal Server Error', { status: 500 });
       },
     });
   } catch (error: unknown) {
