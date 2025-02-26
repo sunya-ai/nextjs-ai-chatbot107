@@ -27,15 +27,16 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import { put } from '@vercel/blob';
-import { z } from 'zod'; // For structured outputs
+import { z } from 'zod';
 import { ArtifactKind } from '@/components/artifact';
-
-// Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types';
 
-export const maxDuration = 240; // Increased for complex operations, if needed
+export const maxDuration = 240;
 
-// Define the Metadata type to include fileUrl as optional
+function isSourcePart(part: any): part is { type: 'source'; source: { title: string; url: string } } {
+  return part.type === 'source' && 'source' in part && part.source?.url;
+}
+
 type Metadata = {
   isArtifact: boolean;
   kind: ArtifactKind;
@@ -52,9 +53,9 @@ type RateLimitInfo = {
 const requestsMap = new Map<string, RateLimitInfo>();
 
 const SHORT_MAX_REQUESTS = 50;
-const SHORT_WINDOW_TIME = 2 * 60 * 60_000; // 2 hours
+const SHORT_WINDOW_TIME = 2 * 60 * 60_000;
 const LONG_MAX_REQUESTS = 100;
-const LONG_WINDOW_TIME = 12 * 60 * 60_000; // 12 hours
+const LONG_WINDOW_TIME = 12 * 60 * 60_000;
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
@@ -110,29 +111,26 @@ function convertContentToString(content: any): string {
   return '';
 }
 
-// Helper functions for extracting reasoning and sources from messages with robust handling
 function extractSources(message: CustomMessage | null): Array<{ title: string; url: string }> {
   if (!message) return [];
 
-  // Direct sources property from CustomMessage
   if (message.sources) {
     return message.sources
       .map(source => ({
         title: source.title || 'Unknown Source',
         url: source.url || ''
       }))
-      .filter(source => source.url); // Remove sources with empty URLs
+      .filter(source => source.url);
   }
 
-  // Extract from parts if available (Vercel AI SDK 4.1 compatibility)
   if (message.parts) {
     return message.parts
-      .filter((part) => part.type === 'source' && 'source' in part && part.source?.url)
-      .map((part) => ({
-        title: part.source?.title || 'Unknown Source',
-        url: part.source?.url || ''
+      .filter(isSourcePart)
+      .map(part => ({
+        title: part.source.title || 'Unknown Source',
+        url: part.source.url || ''
       }))
-      .filter(source => source.url); // Ensure valid URLs
+      .filter(source => source.url);
   }
 
   return [];
@@ -141,16 +139,14 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
 function extractReasoning(message: CustomMessage | null): string[] {
   if (!message) return [];
 
-  // Direct reasoning property from CustomMessage (as array for consistency)
   if (message.reasoning) {
-    return Array.isArray(message.reasoning) ? message.reasoning : [message.reasoning].filter(Boolean);
+    return Array.isArray(message.reasoning) ? message.reasoning : [message.reasoning];
   }
 
-  // Extract from parts if available (Vercel AI SDK 4.1 compatibility)
   if (message.parts) {
     return message.parts
-      .filter((part) => part.type === 'reasoning' && 'reasoning' in part && part.reasoning)
-      .flatMap((part) => (part.reasoning ? [part.reasoning] : []))
+      .filter((part) => part.type === 'reasoning' && 'reasoning' in part)
+      .map((part) => part.reasoning || '')
       .filter(Boolean);
   }
 
@@ -303,7 +299,7 @@ export async function POST(request: Request) {
           id: generateUUID(),
           role: 'assistant',
           content: 'Welcome! How can I assist you today?',
-          sources: [], // Default to empty array for welcome message
+          sources: [],
         }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
@@ -344,10 +340,10 @@ export async function POST(request: Request) {
       messages: [{
         ...userMessage,
         createdAt: new Date(),
-        chatId: id, // Ensure chatId is included
+        chatId: id,
         metadata: null,
-        sources: (userMessage as CustomMessage).sources ?? [], // Default to empty array if undefined
-        reasoning: (userMessage as CustomMessage).reasoning ?? [], // Default to empty array if undefined
+        reasoning: (userMessage as CustomMessage).reasoning ?? [],
+        sources: (userMessage as CustomMessage).sources ?? [],
       } as CustomMessage],
     });
 
@@ -377,11 +373,10 @@ export async function POST(request: Request) {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       execute: async (dataStream) => {
         try {
-          // Step 1: Check if it's a follow-up or needs a new search
           console.log('[route] Checking if message is a follow-up or needs new search...');
-          const previousMessages = messages.slice(0, -1); // Exclude current message
+          const previousMessages = messages.slice(0, -1);
           const previousResponse = messages[messages.length - 1]?.role === 'assistant' 
-            ? (messages[messages.length - 1] as CustomMessage) 
+            ? messages[messages.length - 1] as CustomMessage 
             : null;
           
           const previousContext = previousResponse ? { 
@@ -474,6 +469,7 @@ export async function POST(request: Request) {
             });
           } else {
             console.log('[route] New search needed, running full context enhancement');
+            console.log('[route] Enhancing context with assistantsEnhancer for message:', userMessage.content.slice(0, 100));
             const { text: finalContext, reasoning: combinedReasoning, sources: combinedSources } = await assistantsEnhancer(userMessage.content, fileBuffer, fileMime);
 
             const finalPrompt = `Context:\n${finalContext}\n\nQuery: ${userMessage.content}`;
@@ -562,7 +558,7 @@ export async function POST(request: Request) {
       },
       onError: (error) => {
         console.error('[route] Final error handler:', error instanceof Error ? error.message : String(error));
-        return new Response('Internal Server Error', { status: 500 });
+        return 'Internal Server Error';
       },
     });
   } catch (error: unknown) {
