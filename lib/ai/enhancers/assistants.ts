@@ -15,7 +15,7 @@ export const createAssistantsEnhancer = (assistantId: string): ((message: string
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
-  const perplexity = new OpenAI({
+  const perplexityClient = new OpenAI({
     apiKey: process.env.PERPLEXITY_API_KEY,
     baseURL: 'https://api.perplexity.ai',
   });
@@ -60,79 +60,132 @@ If the query or file seems unrelated to energy, find relevant energy sector angl
       console.log('[assistants] Step 1: Refining with Gemini Flash 2.0');
       const initialResult = await generateText({
         model: google('gemini-2.0-flash', {
-          useSearchGrounding: true,
-          structuredOutputs: true,
+          useSearchGrounding: true
         }),
         system: initialPrompt,
-        messages: [{ role: 'user', content: contentParts }],
-        schema: z.object({
-          text: z.string().describe('Refined context for energy sector analysis'),
-          reasoning: z.array(z.string()).describe('Step-by-step reasoning for refinement'),
-          sources: z.array(z.object({
-            title: z.string(),
-            url: z.string().url(),
-          })).describe('Relevant sources'),
-        }),
+        messages: [{ role: 'user', content: contentParts }]
       });
 
-      const { text: refinedText, reasoning: initialReasoning, sources: initialSources } = initialResult;
+      // Parse the text result to extract components
+      const initialText = initialResult.text;
+      
+      // Extract refined context
+      const contextMatch = initialText.match(/Refined Context:\s*([\s\S]*?)(?=Reasoning:|$)/i);
+      const refinedText = contextMatch ? contextMatch[1].trim() : message;
+      
+      // Extract reasoning
+      const reasoningMatch = initialText.match(/Reasoning:\s*([\s\S]*?)(?=Sources:|$)/i);
+      const initialReasoning = reasoningMatch
+        ? reasoningMatch[1].trim().split('\n').map(line => line.trim()).filter(Boolean)
+        : [];
+      
+      // Extract sources
+      const sourcesMatch = initialText.match(/Sources:\s*([\s\S]*?)$/i);
+      let initialSources: { title: string; url: string }[] = [];
+      
+      if (sourcesMatch && sourcesMatch[1]) {
+        const sourcesText = sourcesMatch[1].trim();
+        const urlMatches = [...sourcesText.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g)];
+        
+        initialSources = urlMatches.map(match => ({
+          title: match[1] || 'Unknown Source',
+          url: match[2]
+        }));
+      }
+
       console.log('[assistants] Gemini Flash 2.0 refinement completed, text length:', refinedText.length);
 
       // Step 2: Parallel execution of Perplexity, OpenAI Assistants, and Gemini 2.0 Pro
       console.log('[assistants] Step 2: Starting parallel enhancement with Perplexity, OpenAI Assistants, and Gemini 2.0 Pro');
       const [perplexityResult, assistantsResult, groundingResult] = await Promise.all([
         // Perplexity search
-        generateText({
-          model: Perplexity('sonar-large'),
-          prompt: `Perform a search for energy sector information related to: ${refinedText}. Return only sources with titles and URLs.`,
-          schema: z.object({
-            sources: z.array(z.object({
-              title: z.string(),
-              url: z.string().url(),
-            })),
-          }),
-        }),
+        (async () => {
+          try {
+            const result = await generateText({
+              model: perplexity('sonar-large'),
+              prompt: `Perform a search for energy sector information related to: ${refinedText}. Return only sources with titles and URLs.`
+            });
+            
+            // Extract sources from perplexity result
+            const perplexityText = result.text;
+            const urlMatches = [...perplexityText.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g)];
+            
+            const perplexitySources = urlMatches.map(match => ({
+              title: match[1] || 'Unknown Source',
+              url: match[2]
+            }));
+            
+            return { sources: perplexitySources };
+          } catch (error) {
+            console.error('[assistants] Perplexity search error:', error instanceof Error ? error.message : String(error));
+            return { sources: [] };
+          }
+        })(),
+        
         // OpenAI Assistants enhancement
         (async () => {
-          const assistantThread = await openai.beta.threads.create();
-          await openai.beta.threads.messages.create(assistantThread.id, {
-            role: 'user',
-            content: refinedText,
-          });
-          const assistantRun = await openai.beta.threads.runs.create(assistantThread.id, {
-            assistant_id: assistantId,
-          });
+          try {
+            const assistantThread = await openai.beta.threads.create();
+            await openai.beta.threads.messages.create(assistantThread.id, {
+              role: 'user',
+              content: refinedText,
+            });
+            const assistantRun = await openai.beta.threads.runs.create(assistantThread.id, {
+              assistant_id: assistantId,
+            });
 
-          let assistantRunStatus = await openai.beta.threads.runs.retrieve(assistantThread.id, assistantRun.id);
-          while (assistantRunStatus.status === 'in_progress' || assistantRunStatus.status === 'queued') {
-            console.log('[assistants] OpenAI Assistants in progress/queued, waiting 1s...');
-            await new Promise(res => setTimeout(res, 1000));
-            assistantRunStatus = await openai.beta.threads.runs.retrieve(assistantThread.id, assistantRun.id);
+            let assistantRunStatus = await openai.beta.threads.runs.retrieve(assistantThread.id, assistantRun.id);
+            while (assistantRunStatus.status === 'in_progress' || assistantRunStatus.status === 'queued') {
+              console.log('[assistants] OpenAI Assistants in progress/queued, waiting 1s...');
+              await new Promise(res => setTimeout(res, 1000));
+              assistantRunStatus = await openai.beta.threads.runs.retrieve(assistantThread.id, assistantRun.id);
+            }
+
+            const assistantMessages = await openai.beta.threads.messages.list(assistantThread.id);
+            const assistantContent = assistantMessages.data[0]?.content[0]?.text?.value || '';
+            const assistantReasoning = ['Enhancing context with Assistants...', 'Integrating assistant insights...'];
+            const assistantSources = extractSourcesFromResponse(assistantContent) || [];
+
+            return { text: assistantContent, reasoning: assistantReasoning, sources: assistantSources };
+          } catch (error) {
+            console.error('[assistants] OpenAI Assistants error:', error instanceof Error ? error.message : String(error));
+            return { text: '', reasoning: [], sources: [] };
           }
-
-          const assistantMessages = await openai.beta.threads.messages.list(assistantThread.id);
-          const assistantContent = assistantMessages.data[0]?.content[0]?.text?.value || '';
-          const assistantReasoning = ['Enhancing context with Assistants...', 'Integrating assistant insights...'];
-          const assistantSources = extractSourcesFromResponse(assistantContent) || [];
-
-          return { text: assistantContent, reasoning: assistantReasoning, sources: assistantSources };
         })(),
+        
         // Gemini 2.0 Pro grounding
-        generateText({
-          model: google('gemini-2.0-pro', {
-            useSearchGrounding: true,
-            structuredOutputs: true,
-          }),
-          prompt: `Ground the following context in energy sector analysis using any available sources. Return:
+        (async () => {
+          try {
+            const result = await generateText({
+              model: google('gemini-2.0-pro', {
+                useSearchGrounding: true
+              }),
+              prompt: `Ground the following context in energy sector analysis using any available sources. Return:
 - Text: [grounded and enriched context]
 - Reasoning: [step-by-step reasoning for grounding]
 
-Context: ${refinedText}`,
-          schema: z.object({
-            text: z.string().describe('Grounded and enriched context'),
-            reasoning: z.array(z.string()).describe('Step-by-step reasoning for grounding'),
-          }),
-        }),
+Context: ${refinedText}`
+            });
+            
+            // Extract text and reasoning from result
+            const groundingText = result.text;
+            
+            // Extract text
+            const textMatch = groundingText.match(/Text:\s*([\s\S]*?)(?=Reasoning:|$)/i);
+            const groundedText = textMatch ? textMatch[1].trim() : '';
+            
+            // Extract reasoning
+            const reasoningMatch = groundingText.match(/Reasoning:\s*([\s\S]*?)$/i);
+            const groundingReasoning = reasoningMatch
+              ? reasoningMatch[1].trim().split('\n').map(line => line.trim()).filter(Boolean)
+              : [];
+            
+            return { text: groundedText, reasoning: groundingReasoning };
+          } catch (error) {
+            console.error('[assistants] Gemini grounding error:', error instanceof Error ? error.message : String(error));
+            return { text: '', reasoning: [] };
+          }
+        })(),
       ]);
 
       const perplexitySources = perplexityResult.sources || [];
