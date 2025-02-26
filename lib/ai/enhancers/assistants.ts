@@ -1,465 +1,176 @@
-/******************************************************
- * assistants.ts
- ******************************************************/
+// lib/ai/enhancers/assistants.ts
 import { OpenAI } from 'openai';
 import { google } from '@ai-sdk/google';
 import { generateText } from 'ai';
-import { ContextEnhancer, EnhancerResponse } from './types';
+import { z } from 'zod'; // For structured outputs
+import { Perplexity } from '@ai-sdk/perplexity'; // For Perplexity integration
 
-// Models that enable external search for Tavily/Exa
-const SEARCH_ENABLED_MODELS = ['chat-model-reasoning'];
-
-// Per the original code
-interface TavilyResult {
-  url: string;
-  title: string;
-  content: string;
-}
-
-interface TavilyResponse {
-  answer?: string;
-  results?: TavilyResult[];
-}
-
-interface ExaDocument {
-  url: string;
-  title: string;
+export type EnhancerResponse = {
   text: string;
-}
-
-interface ExaResponse {
-  documents?: ExaDocument[];
-}
-
-// Initialize API Clients
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const perplexity = new OpenAI({
-  apiKey: process.env.PERPLEXITY_API_KEY,
-  baseURL: 'https://api.perplexity.ai'
-});
-
-/**
- * withTimeout => Wraps a promise with a timeout
- */
-const withTimeout = async (promise: Promise<any>, timeoutMs: number, serviceName: string) => {
-  console.log(`[withTimeout] Start => ${serviceName}, timeout = ${timeoutMs}ms`);
-  let timeoutId: NodeJS.Timeout;
-  
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      console.error(`[withTimeout] ${serviceName} => TIMEOUT after ${timeoutMs}ms`);
-      reject(new Error(`${serviceName} timeout after ${timeoutMs}ms`));
-    }, timeoutMs);
-  });
-
-  try {
-    const result = await Promise.race([promise, timeoutPromise]);
-    clearTimeout(timeoutId!);
-    console.log(`[withTimeout] ${serviceName} => success under timeout`);
-    return result;
-  } catch (error) {
-    clearTimeout(timeoutId!);
-    console.error(`[withTimeout] ${serviceName} => error:`, error);
-    throw error;
-  }
+  reasoning: string[];
+  sources: { title: string; url: string }[];
 };
 
-/**
- * getPerplexityResponse => Queries Perplexity
- */
-async function getPerplexityResponse(message: string): Promise<string> {
-  try {
-    console.log('[getPerplexityResponse] Starting Perplexity search...');
-    const response = await perplexity.chat.completions.create({
-      model: 'sonar',
-      messages: [
-        {
-          role: 'system',
-          content: ` Energy Research Assistant Guidelines:
+export const createAssistantsEnhancer = (assistantId: string): ((message: string, fileBuffer?: ArrayBuffer, fileMime?: string) => Promise<EnhancerResponse>) => {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  const perplexity = new OpenAI({
+    apiKey: process.env.PERPLEXITY_API_KEY,
+    baseURL: 'https://api.perplexity.ai',
+  });
 
-Source all info with URLs; prioritize original press releases
+  return async (message: string, fileBuffer?: ArrayBuffer, fileMime?: string): Promise<EnhancerResponse> => {
+    console.log('[assistants] Starting context enhancement for message (first 100 chars):', message.slice(0, 100));
 
-Use 3+ sources; cross-reference rigorously
+    const initialAnalysisPrompt = `
+You are an energy research query refiner. Process any uploaded file and reframe each query to optimize for energy sector search results.
 
-Focus on most recent and reputable sources
+If a file is provided, extract key text (max 10,000 characters) and summarize:
+- Identify energy transactions (e.g., solar M&A, oil trends, geothermal deals).
+- Extract dates, companies, amounts, and deal types.
 
-Organize logically: summary, then details
+Format your response as:
+Original: [user's exact question]
+File Summary: [brief summary of file content, if any]
+Refined: [reframed query optimized for energy sector search]
+Terms: [3-5 key energy industry search terms]
+Reasoning: [step-by-step reasoning for refinement]
+Sources: [list of relevant sources with titles and URLs]
 
-Maintain objectivity; present balanced views
+Keep it brief, search-focused, and exclude file content from long-term storage.
+If query/file seems unrelated to energy, find relevant energy sector angles.
+`;
 
-Handle specialized info precisely (financials, product launches, mergers)
-
-Include latest news for mentioned entities
-
-Use inline citations (URL in parentheses)
-
-Use headers for clarity
-
-Note contradictions between sources
-
-Link to official documents or filings if available
-
-Goal: Deliver comprehensive, current, well-sourced response focusing on official company announcements and their implications.   `
-        },
-        { role: 'user', content: message }
-      ]
-    });
-    console.log('[getPerplexityResponse] Perplexity response received');
-    return response.choices[0].message.content || '';
-  } catch (error) {
-    console.error('[getPerplexityResponse] Perplexity error:', error);
-    return `[Perplexity Search Failed: ${error instanceof Error ? error.message : String(error)}]`;
-  }
-}
-
-/**
- * getGeminiProResponse => Calls Gemini 2.0 Pro with the same system prompt as Perplexity
- */
-async function getGeminiProResponse(message: string): Promise<string> {
-  try {
-    console.log('[getGeminiProResponse] Starting Gemini search...');
-    // "Copy" the Perplexity system prompt:
-    const systemPrompt = `You are a research assistant. Find relevant, factual information with source URLs.
-Energy Research Assistant Guidelines:
-
-Source all info with URLs; prioritize original press releases
-
-Use 3+ sources; cross-reference rigorously
-
-Focus on most recent and reputable sources
-
-Organize logically: summary, then details
-
-Maintain objectivity; present balanced views
-
-Handle specialized info precisely (financials, product launches, mergers)
-
-Include latest news for mentioned entities
-
-Use inline citations (URL in parentheses)
-
-Use headers for clarity
-
-Note contradictions between sources
-
-Link to official documents or filings if available
-
-Goal: Deliver comprehensive, current, well-sourced response focusing on official company announcements and their implications.`;
-
-    const { text } = await generateText({
-      model: google('gemini-2.0-pro-exp-02-05', {
-        useSearchGrounding: true,
-        structuredOutputs: false,
-      }),
-      // Provide a system + user prompt
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message }
-      ],
-    });
-
-    console.log('[getGeminiProResponse] Gemini success => text length:', text?.length || 0);
-    return text;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[getGeminiProResponse] Error =>', msg);
-    return `[GeminiPro error: ${msg}]`;
-  }
-}
-
-/**
- * getTavilyResponse => Tavily search API implementation
- */
-async function getTavilyResponse(message: string): Promise<string> {
-  try {
-    if (!message.trim()) {
-      console.error('[getTavilyResponse] Empty query string provided');
-      return '[No query provided for Tavily search]';
-    }
-
-    if (message.length > 400) {
-      console.warn('[getTavilyResponse] Query too long, truncating to 400 chars');
-      message = message.slice(0, 400);
-    }
-
-    console.log('[getTavilyResponse] Starting Tavily search with query:', message.slice(0, 100));
-    
-    const requestBody = {
-      query: message,
-      search_depth: "advanced",
-      include_answer: true,
-      max_results: 5
-    };
-
-    console.log('[getTavilyResponse] Request body:', JSON.stringify(requestBody, null, 2));
-
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.TAVILY_API_KEY}`,
-        'Content-Type': 'application/json'
+    const contentParts: any[] = [
+      {
+        type: 'text',
+        text: message,
       },
-      body: JSON.stringify(requestBody)
-    });
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[getTavilyResponse] Response not OK:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText,
-        headers: Object.fromEntries(response.headers.entries())
+    if (fileBuffer) {
+      console.log('[assistants] Processing file, mime:', fileMime);
+      contentParts.push({
+        type: 'file',
+        data: fileBuffer,
+        mimeType: fileMime || 'application/pdf',
       });
-      throw new Error(`Tavily API error: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json() as TavilyResponse;
-    console.log('[getTavilyResponse] Tavily search complete =>', JSON.stringify(data, null, 2));
-
-    if (!data.results || data.results.length === 0) {
-      return data.answer ?? '[No Tavily results returned]';
-    }
-
-    const formatted = data.results
-      .map((r, i) => `[Source ${i + 1}]\nURL: ${r.url}\nTitle: ${r.title}\n\n${r.content}`)
-      .join('\n\n---\n\n');
-
-    return data.answer 
-      ? `Tavily Summary: ${data.answer}\n\nDetailed Sources:\n${formatted}`
-      : formatted;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[getTavilyResponse] Detailed error:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      tavilyKey: process.env.TAVILY_API_KEY ? 'Present' : 'Missing'
-    });
-    return `[Tavily Search Failed: ${errorMessage}]`;
-  }
-}
-
-/**
- * getExaResponse => Exa search API implementation
- */
-async function getExaResponse(message: string): Promise<string> {
-  try {
-    if (!message.trim()) {
-      console.error('[getExaResponse] Empty query string provided');
-      return '[No query provided for Exa search]';
-    }
-
-    console.log('[getExaResponse] Starting Exa search with query:', message.slice(0, 100));
-    
-    const requestBody = {
-      query: message,
-      contents: {
-        text: { maxCharacters: 1000 }
-      }
-    };
-
-    console.log('[getExaResponse] Request body:', JSON.stringify(requestBody, null, 2));
-
-    const response = await fetch('https://api.exa.ai/search', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.EXA_API_KEY!
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[getExaResponse] Response not OK:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText,
-        headers: Object.fromEntries(response.headers.entries())
+    try {
+      // Step 1: Initial analysis with Gemini Flash 2.0 (non-streaming)
+      console.log('[assistants] Step 1: Initial analysis with Gemini Flash 2.0');
+      const initialResult = await generateText({
+        model: google('gemini-2.0-flash', {
+          useSearchGrounding: true,
+          structuredOutputs: true,
+        }),
+        system: initialAnalysisPrompt,
+        messages: [{ role: 'user', content: contentParts }],
+        schema: z.object({
+          text: z.string().describe('Refined query and summary'),
+          reasoning: z.array(z.string()).describe('Step-by-step reasoning'),
+          sources: z.array(z.object({
+            title: z.string(),
+            url: z.string().url(),
+          })).describe('Relevant sources'),
+        }),
       });
-      throw new Error(`Exa API error: ${response.status} - ${errorText}`);
-    }
 
-    const data = await response.json() as ExaResponse;
-    console.log('[getExaResponse] Exa raw data =>', JSON.stringify(data, null, 2));
+      const { text: initialText, reasoning: initialReasoning, sources: initialSources } = initialResult;
+      console.log('[assistants] Gemini Flash 2.0 completed, initial text length:', initialText.length);
 
-    if (!data.documents || data.documents.length === 0) {
-      console.warn('[getExaResponse] No documents returned');
-      return '[No Exa results returned]';
-    }
+      // Step 2: Perplexity search (non-streaming)
+      console.log('[assistants] Step 2: Perplexity search for:', initialText.slice(0, 100));
+      const perplexityResult = await generateText({
+        model: Perplexity('sonar-large'),
+        prompt: `Perform a search for energy sector information related to: ${initialText}. Return only sources with titles and URLs.`,
+        schema: z.object({
+          sources: z.array(z.object({
+            title: z.string(),
+            url: z.string().url(),
+          })),
+        }),
+      });
 
-    const formatted = data.documents
-      .map((doc, i) => `[Source ${i + 1}]\nURL: ${doc.url}\nTitle: ${doc.title}\n\n${doc.text}`)
-      .join('\n\n---\n\n');
+      const perplexitySources = perplexityResult.sources || [];
+      console.log('[assistants] Perplexity search completed, sources count:', perplexitySources.length);
 
-    console.log('[getExaResponse] Exa search complete => returning results');
-    return formatted;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[getExaResponse] Detailed error:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      exaKey: process.env.EXA_API_KEY ? 'Present' : 'Missing'
-    });
-    return `[Exa Search Failed: ${errorMessage}]`;
-  }
-}
+      // Step 3: Enhance with Gemini 2.0 Pro (non-streaming)
+      console.log('[assistants] Step 3: Grounding with Gemini 2.0 Pro');
+      const groundingPrompt = `
+Ground the following query in energy sector context using the provided sources. Return:
+- Text: [grounded response]
+- Reasoning: [step-by-step reasoning]
 
-/**
- * createAssistantsEnhancer => Main enhancer factory function
- */
-export const createAssistantsEnhancer = (assistantId: string, selectedChatModel?: string): ContextEnhancer => {
-  return {
-    name: 'combined-enhancer',
-    enhance: async (message: string): Promise<EnhancerResponse> => {
-      console.log('[enhance] aggregator => called with message (first 100 chars):', message.slice(0, 100));
-      try {
-        const TIMEOUTS = {
-          assistant: 60000,
-          perplexity: 30000,
-          gemini: 30000, // Added
-          tavily: 30000,
-          exa: 30000
-        };
+Query: ${initialText}
+Sources: ${JSON.stringify([...initialSources, ...perplexitySources])}
+`;
 
-        // Check API keys (Gemini not strictly needed if using google() approach, but you can warn if desired)
-        if (!process.env.TAVILY_API_KEY) {
-          console.warn('[enhance] ⚠️ Tavily API key not found - skipping Tavily search');
-        }
-        if (!process.env.EXA_API_KEY) {
-          console.warn('[enhance] ⚠️ Exa API key not found - skipping Exa search');
-        }
-        
-        console.log('[enhance] Starting parallel calls => assistant, perplexity, gemini, tavily, exa');
+      const groundingResult = await generateText({
+        model: google('gemini-2.0-pro', {
+          useSearchGrounding: true,
+          structuredOutputs: true,
+        }),
+        prompt: groundingPrompt,
+        schema: z.object({
+          text: z.string().describe('Grounded response'),
+          reasoning: z.array(z.string()).describe('Step-by-step reasoning'),
+        }),
+      });
 
-        const [
-          assistantResponse,
-          perplexityResponse,
-          geminiResponse,
-          tavilyResponse,
-          exaResponse
-        ] = await Promise.allSettled([
-          // Assistant
-          withTimeout((async () => {
-            console.log('[enhance] => 🤖 Starting Assistant API call...');
-            const thread = await openai.beta.threads.create();
-            await openai.beta.threads.messages.create(thread.id, {
-              role: 'user',
-              content: message
-            });
+      const { text: groundedText, reasoning: groundingReasoning } = groundingResult;
+      console.log('[assistants] Gemini 2.0 Pro grounding completed, text length:', groundedText.length);
 
-            const run = await openai.beta.threads.runs.create(thread.id, {
-              assistant_id: assistantId
-            });
+      // Step 4: OpenAI Assistants enhancement (optional, non-streaming)
+      console.log('[assistants] Step 4: Enhancing with OpenAI Assistants');
+      const assistantThread = await openai.beta.threads.create();
+      await openai.beta.threads.messages.create(assistantThread.id, {
+        role: 'user',
+        content: initialText,
+      });
+      const assistantRun = await openai.beta.threads.runs.create(assistantThread.id, {
+        assistant_id: assistantId,
+      });
 
-            let completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-
-            while (completedRun.status === 'in_progress' || completedRun.status === 'queued') {
-              console.log('[enhance] => assistant is in_progress/queued, waiting 1s');
-              await new Promise(res => setTimeout(res, 1000));
-              completedRun = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-            }
-
-            const messages = await openai.beta.threads.messages.list(thread.id);
-            const assistantContent = messages.data[0]?.content[0];
-
-            console.log('[enhance] => assistant completed, content length:', messages.data[0]?.content?.length ?? 0);
-            if (assistantContent && 'text' in assistantContent) {
-              return assistantContent.text.value;
-            }
-            return '';
-          })(), TIMEOUTS.assistant, 'Assistant'),
-
-          // Perplexity (always runs)
-          withTimeout(getPerplexityResponse(message), TIMEOUTS.perplexity, 'Perplexity'),
-
-          // Gemini => always runs (no condition on selectedChatModel)
-          withTimeout(getGeminiProResponse(message), TIMEOUTS.gemini, 'Gemini'),
-
-          // Tavily => conditional
-          selectedChatModel && SEARCH_ENABLED_MODELS.includes(selectedChatModel) && process.env.TAVILY_API_KEY
-            ? withTimeout(getTavilyResponse(message), TIMEOUTS.tavily, 'Tavily')
-            : Promise.resolve(''),
-
-          // Exa => conditional
-          selectedChatModel && SEARCH_ENABLED_MODELS.includes(selectedChatModel) && process.env.EXA_API_KEY
-            ? withTimeout(getExaResponse(message), TIMEOUTS.exa, 'Exa')
-            : Promise.resolve('')
-        ]);
-
-        console.log('[enhance] Parallel calls completed => assembling results');
-
-        // Combine results
-        const results = {
-          assistant: assistantResponse.status === 'fulfilled' ? assistantResponse.value : '',
-          perplexity: perplexityResponse.status === 'fulfilled' ? perplexityResponse.value : '',
-          gemini: geminiResponse.status === 'fulfilled' ? geminiResponse.value : '',
-          tavily: tavilyResponse.status === 'fulfilled' ? tavilyResponse.value : '',
-          exa: exaResponse.status === 'fulfilled' ? exaResponse.value : ''
-        };
-
-        // Join them into a single context with markdown formatting
-        const combinedContext = Object.entries(results)
-          .filter(([_, val]) => val)
-          .map(([service, val]) => `### ${service.charAt(0).toUpperCase() + service.slice(1)} Results\n${val}`)
-          .join('\n\n');
-
-        // Build detailed status
-        const status = {
-          assistant: {
-            status: assistantResponse.status,
-            error: assistantResponse.status === 'rejected' ? assistantResponse.reason?.message : null,
-            responseReceived: !!results.assistant
-          },
-          perplexity: {
-            status: perplexityResponse.status,
-            error: perplexityResponse.status === 'rejected' ? perplexityResponse.reason?.message : null,
-            responseReceived: !!results.perplexity
-          },
-          gemini: {
-            status: geminiResponse.status,
-            error: geminiResponse.status === 'rejected' ? geminiResponse.reason?.message : null,
-            responseReceived: !!results.gemini
-          },
-          tavily: {
-            enabled: !!process.env.TAVILY_API_KEY,
-            status: tavilyResponse.status,
-            error: tavilyResponse.status === 'rejected' ? tavilyResponse.reason?.message : null,
-            responseReceived: !!results.tavily
-          },
-          exa: {
-            enabled: !!process.env.EXA_API_KEY,
-            status: exaResponse.status,
-            error: exaResponse.status === 'rejected' ? exaResponse.reason?.message : null,
-            responseReceived: !!results.exa
-          }
-        };
-
-        console.log('[enhance] 📊 Service Status =>', JSON.stringify(status, null, 2));
-
-        return {
-          enhancedContext: combinedContext,
-          metadata: {
-            assistantStatus: assistantResponse.status,
-            perplexityStatus: perplexityResponse.status,
-            geminiStatus: geminiResponse.status,
-            tavilyStatus: tavilyResponse.status,
-            exaStatus: exaResponse.status,
-            serviceStatus: status
-          }
-        };
-      } catch (error) {
-        console.error('❌ [enhance] Enhancement error:', error);
-        return {
-          enhancedContext: '',
-          metadata: {
-            error: 'Failed to enhance with services',
-            errorDetails: error instanceof Error ? error.message : String(error)
-          }
-        };
+      let assistantRunStatus = await openai.beta.threads.runs.retrieve(assistantThread.id, assistantRun.id);
+      while (assistantRunStatus.status === 'in_progress' || assistantRunStatus.status === 'queued') {
+        console.log('[assistants] OpenAI Assistants in progress/queued, waiting 1s...');
+        await new Promise(res => setTimeout(res, 1000));
+        assistantRunStatus = await openai.beta.threads.runs.retrieve(assistantThread.id, assistantRun.id);
       }
+
+      const assistantMessages = await openai.beta.threads.messages.list(assistantThread.id);
+      const assistantContent = assistantMessages.data[0]?.content[0]?.text?.value || '';
+      console.log('[assistants] OpenAI Assistants completed, content length:', assistantContent.length);
+
+      const assistantReasoning = ['Enhancing context with Assistants...', 'Integrating assistant insights...'];
+      const assistantSources = extractSourcesFromResponse(assistantContent) || [];
+
+      // Combine results
+      const combinedText = groundedText || assistantContent || initialText;
+      const combinedReasoning = [...initialReasoning, ...groundingReasoning, ...assistantReasoning];
+      const combinedSources = [...new Set([...initialSources, ...perplexitySources, ...assistantSources].map(s => JSON.stringify(s)))].map(s => JSON.parse(s));
+      console.log('[assistants] Context enhancement completed, final text length:', combinedText.length, 'reasoning steps:', combinedReasoning.length, 'sources count:', combinedSources.length);
+
+      return { text: combinedText, reasoning: combinedReasoning, sources: combinedSources };
+    } catch (error) {
+      console.error('[assistants] Enhancement error:', error instanceof Error ? error.message : String(error));
+      return { text: message, reasoning: [], sources: [] };
     }
   };
 };
+
+// Helper to extract sources from text (simplified, adjust based on output)
+function extractSourcesFromResponse(context: string): { title: string; url: string }[] {
+  console.log('[assistants] Extracting sources from context (first 100 chars):', context.slice(0, 100));
+  const urlRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+  const matches = [...context.matchAll(urlRegex)];
+  const sources = matches.map(match => ({
+    title: match[1] || 'Unknown Source',
+    url: match[2],
+  }));
+  console.log('[assistants] Extracted sources count:', sources.length);
+  return sources;
+}
