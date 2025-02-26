@@ -31,33 +31,7 @@ import { z } from 'zod'; // For structured outputs
 import { ArtifactKind } from '@/components/artifact';
 
 // Import CustomMessage from your local types file
-import { CustomMessage } from '@/lib/types'; // Adjust the path as needed
-
-// Use type intersection instead of interface extension for better compatibility
-type ExtendedMessage = Message & {
-  parts?: Array<{
-    type: string;
-    text?: string;
-    reasoning?: string;
-    details?: Array<{ type: string; text: string }>;
-    source?: {
-      id: string;
-      title?: string;
-      url: string;
-    };
-  }>;
-  reasoning?: string; // Keep this as string | undefined to match Message
-  sources?: Array<{
-    id?: string;
-    title?: string;
-    url: string;
-  }>;
-  experimental_attachments?: Array<{
-    name: string;
-    contentType: string;
-    url: string;
-  }>;
-};
+import { CustomMessage } from '@/lib/types';
 
 export const maxDuration = 240;
 
@@ -137,10 +111,10 @@ function convertContentToString(content: any): string {
 }
 
 // Helper functions for extracting reasoning and sources from messages
-function extractSources(message: ExtendedMessage | null): Array<{ title: string; url: string }> {
+function extractSources(message: CustomMessage | null): Array<{ title: string; url: string }> {
   if (!message) return [];
   
-  // Direct sources property
+  // Direct sources property from CustomMessage
   if (message.sources) {
     return message.sources.map(source => ({
       title: source.title || 'Unknown Source', // Ensure title is always present
@@ -148,54 +122,33 @@ function extractSources(message: ExtendedMessage | null): Array<{ title: string;
     }));
   }
   
-  // Extract from parts if available
+  // Extract from parts if available (Vercel AI SDK 4.1 compatibility)
   if (message.parts) {
-    const sourceParts: Array<{ title: string; url: string }> = [];
-    
-    // Use a loop to check each part for 'source' property and handle it safely
-    for (const part of message.parts) {
-      if (part.type === 'source' && 'source' in part) {
-        sourceParts.push({
-          title: part.source.title || 'Unknown Source', // Ensure title is always present
-          url: part.source.url
-        });
-      }
-    }
-    
-    return sourceParts;
+    return message.parts
+      .filter((part) => part.type === 'source' && 'source' in part)
+      .map((part) => ({
+        title: part.source?.title || 'Unknown Source',
+        url: part.source?.url || ''
+      }));
   }
   
   return [];
 }
 
-function extractReasoning(message: ExtendedMessage | null): string[] {
+function extractReasoning(message: CustomMessage | null): string[] {
   if (!message) return [];
   
-  // Direct reasoning property (string only)
+  // Direct reasoning property from CustomMessage (as array for consistency)
   if (message.reasoning) {
-    return [message.reasoning]; // Always return as array for consistency
+    return Array.isArray(message.reasoning) ? message.reasoning : [message.reasoning];
   }
   
-  // Extract from parts if available
+  // Extract from parts if available (Vercel AI SDK 4.1 compatibility)
   if (message.parts) {
-    const reasoningTexts: string[] = [];
-    
-    for (const part of message.parts) {
-      if (part.type === 'reasoning') {
-        if ('reasoning' in part && part.reasoning) {
-          reasoningTexts.push(part.reasoning);
-        }
-        if ('details' in part && part.details) {
-          for (const detail of part.details) {
-            if (detail.type === 'text') {
-              reasoningTexts.push(detail.text);
-            }
-          }
-        }
-      }
-    }
-    
-    return reasoningTexts;
+    return message.parts
+      .filter((part) => part.type === 'reasoning' && 'reasoning' in part)
+      .map((part) => part.reasoning || '')
+      .filter(Boolean);
   }
   
   return [];
@@ -404,9 +357,9 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null,
-        reasoning: (userMessage as ExtendedMessage).reasoning ?? undefined,
-        sources: (userMessage as ExtendedMessage).sources ?? [],
-      }],
+        reasoning: (userMessage as CustomMessage).reasoning ?? [], // Default to empty array if reasoning is undefined
+        sources: (userMessage as CustomMessage).sources ?? [], // Ensure sources is always an array
+      } as CustomMessage],
     });
 
     let fileBuffer: ArrayBuffer | undefined;
@@ -439,7 +392,7 @@ export async function POST(request: Request) {
           console.log('[route] Checking if message is a follow-up or needs new search...');
           const previousMessages = messages.slice(0, -1); // Exclude current message
           const previousResponse = messages[messages.length - 1]?.role === 'assistant' 
-            ? messages[messages.length - 1] as ExtendedMessage 
+            ? messages[messages.length - 1] as CustomMessage 
             : null;
           
           const previousContext = previousResponse ? { 
@@ -464,7 +417,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -472,7 +425,8 @@ export async function POST(request: Request) {
                 if (assistantMessage) {
                   let content = convertContentToString(assistantMessage.content);
                   let metadata: Metadata | null = null;
-                  let sources = followUpSources ?? []; // Use sources from needsNewSearch or default to empty
+                  let sources = followUpSources ?? [];
+                  let reasoning = followUpReasoning.length > 0 ? followUpReasoning : []; // Use reasoning from needsNewSearch or default to empty
 
                   console.log('[route] Processing final response for follow-up, content length:', content.length);
                   try {
@@ -481,10 +435,10 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'text', // Use valid kind values
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
                       };
-                      if (metadata.kind === 'sheet') {
-                        const blob = await put(`artifacts/${generateUUID()}.csv`, content, {
+                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
+                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
@@ -517,10 +471,10 @@ export async function POST(request: Request) {
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning: followUpReasoning.length > 0 ? followUpReasoning[0] : undefined,
-                      sources: sources,
+                      reasoning: reasoning, // Ensure reasoning is included as an array
+                      sources: sources, // Use sources from needsNewSearch or empty array
                       metadata: metadata,
-                    }],
+                    } as CustomMessage],
                   });
                 }
               },
@@ -548,7 +502,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream }),
+                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -556,7 +510,8 @@ export async function POST(request: Request) {
                 if (assistantMessage) {
                   let content = convertContentToString(assistantMessage.content);
                   let metadata: Metadata | null = null;
-                  let sources = combinedSources ?? []; // Use sources from assistantsEnhancer or default to empty
+                  let sources = combinedSources ?? [];
+                  let reasoning = combinedReasoning.length > 0 ? combinedReasoning : []; // Use reasoning from assistantsEnhancer or default to empty
 
                   console.log('[route] Processing final response for full process, content length:', content.length);
                   try {
@@ -565,10 +520,10 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'text', // Use valid kind values
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
                       };
-                      if (metadata.kind === 'sheet') {
-                        const blob = await put(`artifacts/${generateUUID()}.csv`, content, {
+                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
+                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
@@ -601,10 +556,10 @@ export async function POST(request: Request) {
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning: combinedReasoning.length > 0 ? combinedReasoning[0] : undefined,
-                      sources: sources,
+                      reasoning: reasoning, // Ensure reasoning is included as an array
+                      sources: sources, // Use sources from assistantsEnhancer or empty array
                       metadata: metadata,
-                    }],
+                    } as CustomMessage],
                   });
                 }
               },
