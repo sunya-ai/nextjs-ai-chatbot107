@@ -1,3 +1,4 @@
+// lib/utils.ts
 import type {
   CoreAssistantMessage,
   CoreToolMessage,
@@ -59,7 +60,7 @@ function addToolMessageToChat({
   messages,
 }: {
   toolMessage: CoreToolMessage;
-  messages: Array<CustomMessage>; // Update to use CustomMessage
+  messages: Array<CustomMessage>;
 }): Array<CustomMessage> {
   return messages.map((message) => {
     if (message.toolInvocations) {
@@ -99,7 +100,6 @@ export function convertToUIMessages(
     }
 
     let textContent = '';
-    let reasoning: string | undefined = undefined;
     const toolInvocations: Array<ToolInvocation> = [];
     const sources: { title: string; url: string }[] = message.sources ?? [];
     const metadata: any | null = message.metadata ?? null;
@@ -118,7 +118,8 @@ export function convertToUIMessages(
             args: content.args,
           });
         } else if (content.type === 'reasoning') {
-          reasoning = content.reasoning;
+          // Handle reasoning as an array, defaulting to [] if undefined
+          reasoning = content.reasoning ? [content.reasoning] : [];
         }
       }
     }
@@ -127,7 +128,8 @@ export function convertToUIMessages(
       id: message.id,
       role: message.role as CustomMessage['role'],
       content: textContent,
-      reasoning,
+      chatId: message.chatId, // Include chatId from DBMessage
+      reasoning: message.reasoning ?? [], // Default to empty array if undefined
       toolInvocations,
       sources, // Include sources from DBMessage
       metadata, // Include metadata from DBMessage
@@ -145,7 +147,7 @@ export function sanitizeResponseMessages({
   reasoning,
 }: {
   messages: Array<ResponseMessage>;
-  reasoning: string | undefined;
+  reasoning: string | string[] | undefined; // Updated to handle array or string
 }) {
   const toolResultIds: Array<string> = [];
 
@@ -173,8 +175,9 @@ export function sanitizeResponseMessages({
     );
 
     if (reasoning) {
+      const reasoningArray = Array.isArray(reasoning) ? reasoning : [reasoning];
       // @ts-expect-error: reasoning message parts in SDK are WIP
-      sanitizedContent.push({ type: 'reasoning', reasoning });
+      sanitizedContent.push({ type: 'reasoning', reasoning: reasoningArray });
     }
 
     return {
@@ -219,7 +222,8 @@ export function sanitizeUIMessages(messages: Array<CustomMessage>): Array<Custom
       message.content.length > 0 ||
       (message.toolInvocations && message.toolInvocations.length > 0) ||
       (message.sources && message.sources.length > 0) || // Include sources in filtering
-      message.metadata !== null, // Include metadata in filtering
+      message.metadata !== null || // Include metadata in filtering
+      message.chatId !== undefined, // Include chatId in filtering
   );
 }
 
