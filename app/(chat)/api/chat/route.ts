@@ -353,7 +353,7 @@ export async function POST(request: Request) {
     const chat = await getChatById({ id });
     if (!chat) {
       console.log('[route] No chat found, creating new chat with ID:', id);
-      const title = await generateTitleFromUserMessage({ message: userMessage });
+      const title = await generateTitleFromUserMessage({ message: userMessage as Message });
       await saveChat({ id, userId: session.user.id, title: title || 'New Chat' });
     }
 
