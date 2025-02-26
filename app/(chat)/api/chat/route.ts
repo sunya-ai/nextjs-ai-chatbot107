@@ -31,7 +31,7 @@ import { z } from 'zod';
 import { ArtifactKind } from '@/components/artifact';
 import { CustomMessage } from '@/lib/types';
 
-// Define SourceUIPart locally if not imported from 'ai'
+// Define SourceUIPart locally based on Vercel AI SDK 4.1
 type SourceUIPart = {
   type: 'source';
   source: {
@@ -135,7 +135,7 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
   if (message.parts) {
     return message.parts
       .filter(isSourcePart)
-      .map(part => ({
+      .map((part: SourceUIPart) => ({
         title: part.source.title || 'Unknown Source',
         url: part.source.url || ''
       }))
