@@ -31,7 +31,8 @@ export const chat = pgTable('Chat', {
   visibility: varchar('visibility', { enum: ['public', 'private'] })
     .notNull()
     .default('private'),
-}));
+});
+
 export type Chat = InferSelectModel<typeof chat>;
 
 export const message = pgTable('Message', {
@@ -42,16 +43,16 @@ export const message = pgTable('Message', {
   role: varchar('role').notNull(),
   content: jsonb('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
-metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
-reasoning: jsonb('reasoning').default(sql`'[]'::jsonb`),
-sources: jsonb('sources').default(sql`'[]'::jsonb`),
+  metadata: jsonb('metadata').default(sql`'{}'::jsonb`),
+  reasoning: jsonb('reasoning').default(sql`'[]'::jsonb`),
+  sources: jsonb('sources').default(sql`'[]'::jsonb`),
 }, (table) => ({
   chatIdIdx: index('message_chat_id_idx').on(table.chatId),
   createdAtIdx: index('message_created_at_idx').on(table.createdAt),
   metadataIdx: index('message_metadata_idx').using('gin', table.metadata),
   reasoningIdx: index('message_reasoning_idx').using('gin', table.reasoning),
   sourcesIdx: index('message_sources_idx').using('gin', table.sources),
-));
+}));
 
 export type Message = InferSelectModel<typeof message>;
 
