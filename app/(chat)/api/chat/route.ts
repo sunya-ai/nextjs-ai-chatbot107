@@ -33,6 +33,32 @@ import { ArtifactKind } from '@/components/artifact';
 // Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types'; // Adjust the path as needed
 
+// Extended Message interface that includes fields from Vercel AI SDK
+interface ExtendedMessage extends Message {
+  parts?: Array<{
+    type: string;
+    text?: string;
+    reasoning?: string;
+    details?: Array<{ type: string; text: string }>;
+    source?: {
+      id: string;
+      title?: string;
+      url: string;
+    };
+  }>;
+  reasoning?: string[] | string;
+  sources?: Array<{
+    id?: string;
+    title?: string;
+    url: string;
+  }>;
+  experimental_attachments?: Array<{
+    name: string;
+    contentType: string;
+    url: string;
+  }>;
+}
+
 export const maxDuration = 240;
 
 // Define the Metadata type to include fileUrl as optional
@@ -108,6 +134,62 @@ function convertContentToString(content: any): string {
       .join('');
   }
   return '';
+}
+
+// Helper functions for extracting reasoning and sources from messages
+function extractSources(message: ExtendedMessage | null): Array<{ title?: string; url: string; id?: string }> {
+  if (!message) return [];
+  
+  // Direct sources property
+  if (message.sources) {
+    return message.sources;
+  }
+  
+  // Extract from parts if available
+  if (message.parts) {
+    return message.parts
+      .filter(part => part.type === 'source' && part.source)
+      .map(part => ({
+        title: part.source?.title,
+        url: part.source?.url,
+        id: part.source?.id
+      }));
+  }
+  
+  return [];
+}
+
+function extractReasoning(message: ExtendedMessage | null): string[] {
+  if (!message) return [];
+  
+  // Direct reasoning property (could be string or string[])
+  if (message.reasoning) {
+    return Array.isArray(message.reasoning) 
+      ? message.reasoning 
+      : [message.reasoning];
+  }
+  
+  // Extract from parts if available
+  if (message.parts) {
+    const reasoningParts = message.parts
+      .filter(part => part.type === 'reasoning');
+      
+    if (reasoningParts.length) {
+      return reasoningParts.flatMap(part => {
+        if (part.reasoning) {
+          return [part.reasoning];
+        }
+        if (part.details) {
+          return part.details
+            .filter(detail => detail.type === 'text')
+            .map(detail => detail.text);
+        }
+        return [];
+      });
+    }
+  }
+  
+  return [];
 }
 
 async function needsNewSearch(
@@ -313,8 +395,8 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null,
-        reasoning: userMessage.reasoning ?? undefined, // Added reasoning field with fallback to undefined
-        sources: userMessage.sources ?? [], // Use existing sources or default to empty array
+        reasoning: (userMessage as ExtendedMessage).reasoning ?? undefined,
+        sources: (userMessage as ExtendedMessage).sources ?? [],
       }],
     });
 
@@ -347,11 +429,14 @@ export async function POST(request: Request) {
           // Step 1: Check if it's a follow-up or needs a new search
           console.log('[route] Checking if message is a follow-up or needs new search...');
           const previousMessages = messages.slice(0, -1); // Exclude current message
-          const previousResponse = messages[messages.length - 1]?.role === 'assistant' ? messages[messages.length - 1] : null;
+          const previousResponse = messages[messages.length - 1]?.role === 'assistant' 
+            ? messages[messages.length - 1] as ExtendedMessage 
+            : null;
+          
           const previousContext = previousResponse ? { 
             text: convertContentToString(previousResponse.content), 
-            reasoning: previousResponse.reasoning || [], 
-            sources: previousResponse.sources ?? [] 
+            reasoning: extractReasoning(previousResponse), 
+            sources: extractSources(previousResponse) 
           } : { text: '', reasoning: [], sources: [] };
 
           const { needsSearch, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await needsNewSearch(userMessage.content, previousMessages, previousContext);
@@ -424,7 +509,7 @@ export async function POST(request: Request) {
                       content,
                       createdAt: new Date(),
                       reasoning: followUpReasoning,
-                      sources: sources, // Use sources from needsNewSearch or empty array
+                      sources: sources,
                       metadata: metadata,
                     }],
                   });
@@ -508,7 +593,7 @@ export async function POST(request: Request) {
                       content,
                       createdAt: new Date(),
                       reasoning: combinedReasoning,
-                      sources: sources, // Use sources from assistantsEnhancer or empty array
+                      sources: sources,
                       metadata: metadata,
                     }],
                   });
