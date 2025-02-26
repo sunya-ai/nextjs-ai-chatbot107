@@ -130,27 +130,16 @@ Format your response as:
 - Reasoning: [step-by-step reasoning for the decision]
 - Sources: [list of relevant sources with titles and URLs, if any]
 
-Return only JSON with these fields.
 `;
 
-  try {
-    const result = await generateText({
-      model: google('gemini-2.0-flash', {
-        useSearchGrounding: true,
-        structuredOutputs: true,
-      }),
-      system: searchPrompt,
-      messages: [{ role: 'user', content: message }],
-      schema: z.object({
-        needsSearch: z.boolean(),
-        text: z.string(),
-        reasoning: z.array(z.string()),
-        sources: z.array(z.object({
-          title: z.string(),
-          url: z.string().url(),
-        })).optional(),
-      }),
-    });
+ try {
+  const result = await generateText({
+    model: google('gemini-2.0-flash', {
+      useSearchGrounding: true
+    }),
+    system: searchPrompt,
+    messages: [{ role: 'user', content: message }]
+  });
 
     console.log('[route] New search check completed, needsSearch:', result.needsSearch);
     return result;
