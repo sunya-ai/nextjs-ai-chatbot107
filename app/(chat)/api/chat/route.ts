@@ -31,19 +31,6 @@ import { z } from 'zod';
 import { ArtifactKind } from '@/components/artifact';
 import { CustomMessage } from '@/lib/types';
 
-// Define SourceUIPart locally based on Vercel AI SDK 4.1
-type SourceUIPart = {
-  type: 'source';
-  source: {
-    title: string;
-    url: string;
-  };
-};
-
-function isSourcePart(part: any): part is SourceUIPart {
-  return part.type === 'source' && 'source' in part && typeof part.source === 'object' && 'url' in part.source;
-}
-
 export const maxDuration = 240;
 
 type Metadata = {
@@ -123,6 +110,7 @@ function convertContentToString(content: any): string {
 function extractSources(message: CustomMessage | null): Array<{ title: string; url: string }> {
   if (!message) return [];
 
+  // Direct sources property
   if (message.sources) {
     return message.sources
       .map(source => ({
@@ -132,14 +120,21 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
       .filter(source => source.url);
   }
 
+  // Extract from parts if available
   if (message.parts) {
-    return message.parts
-      .filter(isSourcePart)
-      .map(part => ({
-        title: part.source.title || 'Unknown Source',
-        url: part.source.url || ''
-      }))
-      .filter(source => source.url);
+    const sourceParts: Array<{ title: string; url: string }> = [];
+    
+    // Use a for loop with explicit checking for type safety
+    for (const part of message.parts) {
+      if (part.type === 'source' && 'source' in part && part.source) {
+        sourceParts.push({
+          title: part.source.title || 'Unknown Source',
+          url: part.source.url || ''
+        });
+      }
+    }
+    
+    return sourceParts.filter(source => source.url);
   }
 
   return [];
@@ -153,10 +148,23 @@ function extractReasoning(message: CustomMessage | null): string[] {
   }
 
   if (message.parts) {
-    return message.parts
-      .filter((part) => part.type === 'reasoning' && 'reasoning' in part)
-      .map((part) => part.reasoning || '')
-      .filter(Boolean);
+    const reasoningTexts: string[] = [];
+    
+    for (const part of message.parts) {
+      if (part.type === 'reasoning') {
+        if ('reasoning' in part && part.reasoning) {
+          reasoningTexts.push(part.reasoning);
+        } else if ('details' in part && Array.isArray(part.details)) {
+          for (const detail of part.details) {
+            if (detail.type === 'text' && detail.text) {
+              reasoningTexts.push(detail.text);
+            }
+          }
+        }
+      }
+    }
+    
+    return reasoningTexts;
   }
 
   return [];
@@ -409,7 +417,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
+                updateDocument: updateDocument({ session, dataStream }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -427,10 +435,10 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart',
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'text',
                       };
-                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
-                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
+                      if (metadata.kind === 'sheet') {
+                        const blob = await put(`artifacts/${generateUUID()}.csv`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
@@ -492,7 +500,7 @@ export async function POST(request: Request) {
               tools: {
                 getWeather,
                 createDocument: createDocument({ session, dataStream }),
-                updateDocument: updateDocument({ session, dataStream, prompt: updateDocumentPrompt }),
+                updateDocument: updateDocument({ session, dataStream }),
                 requestSuggestions: requestSuggestions({ session, dataStream }),
               },
               onFinish: async ({ response }) => {
@@ -510,10 +518,10 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart',
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'text',
                       };
-                      if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
-                        const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
+                      if (metadata.kind === 'sheet') {
+                        const blob = await put(`artifacts/${generateUUID()}.csv`, content, {
                           access: 'public',
                         });
                         metadata.fileUrl = blob.url;
@@ -567,7 +575,7 @@ export async function POST(request: Request) {
       },
       onError: (error) => {
         console.error('[route] Final error handler:', error instanceof Error ? error.message : String(error));
-        return new Response('Internal Server Error', { status: 500 });
+        return 'Internal Server Error';
       },
     });
   } catch (error: unknown) {
