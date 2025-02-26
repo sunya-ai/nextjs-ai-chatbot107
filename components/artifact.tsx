@@ -1,4 +1,5 @@
-// components/artifact.tsx
+'use client';
+
 import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -205,12 +206,12 @@ function PureArtifact({
   stop,
   attachments,
   setAttachments,
-  append,
   messages,
   setMessages,
+  append,
   reload,
-  votes,
   isReadonly,
+  votes, // Already optional as Array<Vote> | undefined
 }: {
   chatId: string;
   input: string;
@@ -221,7 +222,6 @@ function PureArtifact({
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
   messages: Array<Message>;
   setMessages: Dispatch<SetStateAction<Array<Message>>>;
-  votes: Array<Vote> | undefined;
   append: (
     message: Message | CreateMessage,
     chatRequestOptions?: ChatRequestOptions,
@@ -234,6 +234,7 @@ function PureArtifact({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
+  votes?: Array<Vote>; // Explicitly optional to ensure TypeScript clarity
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
   const { mutate } = useSWRConfig();
@@ -426,7 +427,7 @@ function PureArtifact({
       <AnimatePresence>
         {artifact.isVisible && (
           <motion.div className="fixed top-4 right-4 bg-red-100 text-red-800 p-4 rounded-lg shadow-lg">
-            Error: Unknown artifact type &#39;{artifact.kind}&#39;. Please refresh the page.
+            Error: Unknown artifact type '{artifact.kind}'. Please refresh the page.
             <button 
               className="ml-2 bg-red-200 p-1 rounded"
               onClick={() => setArtifact(prev => ({...prev, isVisible: false}))}
@@ -495,12 +496,12 @@ function PureArtifact({
                 <ArtifactMessages
                   chatId={chatId}
                   isLoading={isLoading}
-                  votes={votes}
                   messages={messages}
                   setMessages={setMessages}
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
+                  votes={votes} // Pass votes here if needed, but it’s optional
                 />
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
@@ -692,8 +693,7 @@ function PureArtifact({
 
 export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
   if (prevProps.isLoading !== nextProps.isLoading) return false;
-  if (!equal(prevProps.votes, nextProps.votes)) return false;
   if (prevProps.input !== nextProps.input) return false;
   if (!equal(prevProps.messages, nextProps.messages)) return false;
-  return true;
+  return true; // Remove votes from memo comparison since it’s optional and might be undefined
 });
