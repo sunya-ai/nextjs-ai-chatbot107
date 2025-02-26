@@ -35,6 +35,7 @@ import equal from 'fast-deep-equal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import axios from 'axios'; // For Clearbit API
 import { DataStreamWriter } from 'ai'; // For streaming progress
+import * as Papa from 'papaparse'; // For CSV parsing
 
 export const artifactDefinitions = [
   textArtifact,
@@ -270,7 +271,7 @@ function PureArtifact({
 
   // Parse spreadsheet data for charting and logos
   const parseSpreadsheetData = useCallback((csvContent: string) => {
-    const parsed = parse<string[]>(csvContent, { skipEmptyLines: true, header: true });
+    const parsed = Papa.parse<string[]>(csvContent, { skipEmptyLines: true, header: true });
     return parsed.data.map(row => ({
       name: row[0] || 'Unknown', // Assuming first column is company name/label
       value: parseFloat(row[1] || '0'), // Assuming second column is a numeric value
@@ -558,4 +559,97 @@ function PureArtifact({
                 getDocumentContentById={getDocumentContentById}
                 isLoading={isDocumentsFetching && !artifact.content}
                 metadata={metadata}
-                setMetadata
+                setMetadata={setMetadata}
+              />
+
+              <AnimatePresence>
+                {isCurrentVersion && artifact.kind === 'sheet' && (
+                  <Toolbar
+                    isToolbarVisible={isToolbarVisible}
+                    setIsToolbarVisible={setIsToolbarVisible}
+                    append={append}
+                    isLoading={isLoading}
+                    stop={stop}
+                    setMessages={setMessages}
+                    artifactKind={artifact.kind}
+                    onGenerateChart={() => setShowChart(true)}
+                    onAddLogos={() => loadLogos()} // Add logo fetching callback
+                  />
+                )}
+              </AnimatePresence>
+
+              {showChart && artifact.kind === 'sheet' && chartWithLogos.length > 0 && (
+                <div className="p-4">
+                  <button
+                    onClick={() => setShowChart(false)}
+                    className="mb-2 bg-red-500 text-white px-2 py-1 rounded"
+                  >
+                    Hide Chart
+                  </button>
+                  <BarChart width={600} height={300} data={chartWithLogos}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      type="category"
+                      render={(props) => {
+                        const { x, y, payload } = props;
+                        const logo = logoMap[payload.value] || null;
+                        return logo ? (
+                          <image 
+                            x={x} 
+                            y={y - 10} 
+                            width={20} 
+                            height={20} 
+                            href={logo} 
+                            preserveAspectRatio="xMidYMid slice"
+                          />
+                        ) : (
+                          <text x={x} y={y} textAnchor="middle">
+                            {payload.value}
+                          </text>
+                        );
+                      }}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8">
+                      {chartWithLogos.map((entry, index) => (
+                        <Cell key={`cell-${index}`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                  <button
+                    onClick={() => handleChartEdit({ type: 'bar' })} // Example chart type change
+                    className="mt-2 bg-blue-500 text-white px-2 py-1 rounded"
+                  >
+                    Edit Chart
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <AnimatePresence>
+              {!isCurrentVersion && (
+                <VersionFooter
+                  currentVersionIndex={currentVersionIndex}
+                  documents={documents}
+                  handleVersionChange={handleVersionChange}
+                />
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
+  if (prevProps.isLoading !== nextProps.isLoading) return false;
+  if (!equal(prevProps.votes, nextProps.votes)) return false;
+  if (prevProps.input !== nextProps.input) return false;
+  if (!equal(prevProps.messages, nextProps.messages)) return false;
+
+  return true;
+});
