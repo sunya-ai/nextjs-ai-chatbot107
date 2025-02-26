@@ -393,7 +393,7 @@ function PureArtifact({
   }, [artifact.status, artifact.kind, chartData.length]);
 
   const handleChartEdit = useCallback((newConfig: any) => {
-    setMetadata(prev => ({ ...prev, chartConfig: newConfig }));
+    setMetadata((prev: any) => ({ ...prev, chartConfig: newConfig }));
     console.log('[artifact] Chart updated with new config:', JSON.stringify(newConfig));
     // Simulate update via route.ts (placeholder for actual implementation)
     fetch(`/api/document?id=${artifact.documentId}`, {
