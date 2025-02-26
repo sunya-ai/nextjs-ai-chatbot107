@@ -107,24 +107,26 @@ function convertContentToString(content: any): string {
   return '';
 }
 
-async function checkIfFollowUp(
+async function needsNewSearch(
   message: string,
-  previousMessages: Message[]
-): Promise<{ isFollowUp: boolean; text: string; reasoning: string[]; sources: { title: string; url: string }[] }> {
-  console.log('[route] Starting follow-up check with Gemini Flash 2.0 for message (first 100 chars):', message.slice(0, 100));
+  previousMessages: Message[],
+  previousContext: { text: string; reasoning: string[]; sources: { title: string; url: string }[] }
+): Promise<{ needsSearch: boolean; text: string; reasoning: string[]; sources: { title: string; url: string }[] }> {
+  console.log('[route] Starting new search check with Gemini Flash 2.0 for message (first 100 chars):', message.slice(0, 100));
 
-  const followUpPrompt = `
-You are an energy research query classifier. Determine if the user's message is a follow-up question based on the conversation history. A follow-up is:
-- Brief and context-dependent (e.g., "What about solar?", "More details on that deal").
-- Refers to previous queries or context without new standalone information.
-- Not a new, independent energy sector query.
+  const searchPrompt = `
+You are an energy research query classifier. Determine if the user's message requires a new web/RAG search based on the conversation history and previous context. A new search is needed if:
+- The message introduces new standalone information or requires updated energy sector data.
+- The message cannot be answered using existing chat history, previous context, or the final model’s knowledge.
+- The message is not brief, context-dependent, or directly related to prior queries.
 
 Previous messages: ${JSON.stringify(previousMessages)}
+Previous context: ${JSON.stringify(previousContext)}
 Current message: ${message}
 
 Format your response as:
-- isFollowUp: [true/false]
-- Text: [refined query or context, if follow-up; original query, if not]
+- needsSearch: [true/false]
+- Text: [refined query or context, if new search needed; original query, if not]
 - Reasoning: [step-by-step reasoning for the decision]
 - Sources: [list of relevant sources with titles and URLs, if any]
 
@@ -137,10 +139,10 @@ Return only JSON with these fields.
         useSearchGrounding: true,
         structuredOutputs: true,
       }),
-      system: followUpPrompt,
+      system: searchPrompt,
       messages: [{ role: 'user', content: message }],
       schema: z.object({
-        isFollowUp: z.boolean(),
+        needsSearch: z.boolean(),
         text: z.string(),
         reasoning: z.array(z.string()),
         sources: z.array(z.object({
@@ -150,11 +152,11 @@ Return only JSON with these fields.
       }),
     });
 
-    console.log('[route] Follow-up check completed, isFollowUp:', result.isFollowUp);
+    console.log('[route] New search check completed, needsSearch:', result.needsSearch);
     return result;
   } catch (error) {
-    console.error('[route] Follow-up check error:', error instanceof Error ? error.message : String(error));
-    return { isFollowUp: false, text: message, reasoning: [], sources: [] };
+    console.error('[route] New search check error:', error instanceof Error ? error.message : String(error));
+    return { needsSearch: true, text: message, reasoning: [], sources: [] };
   }
 }
 
@@ -177,6 +179,10 @@ async function processSpreadsheetUpdate(
     });
 
     console.log('[route] Spreadsheet update completed, data length:', JSON.parse(text).length);
+    if (JSON.parse(text).length < 20) {
+      console.warn('[route] Spreadsheet has fewer than 20 rows, adding note');
+      JSON.parse(text).push(['Note', 'Insufficient data', '', '', '', '[No provided URL]']);
+    }
     return JSON.parse(text);
   } catch (error) {
     console.error('[route] Spreadsheet update error:', error instanceof Error ? error.message : String(error));
@@ -194,7 +200,7 @@ function getFinalModel(selectedModel: string) {
 }
 
 export async function POST(request: Request) {
-  console.log('[route] POST request received at /api/chat');
+  console.log('[route] POST request received at /api/chat, time:', new Date().toISOString());
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -289,21 +295,29 @@ export async function POST(request: Request) {
       console.log('[route] File processed, mime:', fileMime);
     }
 
-    console.log('[route] => createDataStreamResponse => multi-pass with bypass');
+    console.log('[route] => createDataStreamResponse => multi-pass with bypass, time:', new Date().toISOString());
     return createDataStreamResponse({
       status: 200,
       statusText: 'OK',
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       execute: async (dataStream) => {
         try {
-          // Step 1: Check if it’s a follow-up with Gemini Flash 2.0 (non-streaming)
-          console.log('[route] Checking if message is a follow-up...');
-          const { isFollowUp, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await checkIfFollowUp(userMessage.content, messages);
+          // Step 1: Check if it’s a follow-up or needs a new search
+          console.log('[route] Checking if message is a follow-up or needs new search...');
+          const previousMessages = messages.slice(0, -1); // Exclude current message
+          const previousResponse = messages[messages.length - 1]?.role === 'assistant' ? messages[messages.length - 1] : null;
+          const previousContext = previousResponse ? { 
+            text: convertContentToString(previousResponse.content), 
+            reasoning: previousResponse.reasoning || [], 
+            sources: previousResponse.sources || [] 
+          } : { text: '', reasoning: [], sources: [] };
 
-          if (isFollowUp) {
-            console.log('[route] Detected follow-up, bypassing full process');
-            // Direct to final model with minimal reasoning and sources
-            const finalPrompt = `Context: (Follow-up question)\nQuery: ${refinedText}`;
+          const { needsSearch, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await needsNewSearch(userMessage.content, previousMessages, previousContext);
+
+          if (!needsSearch) {
+            console.log('[route] No new search needed, using existing context for follow-up');
+            // Direct to final model with existing context and minimal reasoning/sources
+            const finalPrompt = `Context: (Follow-up question)\nPrevious Context: ${previousContext.text}\nQuery: ${refinedText}`;
             const finalModel = getFinalModel(selectedChatModel);
 
             console.log('[route] Streaming follow-up response with model:', selectedChatModel);
@@ -380,8 +394,8 @@ export async function POST(request: Request) {
               sendSources: true,
             });
           } else {
-            console.log('[route] Full process required, not a follow-up');
-            // Step 2: Enhanced context processing using assistantsEnhancer (non-streaming)
+            console.log('[route] New search needed, running full context enhancement');
+            // Step 2: Full context enhancement using assistantsEnhancer (non-streaming)
             console.log('[route] Enhancing context with assistantsEnhancer for message:', userMessage.content.slice(0, 100));
             const { text: finalContext, reasoning: combinedReasoning, sources: combinedSources } = await assistantsEnhancer(userMessage.content, fileBuffer, fileMime);
 
@@ -483,7 +497,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  console.log('[route] DELETE request received at /api/chat');
+  console.log('[route] DELETE request received at /api/chat, time:', new Date().toISOString());
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
 
