@@ -12,6 +12,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
@@ -31,8 +32,9 @@ import { codeArtifact } from '@/artifacts/code/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'; // Updated for custom cells
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import axios from 'axios'; // For Clearbit API
+import { DataStreamWriter } from 'ai'; // For streaming progress
 
 export const artifactDefinitions = [
   textArtifact,
@@ -72,6 +74,7 @@ function PureArtifact({
   reload,
   votes,
   isReadonly,
+  dataStream, // Add dataStream for streaming progress
 }: {
   chatId: string;
   input: string;
@@ -97,6 +100,7 @@ function PureArtifact({
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
+  dataStream: DataStreamWriter; // Add dataStream parameter
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
 
@@ -116,6 +120,7 @@ function PureArtifact({
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
   const [showChart, setShowChart] = useState(false); // State for chart visibility
   const [showLogos, setShowLogos] = useState(false); // State for logo visibility
+  const [progress, setProgress] = useState<string>(''); // State for progress updates
 
   const { open: isSidebarOpen } = useSidebar();
 
@@ -286,7 +291,7 @@ function PureArtifact({
       const response = await axios.get(`https://logo.clearbit.com/${domain}`, { responseType: 'blob' });
       return URL.createObjectURL(response.data);
     } catch (error) {
-      console.error(`Failed to fetch logo for ${company}:`, error);
+      console.error('[artifact] Failed to fetch logo for', company, ':', error);
       return null; // Return null or a default logo URL
     }
   };
@@ -303,6 +308,7 @@ function PureArtifact({
       }
       setLogoMap(prev => ({ ...prev, ...newLogos }));
       setShowLogos(true);
+      console.log('[artifact] Logos loaded for spreadsheet, count:', Object.keys(newLogos).length);
     }
   }, [artifact.kind, artifact.content, showLogos, logoMap, parseSpreadsheetData]);
 
@@ -313,6 +319,31 @@ function PureArtifact({
       logo: logoMap[row.name] || null,
     }));
   }, [showLogos, chartData, logoMap]);
+
+  // Stream progress updates for artifacts
+  useEffect(() => {
+    if (artifact.status === 'streaming' && (artifact.kind === 'sheet' || artifact.kind === 'chart')) {
+      const totalRows = chartData.length || 1;
+      for (let i = 0; i < totalRows; i++) {
+        dataStream.writeData({ type: 'artifactProgress', content: `Processing row ${i + 1} of ${totalRows}` });
+        console.log('[artifact] Artifact progress streamed:', `Processing row ${i + 1} of ${totalRows}`);
+      }
+    }
+  }, [artifact.status, artifact.kind, chartData.length, dataStream]);
+
+  const handleChartEdit = useCallback((newConfig: any) => {
+    setMetadata(prev => ({ ...prev, chartConfig: newConfig }));
+    console.log('[artifact] Chart updated with new config:', JSON.stringify(newConfig));
+    // Simulate update via route.ts (placeholder for actual implementation)
+    fetch(`/api/document?id=${artifact.documentId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: artifact.title,
+        content: JSON.stringify({ ...chartData, ...newConfig }),
+        kind: 'chart',
+      }),
+    }).then(() => console.log('[artifact] Chart update sent to server'));
+  }, [artifact.documentId, artifact.title, chartData, setMetadata]);
 
   return (
     <AnimatePresence>
@@ -381,6 +412,7 @@ function PureArtifact({
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
+                  progress={progress} // Pass progress to display
                 />
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
@@ -526,91 +558,4 @@ function PureArtifact({
                 getDocumentContentById={getDocumentContentById}
                 isLoading={isDocumentsFetching && !artifact.content}
                 metadata={metadata}
-                setMetadata={setMetadata}
-              />
-
-              <AnimatePresence>
-                {isCurrentVersion && artifact.kind === 'sheet' && (
-                  <Toolbar
-                    isToolbarVisible={isToolbarVisible}
-                    setIsToolbarVisible={setIsToolbarVisible}
-                    append={append}
-                    isLoading={isLoading}
-                    stop={stop}
-                    setMessages={setMessages}
-                    artifactKind={artifact.kind}
-                    onGenerateChart={() => setShowChart(true)}
-                    onAddLogos={() => loadLogos()} // Add logo fetching callback
-                  />
-                )}
-              </AnimatePresence>
-
-              {showChart && artifact.kind === 'sheet' && chartWithLogos.length > 0 && (
-                <div className="p-4">
-                  <button
-                    onClick={() => setShowChart(false)}
-                    className="mb-2 bg-red-500 text-white px-2 py-1 rounded"
-                  >
-                    Hide Chart
-                  </button>
-                  <BarChart width={600} height={300} data={chartWithLogos}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      type="category"
-                      render={(props) => {
-                        const { x, y, payload } = props;
-                        const logo = logoMap[payload.value] || null;
-                        return logo ? (
-                          <image 
-                            x={x} 
-                            y={y - 10} 
-                            width={20} 
-                            height={20} 
-                            href={logo} 
-                            preserveAspectRatio="xMidYMid slice"
-                          />
-                        ) : (
-                          <text x={x} y={y} textAnchor="middle">
-                            {payload.value}
-                          </text>
-                        );
-                      }}
-                    />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="value" fill="#8884d8">
-                      {chartWithLogos.map((entry, index) => (
-                        <Cell key={`cell-${index}`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </div>
-              )}
-            </div>
-
-            <AnimatePresence>
-              {!isCurrentVersion && (
-                <VersionFooter
-                  currentVersionIndex={currentVersionIndex}
-                  documents={documents}
-                  handleVersionChange={handleVersionChange}
-                />
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
-  if (prevProps.isLoading !== nextProps.isLoading) return false;
-  if (!equal(prevProps.votes, nextProps.votes)) return false;
-  if (prevProps.input !== nextProps.input) return false;
-  if (!equal(prevProps.messages, nextProps.messages.length)) return false;
-
-  return true;
-});
+                setMetadata
