@@ -82,11 +82,11 @@ export const document = pgTable(
     id: uuid('id').notNull().defaultRandom(),
     createdAt: timestamp('createdAt').notNull(),
     title: text('title').notNull(),
-    content: text('content'), // Optional raw content or JSON metadata
+    content: text('content'), 
     kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] })
       .notNull()
       .default('text'),
-    fileUrl: text('fileUrl'), // Vercel Blob URL for artifacts
+    fileUrl: text('fileUrl'), 
     userId: uuid('userId')
       .notNull()
       .references(() => user.id),
