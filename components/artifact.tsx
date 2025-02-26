@@ -31,6 +31,7 @@ import { codeArtifact } from '@/artifacts/code/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'; // Import Recharts
 
 export const artifactDefinitions = [
   textArtifact,
@@ -112,6 +113,7 @@ function PureArtifact({
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
+  const [showChart, setShowChart] = useState(false); // State for chart visibility
 
   const { open: isSidebarOpen } = useSidebar();
 
@@ -232,12 +234,6 @@ function PureArtifact({
 
   const [isToolbarVisible, setIsToolbarVisible] = useState(false);
 
-  /*
-   * NOTE: if there are no documents, or if
-   * the documents are being fetched, then
-   * we mark it as the current version.
-   */
-
   const isCurrentVersion =
     documents && documents.length > 0
       ? currentVersionIndex === documents.length - 1
@@ -264,6 +260,22 @@ function PureArtifact({
       }
     }
   }, [artifact.documentId, artifactDefinition, setMetadata]);
+
+  // Parse spreadsheet data for charting
+  const parseSpreadsheetData = useCallback((csvContent: string) => {
+    const parsed = parse<string[]>(csvContent, { skipEmptyLines: true, header: true });
+    return parsed.data.map(row => ({
+      name: row[0] || 'Unknown', // Assuming first column is a label/name
+      value: parseFloat(row[1] || '0'), // Assuming second column is a numeric value
+    })).filter(row => row.name && !isNaN(row.value));
+  }, []);
+
+  const chartData = useMemo(() => {
+    if (artifact.kind === 'sheet' && artifact.content) {
+      return parseSpreadsheetData(artifact.content);
+    }
+    return [];
+  }, [artifact.kind, artifact.content, parseSpreadsheetData]);
 
   return (
     <AnimatePresence>
@@ -481,7 +493,7 @@ function PureArtifact({
               />
 
               <AnimatePresence>
-                {isCurrentVersion && (
+                {isCurrentVersion && artifact.kind === 'sheet' && ( // Show toolbar only for spreadsheets
                   <Toolbar
                     isToolbarVisible={isToolbarVisible}
                     setIsToolbarVisible={setIsToolbarVisible}
@@ -490,9 +502,29 @@ function PureArtifact({
                     stop={stop}
                     setMessages={setMessages}
                     artifactKind={artifact.kind}
+                    onGenerateChart={() => setShowChart(true)} // Add chart generation callback
                   />
                 )}
               </AnimatePresence>
+
+              {showChart && artifact.kind === 'sheet' && chartData.length > 0 && (
+                <div className="p-4">
+                  <button
+                    onClick={() => setShowChart(false)}
+                    className="mb-2 bg-red-500 text-white px-2 py-1 rounded"
+                  >
+                    Hide Chart
+                  </button>
+                  <BarChart width={600} height={300} data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8" />
+                  </BarChart>
+                </div>
+              )}
             </div>
 
             <AnimatePresence>
