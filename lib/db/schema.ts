@@ -3,7 +3,7 @@ import {
   pgTable,
   varchar,
   timestamp,
-  jsonb, // Updated from json to jsonb for better performance
+  jsonb, 
   uuid,
   text,
   primaryKey,
@@ -41,11 +41,11 @@ export const message = pgTable('Message', {
     .notNull()
     .references(() => chat.id),
   role: varchar('role').notNull(),
-  content: jsonb('content').notNull(), // Updated to jsonb for consistency
+  content: jsonb('content').notNull(), 
   createdAt: timestamp('createdAt').notNull(),
-  metadata: jsonb('metadata').default(sql`'{}'::jsonb'), // For artifacts (isArtifact, kind, fileUrl)
-  reasoning: jsonb('reasoning').default(sql`'[]'::jsonb'), // For streaming reasoning steps
-  sources: jsonb('sources').default(sql`'[]'::jsonb'), // For source URLs and titles
+  metadata: jsonb('metadata').default(sql`'{}'::jsonb'),
+  reasoning: jsonb('reasoning').default(sql`'[]'::jsonb'),
+  sources: jsonb('sources').default(sql`'[]'::jsonb'), 
 }, (table) => ({
   chatIdIdx: index('message_chat_id_idx').on(table.chatId),
   createdAtIdx: index('message_created_at_idx').on(table.createdAt),
