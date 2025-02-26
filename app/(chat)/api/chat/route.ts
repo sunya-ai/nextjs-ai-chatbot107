@@ -33,7 +33,7 @@ import { ArtifactKind } from '@/components/artifact';
 // Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types';
 
-export const maxDuration = 240;
+export const maxDuration = 240; // Increased for complex operations, if needed
 
 // Define the Metadata type to include fileUrl as optional
 type Metadata = {
@@ -52,9 +52,9 @@ type RateLimitInfo = {
 const requestsMap = new Map<string, RateLimitInfo>();
 
 const SHORT_MAX_REQUESTS = 50;
-const SHORT_WINDOW_TIME = 2 * 60 * 60_000;
+const SHORT_WINDOW_TIME = 2 * 60 * 60_000; // 2 hours
 const LONG_MAX_REQUESTS = 100;
-const LONG_WINDOW_TIME = 12 * 60 * 60_000;
+const LONG_WINDOW_TIME = 12 * 60 * 60_000; // 12 hours
 
 function rateLimiter(userId: string): boolean {
   const now = Date.now();
@@ -110,47 +110,50 @@ function convertContentToString(content: any): string {
   return '';
 }
 
-// Helper functions for extracting reasoning and sources from messages
+// Helper functions for extracting reasoning and sources from messages with robust handling
 function extractSources(message: CustomMessage | null): Array<{ title: string; url: string }> {
   if (!message) return [];
-  
+
   // Direct sources property from CustomMessage
   if (message.sources) {
-    return message.sources.map(source => ({
-      title: source.title || 'Unknown Source', // Ensure title is always present
-      url: source.url
-    }));
+    return message.sources
+      .map(source => ({
+        title: source.title || 'Unknown Source',
+        url: source.url || ''
+      }))
+      .filter(source => source.url); // Remove sources with empty URLs
   }
-  
+
   // Extract from parts if available (Vercel AI SDK 4.1 compatibility)
   if (message.parts) {
     return message.parts
-      .filter((part) => part.type === 'source' && 'source' in part)
+      .filter((part) => part.type === 'source' && 'source' in part && part.source?.url)
       .map((part) => ({
         title: part.source?.title || 'Unknown Source',
         url: part.source?.url || ''
-      }));
+      }))
+      .filter(source => source.url); // Ensure valid URLs
   }
-  
+
   return [];
 }
 
 function extractReasoning(message: CustomMessage | null): string[] {
   if (!message) return [];
-  
+
   // Direct reasoning property from CustomMessage (as array for consistency)
   if (message.reasoning) {
-    return Array.isArray(message.reasoning) ? message.reasoning : [message.reasoning];
+    return Array.isArray(message.reasoning) ? message.reasoning : [message.reasoning].filter(Boolean);
   }
-  
+
   // Extract from parts if available (Vercel AI SDK 4.1 compatibility)
   if (message.parts) {
     return message.parts
-      .filter((part) => part.type === 'reasoning' && 'reasoning' in part)
-      .map((part) => part.reasoning || '')
+      .filter((part) => part.type === 'reasoning' && 'reasoning' in part && part.reasoning)
+      .flatMap((part) => (part.reasoning ? [part.reasoning] : []))
       .filter(Boolean);
   }
-  
+
   return [];
 }
 
@@ -179,7 +182,6 @@ Format your response as:
 `;
 
   try {
-    // Get plain text response
     const result = await generateText({
       model: google('gemini-2.0-flash', {
         useSearchGrounding: true
@@ -188,34 +190,26 @@ Format your response as:
       messages: [{ role: 'user', content: message }]
     });
 
-    // Parse the plain text result to extract structured data
     const responseText = result.text;
-    
-    // Parse for needsSearch value
     const needsSearchMatch = responseText.match(/needsSearch:\s*(true|false)/i);
     const needsSearch = needsSearchMatch ? needsSearchMatch[1].toLowerCase() === 'true' : true;
-    
-    // Extract text
+
     const textMatch = responseText.match(/Text:\s*([^\n]+)/i);
     const text = textMatch ? textMatch[1].trim() : message;
-    
-    // Extract reasoning
+
     const reasoningRegex = /Reasoning:\s*([\s\S]*?)(?=Sources:|$)/i;
     const reasoningMatch = responseText.match(reasoningRegex);
     const reasoning = reasoningMatch 
       ? reasoningMatch[1].trim().split('\n').map(line => line.trim()).filter(Boolean) 
       : [];
-    
-    // Extract sources
+
     const sourcesRegex = /Sources:\s*([\s\S]*?)$/i;
     const sourcesMatch = responseText.match(sourcesRegex);
     let sources: { title: string; url: string }[] = [];
-    
+
     if (sourcesMatch && sourcesMatch[1]) {
       const sourcesText = sourcesMatch[1].trim();
-      // Try to extract URLs and titles from the response
       const urlMatches = [...sourcesText.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g)];
-      
       sources = urlMatches.map(match => ({
         title: match[1] || 'Unknown Source',
         url: match[2]
@@ -223,12 +217,7 @@ Format your response as:
     }
 
     console.log('[route] New search check completed, needsSearch:', needsSearch);
-    return { 
-      needsSearch, 
-      text, 
-      reasoning, 
-      sources 
-    };
+    return { needsSearch, text, reasoning, sources };
   } catch (error) {
     console.error('[route] New search check error:', error instanceof Error ? error.message : String(error));
     return { needsSearch: true, text: message, reasoning: [], sources: [] };
@@ -244,7 +233,7 @@ async function processSpreadsheetUpdate(
 
   console.log('[route] Processing spreadsheet update for message (first 100 chars):', userMessage.content.slice(0, 100));
 
-  const spreadsheetPromptText = sheetPrompt; // Use the sheetPrompt from prompts.ts
+  const spreadsheetPromptText = sheetPrompt;
   try {
     const result = await generateText({
       model: google('gemini-2.0-flash'),
@@ -355,10 +344,10 @@ export async function POST(request: Request) {
       messages: [{
         ...userMessage,
         createdAt: new Date(),
-        chatId: id, // Add chatId here for type safety
+        chatId: id, // Ensure chatId is included
         metadata: null,
-        reasoning: (userMessage as CustomMessage).reasoning ?? [], // Default to empty array if reasoning is undefined
-        sources: (userMessage as CustomMessage).sources ?? [], // Ensure sources is always an array
+        sources: (userMessage as CustomMessage).sources ?? [], // Default to empty array if undefined
+        reasoning: (userMessage as CustomMessage).reasoning ?? [], // Default to empty array if undefined
       } as CustomMessage],
     });
 
@@ -392,7 +381,7 @@ export async function POST(request: Request) {
           console.log('[route] Checking if message is a follow-up or needs new search...');
           const previousMessages = messages.slice(0, -1); // Exclude current message
           const previousResponse = messages[messages.length - 1]?.role === 'assistant' 
-            ? messages[messages.length - 1] as CustomMessage 
+            ? (messages[messages.length - 1] as CustomMessage) 
             : null;
           
           const previousContext = previousResponse ? { 
@@ -405,7 +394,6 @@ export async function POST(request: Request) {
 
           if (!needsSearch) {
             console.log('[route] No new search needed, using existing context for follow-up');
-            // Direct to final model with existing context and minimal reasoning/sources
             const finalPrompt = `Context: (Follow-up question)\nPrevious Context: ${previousContext.text}\nQuery: ${refinedText}`;
             const finalModel = getFinalModel(selectedChatModel);
 
@@ -426,7 +414,7 @@ export async function POST(request: Request) {
                   let content = convertContentToString(assistantMessage.content);
                   let metadata: Metadata | null = null;
                   let sources = followUpSources ?? [];
-                  let reasoning = followUpReasoning.length > 0 ? followUpReasoning : []; // Use reasoning from needsNewSearch or default to empty
+                  let reasoning = followUpReasoning.length > 0 ? followUpReasoning : [];
 
                   console.log('[route] Processing final response for follow-up, content length:', content.length);
                   try {
@@ -435,7 +423,7 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart',
                       };
                       if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
                         const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
@@ -467,13 +455,13 @@ export async function POST(request: Request) {
                   await saveMessages({
                     messages: [{
                       id: generateUUID(),
-                      chatId: id, // Add chatId here for type safety
+                      chatId: id,
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning: reasoning, // Ensure reasoning is included as an array
-                      sources: sources, // Use sources from needsNewSearch or empty array
-                      metadata: metadata,
+                      reasoning,
+                      sources,
+                      metadata,
                     } as CustomMessage],
                   });
                 }
@@ -482,15 +470,12 @@ export async function POST(request: Request) {
 
             await result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
-              sendSources: true, // Stream sources to the client, compatible with AI SDK 4.1
+              sendSources: true,
             });
           } else {
             console.log('[route] New search needed, running full context enhancement');
-            // Step 2: Full context enhancement using assistantsEnhancer (non-streaming)
-            console.log('[route] Enhancing context with assistantsEnhancer for message:', userMessage.content.slice(0, 100));
             const { text: finalContext, reasoning: combinedReasoning, sources: combinedSources } = await assistantsEnhancer(userMessage.content, fileBuffer, fileMime);
 
-            // Step 3: Final response with streaming (only the final model streams)
             const finalPrompt = `Context:\n${finalContext}\n\nQuery: ${userMessage.content}`;
             const finalModel = getFinalModel(selectedChatModel);
 
@@ -511,7 +496,7 @@ export async function POST(request: Request) {
                   let content = convertContentToString(assistantMessage.content);
                   let metadata: Metadata | null = null;
                   let sources = combinedSources ?? [];
-                  let reasoning = combinedReasoning.length > 0 ? combinedReasoning : []; // Use reasoning from assistantsEnhancer or default to empty
+                  let reasoning = combinedReasoning.length > 0 ? combinedReasoning : [];
 
                   console.log('[route] Processing final response for full process, content length:', content.length);
                   try {
@@ -520,7 +505,7 @@ export async function POST(request: Request) {
                       content = JSON.stringify(parsedContent);
                       metadata = {
                         isArtifact: true,
-                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart', // Default to 'sheet' for spreadsheets
+                        kind: Array.isArray(parsedContent[0]) ? 'sheet' : 'chart',
                       };
                       if (metadata.kind === 'sheet' || metadata.kind === 'chart') {
                         const blob = await put(`artifacts/${generateUUID()}.${metadata.kind === 'sheet' ? 'csv' : 'json'}`, content, {
@@ -552,13 +537,13 @@ export async function POST(request: Request) {
                   await saveMessages({
                     messages: [{
                       id: generateUUID(),
-                      chatId: id, // Add chatId here for type safety
+                      chatId: id,
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning: reasoning, // Ensure reasoning is included as an array
-                      sources: sources, // Use sources from assistantsEnhancer or empty array
-                      metadata: metadata,
+                      reasoning,
+                      sources,
+                      metadata,
                     } as CustomMessage],
                   });
                 }
@@ -567,7 +552,7 @@ export async function POST(request: Request) {
 
             await result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
-              sendSources: true, // Stream sources to the client, compatible with AI SDK 4.1
+              sendSources: true,
             });
           }
         } catch (err) {
@@ -577,7 +562,7 @@ export async function POST(request: Request) {
       },
       onError: (error) => {
         console.error('[route] Final error handler:', error instanceof Error ? error.message : String(error));
-        return 'Internal Server Error';
+        return new Response('Internal Server Error', { status: 500 });
       },
     });
   } catch (error: unknown) {
