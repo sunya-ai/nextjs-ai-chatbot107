@@ -137,25 +137,27 @@ function convertContentToString(content: any): string {
 }
 
 // Helper functions for extracting reasoning and sources from messages
-function extractSources(message: ExtendedMessage | null): Array<{ title?: string; url: string; id?: string }> {
+function extractSources(message: ExtendedMessage | null): Array<{ title: string; url: string }> {
   if (!message) return [];
   
   // Direct sources property
   if (message.sources) {
-    return message.sources;
+    return message.sources.map(source => ({
+      title: source.title || 'Unknown Source', // Ensure title is always present
+      url: source.url
+    }));
   }
   
   // Extract from parts if available
   if (message.parts) {
-    const sourceParts: Array<{ title?: string; url: string; id?: string }> = [];
+    const sourceParts: Array<{ title: string; url: string }> = [];
     
     // Use a loop to check each part for 'source' property and handle it safely
     for (const part of message.parts) {
       if (part.type === 'source' && 'source' in part) {
         sourceParts.push({
-          title: part.source.title,
-          url: part.source.url,
-          id: part.source.id
+          title: part.source.title || 'Unknown Source', // Ensure title is always present
+          url: part.source.url
         });
       }
     }
