@@ -33,6 +33,16 @@ import { ArtifactKind } from '@/components/artifact';
 // Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types'; // Adjust the path as needed
 
+// Define source part interface for type checking
+interface SourcePart {
+  type: 'source';
+  source: {
+    id: string;
+    title?: string;
+    url: string;
+  };
+}
+
 // Use type intersection instead of interface extension for better compatibility
 type ExtendedMessage = Message & {
   parts?: Array<{
@@ -40,12 +50,7 @@ type ExtendedMessage = Message & {
     text?: string;
     reasoning?: string;
     details?: Array<{ type: string; text: string }>;
-    source?: {
-      id: string;
-      title?: string;
-      url: string;
-    };
-  }>;
+  } | SourcePart>;
   reasoning?: string; // Keep this as string | undefined to match Message
   sources?: Array<{
     id?: string;
@@ -136,6 +141,11 @@ function convertContentToString(content: any): string {
   return '';
 }
 
+// Type guard for SourcePart
+function isSourcePart(part: any): part is SourcePart {
+  return part.type === 'source' && 'source' in part;
+}
+
 // Helper functions for extracting reasoning and sources from messages
 function extractSources(message: ExtendedMessage | null): Array<{ title?: string; url: string; id?: string }> {
   if (!message) return [];
@@ -148,11 +158,11 @@ function extractSources(message: ExtendedMessage | null): Array<{ title?: string
   // Extract from parts if available
   if (message.parts) {
     return message.parts
-      .filter(part => part.type === 'source' && part.source)
+      .filter(isSourcePart)
       .map(part => ({
-        title: part.source?.title,
-        url: part.source?.url,
-        id: part.source?.id
+        title: part.source.title,
+        url: part.source.url,
+        id: part.source.id
       }));
   }
   
@@ -174,10 +184,10 @@ function extractReasoning(message: ExtendedMessage | null): string[] {
       
     if (reasoningParts.length) {
       return reasoningParts.flatMap(part => {
-        if (part.reasoning) {
+        if ('reasoning' in part && part.reasoning) {
           return [part.reasoning];
         }
-        if (part.details) {
+        if ('details' in part && part.details) {
           return part.details
             .filter(detail => detail.type === 'text')
             .map(detail => detail.text);
