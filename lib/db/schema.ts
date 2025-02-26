@@ -41,8 +41,16 @@ export const message = pgTable('Message', {
   role: varchar('role').notNull(),
   content: json('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
-  metadata: json('metadata'), // Keep this, as it’s now manually added
-});
+  metadata: json('metadata').default(sql`'{}'::json'), // For artifacts (isArtifact, kind, fileUrl)
+  reasoning: json('reasoning').default(sql`'[]'::json'), // For streaming reasoning steps
+  sources: json('sources').default(sql`'[]'::json'), // For source URLs and titles
+}, (table) => ({
+  chatIdIdx: index('message_chat_id_idx').on(table.chatId),
+  createdAtIdx: index('message_created_at_idx').on(table.createdAt),
+  metadataIdx: index('message_metadata_idx').using('gin', table.metadata),
+  reasoningIdx: index('message_reasoning_idx').using('gin', table.reasoning),
+  sourcesIdx: index('message_sources_idx').using('gin', table.sources),
+}));
 
 export type Message = InferSelectModel<typeof message>;
 
@@ -72,10 +80,11 @@ export const document = pgTable(
     id: uuid('id').notNull().defaultRandom(),
     createdAt: timestamp('createdAt').notNull(),
     title: text('title').notNull(),
-    content: text('content'),
+    content: text('content'), // Optional raw content or JSON metadata
     kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] })
       .notNull()
       .default('text'),
+    fileUrl: text('fileUrl'), // Vercel Blob URL for artifacts
     userId: uuid('userId')
       .notNull()
       .references(() => user.id),
