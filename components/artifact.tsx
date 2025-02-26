@@ -31,7 +31,8 @@ import { codeArtifact } from '@/artifacts/code/client';
 import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'; // Import Recharts
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'; // Updated for custom cells
+import axios from 'axios'; // For Clearbit API
 
 export const artifactDefinitions = [
   textArtifact,
@@ -114,6 +115,7 @@ function PureArtifact({
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
   const [showChart, setShowChart] = useState(false); // State for chart visibility
+  const [showLogos, setShowLogos] = useState(false); // State for logo visibility
 
   const { open: isSidebarOpen } = useSidebar();
 
@@ -261,11 +263,11 @@ function PureArtifact({
     }
   }, [artifact.documentId, artifactDefinition, setMetadata]);
 
-  // Parse spreadsheet data for charting
+  // Parse spreadsheet data for charting and logos
   const parseSpreadsheetData = useCallback((csvContent: string) => {
     const parsed = parse<string[]>(csvContent, { skipEmptyLines: true, header: true });
     return parsed.data.map(row => ({
-      name: row[0] || 'Unknown', // Assuming first column is a label/name
+      name: row[0] || 'Unknown', // Assuming first column is company name/label
       value: parseFloat(row[1] || '0'), // Assuming second column is a numeric value
     })).filter(row => row.name && !isNaN(row.value));
   }, []);
@@ -276,6 +278,41 @@ function PureArtifact({
     }
     return [];
   }, [artifact.kind, artifact.content, parseSpreadsheetData]);
+
+  // Fetch logos for companies in spreadsheet data
+  const fetchLogo = async (company: string) => {
+    try {
+      const domain = company.toLowerCase().replace(' ', '') + '.com';
+      const response = await axios.get(`https://logo.clearbit.com/${domain}`, { responseType: 'blob' });
+      return URL.createObjectURL(response.data);
+    } catch (error) {
+      console.error(`Failed to fetch logo for ${company}:`, error);
+      return null; // Return null or a default logo URL
+    }
+  };
+
+  const [logoMap, setLogoMap] = useState<{ [key: string]: string | null }>({});
+  const loadLogos = useCallback(async () => {
+    if (artifact.kind === 'sheet' && artifact.content && !showLogos) {
+      const data = parseSpreadsheetData(artifact.content);
+      const newLogos = {};
+      for (const row of data) {
+        if (!logoMap[row.name] && row.name) {
+          newLogos[row.name] = await fetchLogo(row.name);
+        }
+      }
+      setLogoMap(prev => ({ ...prev, ...newLogos }));
+      setShowLogos(true);
+    }
+  }, [artifact.kind, artifact.content, showLogos, logoMap, parseSpreadsheetData]);
+
+  const chartWithLogos = useMemo(() => {
+    if (!showLogos || !chartData.length) return chartData;
+    return chartData.map(row => ({
+      ...row,
+      logo: logoMap[row.name] || null,
+    }));
+  }, [showLogos, chartData, logoMap]);
 
   return (
     <AnimatePresence>
@@ -493,7 +530,7 @@ function PureArtifact({
               />
 
               <AnimatePresence>
-                {isCurrentVersion && artifact.kind === 'sheet' && ( // Show toolbar only for spreadsheets
+                {isCurrentVersion && artifact.kind === 'sheet' && (
                   <Toolbar
                     isToolbarVisible={isToolbarVisible}
                     setIsToolbarVisible={setIsToolbarVisible}
@@ -502,12 +539,13 @@ function PureArtifact({
                     stop={stop}
                     setMessages={setMessages}
                     artifactKind={artifact.kind}
-                    onGenerateChart={() => setShowChart(true)} // Add chart generation callback
+                    onGenerateChart={() => setShowChart(true)}
+                    onAddLogos={() => loadLogos()} // Add logo fetching callback
                   />
                 )}
               </AnimatePresence>
 
-              {showChart && artifact.kind === 'sheet' && chartData.length > 0 && (
+              {showChart && artifact.kind === 'sheet' && chartWithLogos.length > 0 && (
                 <div className="p-4">
                   <button
                     onClick={() => setShowChart(false)}
@@ -515,13 +553,38 @@ function PureArtifact({
                   >
                     Hide Chart
                   </button>
-                  <BarChart width={600} height={300} data={chartData}>
+                  <BarChart width={600} height={300} data={chartWithLogos}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis 
+                      dataKey="name" 
+                      type="category"
+                      render={(props) => {
+                        const { x, y, payload } = props;
+                        const logo = logoMap[payload.value] || null;
+                        return logo ? (
+                          <image 
+                            x={x} 
+                            y={y - 10} 
+                            width={20} 
+                            height={20} 
+                            href={logo} 
+                            preserveAspectRatio="xMidYMid slice"
+                          />
+                        ) : (
+                          <text x={x} y={y} textAnchor="middle">
+                            {payload.value}
+                          </text>
+                        );
+                      }}
+                    />
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="value" fill="#8884d8" />
+                    <Bar dataKey="value" fill="#8884d8">
+                      {chartWithLogos.map((entry, index) => (
+                        <Cell key={`cell-${index}`} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </div>
               )}
