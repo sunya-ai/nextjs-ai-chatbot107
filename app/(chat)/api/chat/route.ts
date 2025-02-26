@@ -117,7 +117,7 @@ async function needsNewSearch(
   const searchPrompt = `
 You are an energy research query classifier. Determine if the user's message requires a new web/RAG search based on the conversation history and previous context. A new search is needed if:
 - The message introduces new standalone information or requires updated energy sector data.
-- The message cannot be answered using existing chat history, previous context, or the final model’s knowledge.
+- The message cannot be answered using existing chat history, previous context, or the final model's knowledge.
 - The message is not brief, context-dependent, or directly related to prior queries.
 
 Previous messages: ${JSON.stringify(previousMessages)}
@@ -129,20 +129,59 @@ Format your response as:
 - Text: [refined query or context, if new search needed; original query, if not]
 - Reasoning: [step-by-step reasoning for the decision]
 - Sources: [list of relevant sources with titles and URLs, if any]
-
 `;
 
- try {
-  const result = await generateText({
-    model: google('gemini-2.0-flash', {
-      useSearchGrounding: true
-    }),
-    system: searchPrompt,
-    messages: [{ role: 'user', content: message }]
-  });
+  try {
+    // Get plain text response
+    const result = await generateText({
+      model: google('gemini-2.0-flash', {
+        useSearchGrounding: true
+      }),
+      system: searchPrompt,
+      messages: [{ role: 'user', content: message }]
+    });
 
-    console.log('[route] New search check completed, needsSearch:', result.needsSearch);
-    return result;
+    // Parse the plain text result to extract structured data
+    const responseText = result.text;
+    
+    // Parse for needsSearch value
+    const needsSearchMatch = responseText.match(/needsSearch:\s*(true|false)/i);
+    const needsSearch = needsSearchMatch ? needsSearchMatch[1].toLowerCase() === 'true' : true;
+    
+    // Extract text
+    const textMatch = responseText.match(/Text:\s*([^\n]+)/i);
+    const text = textMatch ? textMatch[1].trim() : message;
+    
+    // Extract reasoning
+    const reasoningRegex = /Reasoning:\s*([\s\S]*?)(?=Sources:|$)/i;
+    const reasoningMatch = responseText.match(reasoningRegex);
+    const reasoning = reasoningMatch 
+      ? reasoningMatch[1].trim().split('\n').map(line => line.trim()).filter(Boolean) 
+      : [];
+    
+    // Extract sources
+    const sourcesRegex = /Sources:\s*([\s\S]*?)$/i;
+    const sourcesMatch = responseText.match(sourcesRegex);
+    let sources: { title: string; url: string }[] = [];
+    
+    if (sourcesMatch && sourcesMatch[1]) {
+      const sourcesText = sourcesMatch[1].trim();
+      // Try to extract URLs and titles from the response
+      const urlMatches = [...sourcesText.matchAll(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g)];
+      
+      sources = urlMatches.map(match => ({
+        title: match[1] || 'Unknown Source',
+        url: match[2]
+      }));
+    }
+
+    console.log('[route] New search check completed, needsSearch:', needsSearch);
+    return { 
+      needsSearch, 
+      text, 
+      reasoning, 
+      sources 
+    };
   } catch (error) {
     console.error('[route] New search check error:', error instanceof Error ? error.message : String(error));
     return { needsSearch: true, text: message, reasoning: [], sources: [] };
@@ -160,19 +199,27 @@ async function processSpreadsheetUpdate(
 
   const spreadsheetPromptText = sheetPrompt; // Use the sheetPrompt from prompts.ts
   try {
-    const { text } = await generateText({
+    const result = await generateText({
       model: google('gemini-2.0-flash'),
       system: spreadsheetPromptText,
-      messages: [{ role: 'user', content: userMessage.content }],
-      schema: z.array(z.array(z.string())),
+      messages: [{ role: 'user', content: userMessage.content }]
     });
 
-    console.log('[route] Spreadsheet update completed, data length:', JSON.parse(text).length);
-    if (JSON.parse(text).length < 20) {
-      console.warn('[route] Spreadsheet has fewer than 20 rows, adding note');
-      JSON.parse(text).push(['Note', 'Insufficient data', '', '', '', '[No provided URL]']);
+    try {
+      const parsedData = JSON.parse(result.text);
+      if (Array.isArray(parsedData)) {
+        console.log('[route] Spreadsheet update completed, data length:', parsedData.length);
+        if (parsedData.length < 20) {
+          console.warn('[route] Spreadsheet has fewer than 20 rows, adding note');
+          parsedData.push(['Note', 'Insufficient data', '', '', '', '[No provided URL]']);
+        }
+        return parsedData;
+      }
+    } catch (e) {
+      console.error('[route] Failed to parse spreadsheet data:', e instanceof Error ? e.message : String(e));
     }
-    return JSON.parse(text);
+    
+    return currentData || [['Date', 'Deal Type', 'Amount']];
   } catch (error) {
     console.error('[route] Spreadsheet update error:', error instanceof Error ? error.message : String(error));
     return currentData || [['Date', 'Deal Type', 'Amount']];
@@ -291,7 +338,7 @@ export async function POST(request: Request) {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       execute: async (dataStream) => {
         try {
-          // Step 1: Check if it’s a follow-up or needs a new search
+          // Step 1: Check if it's a follow-up or needs a new search
           console.log('[route] Checking if message is a follow-up or needs new search...');
           const previousMessages = messages.slice(0, -1); // Exclude current message
           const previousResponse = messages[messages.length - 1]?.role === 'assistant' ? messages[messages.length - 1] : null;
