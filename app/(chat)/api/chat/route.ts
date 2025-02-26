@@ -1,5 +1,5 @@
 import {
-  type CustomMessage as Message,
+  type Message,
   createDataStreamResponse,
   streamText,
   generateText,
@@ -29,6 +29,9 @@ import rehypeRaw from 'rehype-raw';
 import { put } from '@vercel/blob';
 import { z } from 'zod'; // For structured outputs
 import { ArtifactKind } from '@/components/artifact';
+
+// Import CustomMessage from your local types file
+import { CustomMessage } from '@/lib/types'; // Adjust the path as needed
 
 export const maxDuration = 240;
 
@@ -422,7 +425,7 @@ export async function POST(request: Request) {
                       reasoning: followUpReasoning,
                       sources: sources, // Use sources from needsNewSearch or empty array
                       metadata: metadata,
-                    }],
+                    } as CustomMessage], // Cast to CustomMessage to ensure type safety
                   });
                 }
               },
@@ -430,7 +433,7 @@ export async function POST(request: Request) {
 
             await result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
-              sendSources: true, // Stream sources to the client
+              sendSources: true, // Stream sources to the client, compatible with AI SDK 4.1
             });
           } else {
             console.log('[route] New search needed, running full context enhancement');
@@ -506,7 +509,7 @@ export async function POST(request: Request) {
                       reasoning: combinedReasoning,
                       sources: sources, // Use sources from assistantsEnhancer or empty array
                       metadata: metadata,
-                    }],
+                    } as CustomMessage], // Cast to CustomMessage to ensure type safety
                   });
                 }
               },
@@ -514,7 +517,7 @@ export async function POST(request: Request) {
 
             await result.mergeIntoDataStream(dataStream, {
               sendReasoning: true,
-              sendSources: true, // Stream sources to the client
+              sendSources: true, // Stream sources to the client, compatible with AI SDK 4.1
             });
           }
         } catch (err) {
