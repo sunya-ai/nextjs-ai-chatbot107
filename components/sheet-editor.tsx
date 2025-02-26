@@ -6,6 +6,7 @@ import Handsontable from 'handsontable';
 import { parse, unparse } from 'papaparse';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
+import axios from 'axios'; // For Clearbit API
 
 type SheetEditorProps = {
   content: string;
@@ -46,10 +47,30 @@ const PureSpreadsheetEditor = ({
   }, [content]);
 
   const [spreadsheetData, setSpreadsheetData] = useState<any[][]>(parseData);
+  const [logoMap, setLogoMap] = useState<{ [key: string]: string | null }>({});
 
   useEffect(() => {
     setSpreadsheetData(parseData);
-  }, [parseData]);
+    // Load logos for companies in the first column
+    const loadLogos = async () => {
+      const companies = parseData.map(row => row[0]).filter(Boolean);
+      const newLogos = {};
+      for (const company of new Set(companies)) {
+        if (!logoMap[company]) {
+          try {
+            const domain = company.toLowerCase().replace(' ', '') + '.com';
+            const response = await axios.get(`https://logo.clearbit.com/${domain}`, { responseType: 'blob' });
+            newLogos[company] = URL.createObjectURL(response.data);
+          } catch (error) {
+            console.error(`Failed to fetch logo for ${company}:`, error);
+            newLogos[company] = null; // Default or no logo
+          }
+        }
+      }
+      setLogoMap(prev => ({ ...prev, ...newLogos }));
+    };
+    if (isCurrentVersion) loadLogos();
+  }, [parseData, logoMap, isCurrentVersion]);
 
   const handleSpreadsheetUpdate = (changes: any) => {
     if (changes) {
@@ -64,7 +85,22 @@ const PureSpreadsheetEditor = ({
     data: i.toString(),
     title: String.fromCharCode(65 + i),
     width: 120,
+    renderer: i === 0 ? logoRenderer : undefined, // Custom renderer for first column (logos)
   }));
+
+  const logoRenderer = (instance, td, row, col, prop, value, cellProperties) => {
+    if (col === 0 && value) { // First column for company names
+      const logo = logoMap[value] || null;
+      if (logo) {
+        td.innerHTML = `<img src="${logo}" alt="${value} Logo" style="height: 20px; width: 20px;" /> ${value}`;
+      } else {
+        td.innerHTML = value; // Fallback to text
+      }
+    } else {
+      td.innerHTML = value || '';
+    }
+    return td;
+  };
 
   return (
     <div className={cn('p-4', theme === 'dark' ? 'dark:bg-muted' : 'bg-background')}>
@@ -73,6 +109,7 @@ const PureSpreadsheetEditor = ({
       )}
       <HotTable
         data={spreadsheetData}
+        columns={columns}
         colHeaders={true}
         rowHeaders={true}
         filters={true}
