@@ -3,7 +3,7 @@
 import type { ChatRequestOptions, Message } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Vote } from '@/lib/db/schema';
 
@@ -14,7 +14,7 @@ import {
   PencilEditIcon,
   SparklesIcon,
 } from './icons';
-import { MDXRuntime } from '@mdx-js/runtime'; // Import MDX runtime instead of Markdown
+import { MDXRuntime } from '@mdx-js/runtime'; // Import MDX runtime
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
+import { useChat } from 'ai/react'; // Add for streaming
 
 // Define custom MDX components for interactivity (same as in messages.tsx)
 const customComponents = {
@@ -63,6 +64,19 @@ const PurePreviewMessage = ({
   isReadonly: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const { append } = useChat({ id: chatId }); // Integrate useChat for streaming
+
+  // Handle AI-driven edits via chat commands
+  const handleAIEdit = useCallback(async (newContent: string) => {
+    if (isReadonly) return;
+    setMessages(prev => prev.map(m =>
+      m.id === message.id ? { ...m, content: newContent } : m
+    ));
+    await append({
+      role: 'user',
+      content: `Edit message ${message.id} to say: ${newContent}`,
+    });
+  }, [chatId, message.id, setMessages, append, isReadonly]);
 
   return (
     <AnimatePresence>
@@ -111,20 +125,34 @@ const PurePreviewMessage = ({
             {(message.content || message.reasoning) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
                 {message.role === 'user' && !isReadonly && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
-                        onClick={() => {
-                          setMode('edit');
-                        }}
-                      >
-                        <PencilEditIcon />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Edit message</TooltipContent>
-                  </Tooltip>
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
+                          onClick={() => {
+                            setMode('edit');
+                          }}
+                        >
+                          <PencilEditIcon />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit message</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="px-2 h-fit rounded-full text-muted-foreground opacity-0 group-hover/message:opacity-100"
+                          onClick={() => handleAIEdit('New content example')}
+                        >
+                          AI Edit
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>AI Edit Message</TooltipContent>
+                    </Tooltip>
+                  </>
                 )}
 
                 <div
@@ -255,10 +283,21 @@ export const PreviewMessage = memo(
 
 export const ThinkingMessage = () => {
   const role = 'assistant';
+  const [status, setStatus] = useState('Thinking...');
+
+  // Simulate or stream status updates (replace with actual streaming logic)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStatus(prev => 
+        prev === 'Thinking...' ? 'Processing...' : 'Analyzing...'
+      );
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <motion.div
-      className="w-full mx-auto max-w-3xl px-4 group/message "
+      className="w-full mx-auto max-w-3xl px-4 group/message"
       initial={{ y: 5, opacity: 0 }}
       animate={{ y: 0, opacity: 1, transition: { delay: 1 } }}
       data-role={role}
@@ -276,8 +315,9 @@ export const ThinkingMessage = () => {
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <div className="flex flex-col gap-4 text-muted-foreground">
-            Thinking...
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span className="animate-pulse">● ● ●</span>
+            <span>{status}</span>
           </div>
         </div>
       </div>
