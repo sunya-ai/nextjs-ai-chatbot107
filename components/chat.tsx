@@ -1,13 +1,11 @@
-// components/chat.tsx
 'use client';
 
 import type { Attachment, Message } from 'ai';
 import { useChat } from 'ai/react';
-import { useState } from 'react';
-import useSWR, { useSWRConfig } from 'swr';
+import { useState, useEffect } from 'react';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
-import { fetcher, generateUUID } from '@/lib/utils';
+import { generateUUID } from '@/lib/utils';
 import { Artifact } from './artifact';
 import { MultimodalInput } from './multimodal-input';
 import { Messages } from './messages';
@@ -28,18 +26,16 @@ export function Chat({
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
 }) {
-  const { mutate } = useSWRConfig();
-
+  const [isMounted, setIsMounted] = useState(false);
   const {
     messages,
-    setMessages,
-    handleSubmit,
     input,
-    setInput,
-    append,
+    handleInputChange,
+    handleSubmit,
     isLoading,
     stop,
     reload,
+    append,
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
@@ -47,21 +43,22 @@ export function Chat({
     experimental_throttle: 100,
     sendExtraMessageFields: true,
     generateId: generateUUID,
-    onFinish: () => {
-      mutate('/api/history');
+    onFinish: (message) => {
+      append(message, true); // Ensure the message is appended to the UI
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
     },
   });
 
-  const { data: votes } = useSWR<Array<Vote>>(
-    `/api/vote?chatId=${id}`,
-    fetcher,
-  );
-
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return null;
 
   return (
     <div className="flex flex-col min-w-0 h-dvh bg-gray-100 dark:bg-gray-900">
@@ -76,9 +73,8 @@ export function Chat({
       <Messages
         chatId={id}
         isLoading={isLoading}
-        votes={votes}
         messages={messages}
-        setMessages={setMessages}
+        setMessages={(msgs) => setMessages(msgs)}
         reload={reload}
         isReadonly={isReadonly}
         isArtifactVisible={isArtifactVisible}
@@ -117,7 +113,6 @@ export function Chat({
         messages={messages}
         setMessages={setMessages}
         reload={reload}
-        votes={votes}
         isReadonly={isReadonly}
       />
     </div>
