@@ -44,7 +44,7 @@ export function Chat({
     sendExtraMessageFields: true,
     generateId: generateUUID,
     onFinish: (message) => {
-      append(message, true); // Ensure the message is appended to the UI
+      append(message); // Remove the second 'true' argument, relying on default UI update behavior
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
