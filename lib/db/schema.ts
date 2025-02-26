@@ -52,7 +52,7 @@ sources: jsonb('sources').default(sql`'[]'::jsonb`),
   metadataIdx: index('message_metadata_idx').using('gin', table.metadata),
   reasoningIdx: index('message_reasoning_idx').using('gin', table.reasoning),
   sourcesIdx: index('message_sources_idx').using('gin', table.sources),
-)));
+));
 
 export type Message = InferSelectModel<typeof message>;
 
