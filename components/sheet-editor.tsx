@@ -1,21 +1,11 @@
-// components/sheet-editor.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { HotTable } from '@handsontable/react';
-import { registerAllModules } from 'handsontable/registry';
-import 'handsontable/dist/handsontable.full.min.css';
-import { Button } from '@/components/ui/button';
-import { useSession } from 'next-auth/react';
-import { put } from '@vercel/blob';
+import Handsontable from 'handsontable';
+import { parse, unparse } from 'papaparse';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
-import { parse, unparse } from 'papaparse';
-import { inferDomains } from '@/lib/ai/tools/infer-domains';
-import { createDocumentAction, updateDocumentAction } from '@/app/(chat)/actions';
-
-// Register all Handsontable modules
-registerAllModules();
 
 type SheetEditorProps = {
   content: string;
@@ -25,137 +15,94 @@ type SheetEditorProps = {
   currentVersionIndex: number;
 };
 
-export default function SheetEditor({
+const MIN_ROWS = 50;
+const MIN_COLS = 26;
+
+const PureSpreadsheetEditor = ({
   content,
   saveContent,
   status,
   isCurrentVersion,
-  currentVersionIndex,
-}: SheetEditorProps) {
-  const { data: session } = useSession();
+}: SheetEditorProps) => {
   const { theme } = useTheme();
-  const [data, setData] = useState<any[][]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [companyLogos, setCompanyLogos] = useState<Record<string, string>>({});
 
   const parseData = useMemo(() => {
-    if (!content) return [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]];
-    const result = parse<string[]>(content, { skipEmptyLines: true, header: true });
-    return result.data.map(row => Object.values(row)) || [['Date', 'Deal Type', 'Amount'], ['2025-02-23', 'Solar M&A', 1000000]];
+    if (!content) return Array(MIN_ROWS).fill(Array(MIN_COLS).fill(''));
+    const result = parse<string[]>(content, { skipEmptyLines: true });
+
+    const paddedData = result.data.map((row) => {
+      const paddedRow = [...row];
+      while (paddedRow.length < MIN_COLS) {
+        paddedRow.push('');
+      }
+      return paddedRow;
+    });
+
+    while (paddedData.length < MIN_ROWS) {
+      paddedData.push(Array(MIN_COLS).fill(''));
+    }
+
+    return paddedData;
   }, [content]);
 
+  const [spreadsheetData, setSpreadsheetData] = useState<any[][]>(parseData);
+
   useEffect(() => {
-    setData(parseData);
-    updateCompanyLogos(parseData);
+    setSpreadsheetData(parseData);
   }, [parseData]);
 
-  const updateCompanyLogos = useCallback(async (data: any[][]) => {
-    const companies = [];
-    for (let row of data.slice(1)) { // Skip headers
-      if (row[1] && typeof row[1] === 'string') { // Assuming 'Deal Type' column contains company names
-        companies.push(row[1].split(' ')[0]); // Extract first word as company name (e.g., "Solar" from "Solar M&A")
-      }
-    }
-    const uniqueCompanies = [...new Set(companies.filter(Boolean))];
-    if (uniqueCompanies.length > 0) {
-      const logos = await inferDomains(uniqueCompanies);
-      setCompanyLogos(logos);
-    }
-  }, []);
-
-  const columns = useMemo(() => [
-    { data: 0, title: 'Date', width: 150 },
-    { data: 1, title: 'Deal Type', width: 150, renderer: (instance: any, td: HTMLElement, row: number, col: number, prop: string | number, value: any) => {
-      const company = value?.split(' ')[0];
-      td.innerHTML = `<div class="flex items-center gap-2"><span>${value || ''}</span>${company && companyLogos[company] ? `<img src="${companyLogos[company]}" alt="${company}" class="h-4 w-4 rounded-full" />` : ''}</div>`;
-      td.className = 'htLeft htMiddle text-zinc-900 dark:text-zinc-100';
-      if (row === 0) td.className += ' htHeader';
-    }},
-    { data: 2, title: 'Amount', width: 150, type: 'numeric', numericFormat: { pattern: '$0,0.00' } },
-  ], [companyLogos]);
-
-  const handleDataChange = useCallback((changes: any, source: string) => {
-    if (source === 'edit' || source === 'paste') {
-      const newData = [...data];
-      changes.forEach(([row, col, oldValue, newValue]: any) => {
-        newData[row] = [...(newData[row] || [])];
-        newData[row][col] = newValue;
-      });
-      setData(newData);
-      const newCsvContent = unparse(newData);
-      saveContent(newCsvContent, isCurrentVersion);
-      updateCompanyLogos(newData);
-    }
-  }, [data, saveContent, isCurrentVersion, updateCompanyLogos]);
-
-  const saveSpreadsheet = async () => {
-    if (!session?.user?.id) return;
-
-    setIsSaving(true);
-    try {
-      const documentData = {
-        title: `Energy Spreadsheet - ${new Date().toISOString().split('T')[0]}`,
-        content: unparse(data),
-        kind: 'sheet' as const,
-        userId: session.user.id,
-      };
-
-      let newDocumentId: string;
-      if (currentVersionIndex > 0) { // Assuming currentVersionIndex indicates an existing document
-        const docId = content.split('-')[0] || crypto.randomUUID();
-        await updateDocumentAction({ id: docId, ...documentData });
-        newDocumentId = docId;
-      } else {
-        const result = await createDocumentAction(documentData);
-        newDocumentId = result.id;
-      }
-
-      // Save to Vercel Blob for file storage
-      const blobData = new Blob([unparse(data)], { type: 'text/csv' });
-      const fileName = `${newDocumentId}.csv`;
-      const { url } = await put(fileName, blobData, { access: 'public' }); // Changed from 'private' to 'public'
-      console.log('Spreadsheet saved to Vercel Blob:', url);
-
-      // Update content with document ID and timestamp for artifact tracking
-      const newContent = `${newDocumentId}-${new Date().toISOString()}`;
-      saveContent(newContent, isCurrentVersion);
-    } catch (error) {
-      console.error('Failed to save spreadsheet:', error);
-    } finally {
-      setIsSaving(false);
+  const handleSpreadsheetUpdate = (changes: any) => {
+    if (changes) {
+      const newData = changes.map(c => c[3]); // Extract new values
+      setSpreadsheetData(newData);
+      const csvContent = unparse(newData);
+      saveContent(csvContent, true); // Debounced save
     }
   };
 
+  const columns = Array.from({ length: MIN_COLS }, (_, i) => ({
+    data: i.toString(),
+    title: String.fromCharCode(65 + i),
+    width: 120,
+  }));
+
   return (
-    <div className={cn('p-2')}>
+    <div className={cn('p-4', theme === 'dark' ? 'dark:bg-muted' : 'bg-background')}>
+      {status === 'streaming' && (
+        <div className="text-muted-foreground mb-2">Streaming spreadsheet...</div>
+      )}
       <HotTable
-        data={data}
-        columns={columns}
+        data={spreadsheetData}
         colHeaders={true}
         rowHeaders={true}
-        height={500}
+        filters={true}
+        dropdownMenu={true}
+        manualColumnSort={true}
+        formulas={true}
+        licenseKey="non-commercial-and-evaluation" // Use your license or non-commercial key
+        height={400}
         width="100%"
-        licenseKey="non-commercial-and-evaluation" // Replace with commercial license for production
-        afterChange={handleDataChange}
-        className={cn('border border-zinc-200 dark:border-zinc-800 rounded-lg', theme === 'dark' ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-900')}
+        afterChange={(changes, source) => {
+          if (source === 'edit' && isCurrentVersion) {
+            handleSpreadsheetUpdate(changes);
+          }
+        }}
+        className={cn('border dark:border-zinc-700 border-zinc-200 rounded-lg', {
+          'bg-muted-foreground/20 animate-pulse': !content && status !== 'streaming',
+        })}
       />
-      <Button
-        onClick={saveSpreadsheet}
-        disabled={isSaving}
-        className={cn('mt-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700', { 'opacity-50 cursor-not-allowed': isSaving })}
-      >
-        {isSaving ? 'Saving...' : 'Save Spreadsheet'}
-      </Button>
     </div>
+  );
+};
+
+function areEqual(prevProps: SheetEditorProps, nextProps: SheetEditorProps) {
+  return (
+    prevProps.currentVersionIndex === nextProps.currentVersionIndex &&
+    prevProps.isCurrentVersion === nextProps.isCurrentVersion &&
+    !(prevProps.status === 'streaming' && nextProps.status === 'streaming') &&
+    prevProps.content === nextProps.content &&
+    prevProps.saveContent === nextProps.saveContent
   );
 }
 
-export function SpreadsheetEditor({
-  content,
-  saveContent,
-  status,
-  isCurrentVersion,
-  currentVersionIndex,
-}: SheetEditorProps) {
-  return <SheetEditor content={content} saveContent={saveContent} status={status} isCurrentVersion={isCurrentVersion} currentVersionIndex={currentVersionIndex} />;
-}
+export const SpreadsheetEditor = memo(PureSpreadsheetEditor, areEqual);
