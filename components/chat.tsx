@@ -30,13 +30,14 @@ export function Chat({
   const {
     messages,
     input,
+    setInput, // Add setInput to destructuring
     handleInputChange,
     handleSubmit,
     isLoading,
     stop,
     reload,
     append,
-    setMessages, // Explicitly destructure setMessages for clarity
+    setMessages,
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
@@ -75,7 +76,7 @@ export function Chat({
         chatId={id}
         isLoading={isLoading}
         messages={messages}
-        setMessages={setMessages} // Pass setMessages directly, no lambda
+        setMessages={setMessages}
         reload={reload}
         isReadonly={isReadonly}
         isArtifactVisible={isArtifactVisible}
@@ -87,7 +88,7 @@ export function Chat({
           <MultimodalInput
             chatId={id}
             input={input}
-            setInput={setInput}
+            setInput={setInput} // Now correctly passed
             handleSubmit={handleSubmit}
             isLoading={isLoading}
             stop={stop}
@@ -104,7 +105,7 @@ export function Chat({
       <Artifact
         chatId={id}
         input={input}
-        setInput={setInput}
+        setInput={setInput} // Also pass to Artifact if needed
         handleSubmit={handleSubmit}
         isLoading={isLoading}
         stop={stop}
