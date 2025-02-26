@@ -1,4 +1,5 @@
-// components/messages.tsx
+'use client';
+
 import { ChatRequestOptions, Message } from 'ai';
 import { PreviewMessage, ThinkingMessage } from './message';
 import { useScrollToBottom } from './use-scroll-to-bottom';
@@ -16,7 +17,7 @@ interface UIMessage extends Message {
 interface MessagesProps {
   chatId: string;
   isLoading: boolean;
-  votes: Array<Vote> | undefined;
+  votes?: Array<Vote>; // Explicitly optional to avoid TypeScript errors
   messages: Array<UIMessage>;
   setMessages: (
     messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[])
@@ -58,11 +59,7 @@ function PureMessages({
           chatId={chatId}
           message={message}
           isLoading={isLoading && messages.length - 1 === index}
-          vote={
-            votes
-              ? votes.find((vote) => vote.messageId === message.id)
-              : undefined
-          }
+          vote={votes?.find((vote) => vote.messageId === message.id)} // Safely handle undefined votes
           setMessages={setMessages}
           reload={reload}
           isReadonly={isReadonly}
@@ -82,10 +79,10 @@ function PureMessages({
 }
 
 export const Messages = memo(PureMessages, (prevProps, nextProps) => {
+  // Remove votes from memo comparison since it’s optional and might be undefined
   if (prevProps.isArtifactVisible !== nextProps.isArtifactVisible) return false;
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.messages.length !== nextProps.messages.length) return false;
   if (!equal(prevProps.messages, nextProps.messages)) return false;
-  if (!equal(prevProps.votes, nextProps.votes)) return false;
-  return true;
+  return true; // Only compare essential props, ignoring votes
 });
