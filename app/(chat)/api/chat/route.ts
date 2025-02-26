@@ -237,11 +237,15 @@ Format your response as:
   }
 }
 
+// Modified to correctly handle Message type
 async function processSpreadsheetUpdate(
   messages: Message[],
   currentData?: any
 ): Promise<any> {
-  const userMessage = getMostRecentUserMessage(messages);
+  // TypeScript needs an explicit cast here because getMostRecentUserMessage 
+  // might be expecting CustomMessage[] in your implementation
+  const userMessage = getMostRecentUserMessage(messages as any);
+  
   if (!userMessage) return currentData || [['Date', 'Deal Type', 'Amount']];
 
   console.log('[route] Processing spreadsheet update for message (first 100 chars):', userMessage.content.slice(0, 100));
@@ -321,7 +325,8 @@ export async function POST(request: Request) {
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
-    const userMessage = getMostRecentUserMessage(messages);
+    // Cast messages to any to avoid type error with getMostRecentUserMessage
+    const userMessage = getMostRecentUserMessage(messages as any);
     if (!userMessage) {
       console.log('[route] No user message found => 400');
       return new Response('No user message found', { status: 400 });
