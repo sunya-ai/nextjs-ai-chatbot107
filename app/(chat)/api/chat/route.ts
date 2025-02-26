@@ -33,16 +33,6 @@ import { ArtifactKind } from '@/components/artifact';
 // Import CustomMessage from your local types file
 import { CustomMessage } from '@/lib/types'; // Adjust the path as needed
 
-// Define source part interface for type checking
-interface SourcePart {
-  type: 'source';
-  source: {
-    id: string;
-    title?: string;
-    url: string;
-  };
-}
-
 // Use type intersection instead of interface extension for better compatibility
 type ExtendedMessage = Message & {
   parts?: Array<{
@@ -50,7 +40,12 @@ type ExtendedMessage = Message & {
     text?: string;
     reasoning?: string;
     details?: Array<{ type: string; text: string }>;
-  } | SourcePart>;
+    source?: {
+      id: string;
+      title?: string;
+      url: string;
+    };
+  }>;
   reasoning?: string; // Keep this as string | undefined to match Message
   sources?: Array<{
     id?: string;
@@ -141,11 +136,6 @@ function convertContentToString(content: any): string {
   return '';
 }
 
-// Type guard for SourcePart
-function isSourcePart(part: any): part is SourcePart {
-  return part.type === 'source' && 'source' in part;
-}
-
 // Helper functions for extracting reasoning and sources from messages
 function extractSources(message: ExtendedMessage | null): Array<{ title?: string; url: string; id?: string }> {
   if (!message) return [];
@@ -157,13 +147,20 @@ function extractSources(message: ExtendedMessage | null): Array<{ title?: string
   
   // Extract from parts if available
   if (message.parts) {
-    return message.parts
-      .filter(isSourcePart)
-      .map(part => ({
-        title: part.source.title,
-        url: part.source.url,
-        id: part.source.id
-      }));
+    const sourceParts: Array<{ title?: string; url: string; id?: string }> = [];
+    
+    // Use a loop to check each part for 'source' property and handle it safely
+    for (const part of message.parts) {
+      if (part.type === 'source' && 'source' in part) {
+        sourceParts.push({
+          title: part.source.title,
+          url: part.source.url,
+          id: part.source.id
+        });
+      }
+    }
+    
+    return sourceParts;
   }
   
   return [];
@@ -179,22 +176,24 @@ function extractReasoning(message: ExtendedMessage | null): string[] {
   
   // Extract from parts if available
   if (message.parts) {
-    const reasoningParts = message.parts
-      .filter(part => part.type === 'reasoning');
-      
-    if (reasoningParts.length) {
-      return reasoningParts.flatMap(part => {
+    const reasoningTexts: string[] = [];
+    
+    for (const part of message.parts) {
+      if (part.type === 'reasoning') {
         if ('reasoning' in part && part.reasoning) {
-          return [part.reasoning];
+          reasoningTexts.push(part.reasoning);
         }
         if ('details' in part && part.details) {
-          return part.details
-            .filter(detail => detail.type === 'text')
-            .map(detail => detail.text);
+          for (const detail of part.details) {
+            if (detail.type === 'text') {
+              reasoningTexts.push(detail.text);
+            }
+          }
         }
-        return [];
-      });
+      }
     }
+    
+    return reasoningTexts;
   }
   
   return [];
