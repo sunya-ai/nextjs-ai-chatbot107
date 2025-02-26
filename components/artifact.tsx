@@ -14,6 +14,8 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ComponentType,
+  type ReactNode,
 } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useDebounceCallback, useWindowSize } from 'usehooks-ts';
@@ -68,33 +70,36 @@ export interface ArtifactAction {
   }) => boolean;
 }
 
-// Define and export ArtifactDefinition type
+// Common props for artifact content components
+export interface ArtifactContentProps {
+  title: string;
+  content: string;
+  mode: 'edit' | 'diff';
+  status: 'streaming' | 'idle';
+  currentVersionIndex: number;
+  suggestions: any[];
+  onSaveContent: (content: string, debounce: boolean) => void;
+  isInline: boolean;
+  isCurrentVersion: boolean;
+  getDocumentContentById: (index: number) => string;
+  isLoading: boolean;
+  metadata: any;
+  setMetadata: Dispatch<SetStateAction<any>>;
+}
+
+// Define and export ArtifactDefinition type with more flexible content type
 export interface ArtifactDefinition {
   kind: ArtifactKind;
   actions: ArtifactAction[];
-  content: React.FC<{
-    title: string;
-    content: string;
-    mode: 'edit' | 'diff';
-    status: 'streaming' | 'idle';
-    currentVersionIndex: number;
-    suggestions: any[];
-    onSaveContent: (content: string, debounce: boolean) => void;
-    isInline: boolean;
-    isCurrentVersion: boolean;
-    getDocumentContentById: (index: number) => string;
-    isLoading: boolean;
-    metadata: any;
-    setMetadata: Dispatch<SetStateAction<any>>;
-  }>;
+  content: ComponentType<any>; // More generic type to accommodate different artifact content components
   initialize?: (options: { documentId: string; setMetadata: Dispatch<SetStateAction<any>> }) => void;
 }
 
 export const artifactDefinitions: ArtifactDefinition[] = [
-  textArtifact,
-  codeArtifact,
-  imageArtifact,
-  sheetArtifact,
+  textArtifact as ArtifactDefinition,
+  codeArtifact as ArtifactDefinition,
+  imageArtifact as ArtifactDefinition,
+  sheetArtifact as ArtifactDefinition,
 ];
 
 export interface UIArtifact {
@@ -401,6 +406,25 @@ function PureArtifact({
     }).then(() => console.log('[artifact] Chart update sent to server'));
   }, [artifact.documentId, artifact.title, chartData, setMetadata]);
 
+  // Create props for the content component
+  const contentProps = {
+    title: artifact.title,
+    content: isCurrentVersion
+      ? artifact.content
+      : getDocumentContentById(currentVersionIndex),
+    mode,
+    status: artifact.status,
+    currentVersionIndex,
+    suggestions: [],
+    onSaveContent: saveContent,
+    isInline: false,
+    isCurrentVersion,
+    getDocumentContentById,
+    isLoading: isDocumentsFetching && !artifact.content,
+    metadata,
+    setMetadata,
+  };
+
   return (
     <AnimatePresence>
       {artifact.isVisible && (
@@ -598,25 +622,7 @@ function PureArtifact({
             </div>
 
             <div className="dark:bg-muted bg-background h-full overflow-y-scroll !max-w-full items-center">
-              <artifactDefinition.content
-                title={artifact.title}
-                content={
-                  isCurrentVersion
-                    ? artifact.content
-                    : getDocumentContentById(currentVersionIndex)
-                }
-                mode={mode}
-                status={artifact.status}
-                currentVersionIndex={currentVersionIndex}
-                suggestions={[]}
-                onSaveContent={saveContent}
-                isInline={false}
-                isCurrentVersion={isCurrentVersion}
-                getDocumentContentById={getDocumentContentById}
-                isLoading={isDocumentsFetching && !artifact.content}
-                metadata={metadata}
-                setMetadata={setMetadata}
-              />
+              {React.createElement(artifactDefinition.content, contentProps)}
 
               <AnimatePresence>
                 {isCurrentVersion && artifact.kind === 'sheet' && (
