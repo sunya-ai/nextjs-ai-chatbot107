@@ -3,12 +3,14 @@ import {
   pgTable,
   varchar,
   timestamp,
-  json,
+  jsonb, // Updated from json to jsonb
   uuid,
   text,
   primaryKey,
   foreignKey,
   boolean,
+  index,
+  sql,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -39,11 +41,11 @@ export const message = pgTable('Message', {
     .notNull()
     .references(() => chat.id),
   role: varchar('role').notNull(),
-  content: json('content').notNull(),
+  content: jsonb('content').notNull(), // Updated to jsonb for consistency
   createdAt: timestamp('createdAt').notNull(),
-  metadata: json('metadata').default(sql`'{}'::json'), // For artifacts (isArtifact, kind, fileUrl)
-  reasoning: json('reasoning').default(sql`'[]'::json'), // For streaming reasoning steps
-  sources: json('sources').default(sql`'[]'::json'), // For source URLs and titles
+  metadata: jsonb('metadata').default(sql`'{}'::jsonb'), // For artifacts (isArtifact, kind, fileUrl)
+  reasoning: jsonb('reasoning').default(sql`'[]'::jsonb'), // For streaming reasoning steps
+  sources: jsonb('sources').default(sql`'[]'::jsonb'), // For source URLs and titles
 }, (table) => ({
   chatIdIdx: index('message_chat_id_idx').on(table.chatId),
   createdAtIdx: index('message_created_at_idx').on(table.createdAt),
