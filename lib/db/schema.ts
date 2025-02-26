@@ -3,7 +3,7 @@ import {
   pgTable,
   varchar,
   timestamp,
-  jsonb, 
+  jsonb,
   uuid,
   text,
   primaryKey,
@@ -41,11 +41,11 @@ export const message = pgTable('Message', {
     .notNull()
     .references(() => chat.id),
   role: varchar('role').notNull(),
-  content: jsonb('content').notNull(), 
+  content: jsonb('content').notNull(),
   createdAt: timestamp('createdAt').notNull(),
   metadata: jsonb('metadata').default(sql`'{}'::jsonb'),
   reasoning: jsonb('reasoning').default(sql`'[]'::jsonb'),
-  sources: jsonb('sources').default(sql`'[]'::jsonb'), 
+  sources: jsonb('sources').default(sql`'[]'::jsonb'),
 }, (table) => ({
   chatIdIdx: index('message_chat_id_idx').on(table.chatId),
   createdAtIdx: index('message_created_at_idx').on(table.createdAt),
@@ -82,11 +82,11 @@ export const document = pgTable(
     id: uuid('id').notNull().defaultRandom(),
     createdAt: timestamp('createdAt').notNull(),
     title: text('title').notNull(),
-    content: text('content'), 
+    content: text('content'),
     kind: varchar('kind', { enum: ['text', 'code', 'image', 'sheet', 'table', 'chart'] })
       .notNull()
       .default('text'),
-    fileUrl: text('fileUrl'), 
+    fileUrl: text('fileUrl'),
     userId: uuid('userId')
       .notNull()
       .references(() => user.id),
