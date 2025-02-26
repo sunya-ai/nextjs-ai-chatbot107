@@ -355,7 +355,7 @@ export async function POST(request: Request) {
       messages: [{
         ...userMessage,
         createdAt: new Date(),
-        chatId: id,
+        chatId: id, // Add chatId here for type safety
         metadata: null,
         reasoning: (userMessage as CustomMessage).reasoning ?? [], // Default to empty array if reasoning is undefined
         sources: (userMessage as CustomMessage).sources ?? [], // Ensure sources is always an array
@@ -467,7 +467,7 @@ export async function POST(request: Request) {
                   await saveMessages({
                     messages: [{
                       id: generateUUID(),
-                      chatId: id,
+                      chatId: id, // Add chatId here for type safety
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
@@ -552,7 +552,7 @@ export async function POST(request: Request) {
                   await saveMessages({
                     messages: [{
                       id: generateUUID(),
-                      chatId: id,
+                      chatId: id, // Add chatId here for type safety
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
