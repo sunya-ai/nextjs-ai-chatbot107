@@ -1,3 +1,5 @@
+'use client';
+
 import { cookies } from 'next/headers';
 
 import { Chat } from '@/components/chat';
