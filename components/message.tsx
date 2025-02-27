@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Vote } from '@/lib/db/schema';
-import { CustomMessage } from '@/lib/types'; // Import CustomMessage
+import { CustomMessage } from '@/lib/types'; // Import CustomMessage with reasoning: string[] | undefined
 
 import { DocumentToolCall, DocumentToolResult } from './document';
 import {
@@ -57,8 +57,8 @@ const PurePreviewMessage = ({
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: (
-    messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[]),
-  ) => void; // Updated to support both types
+    messages: CustomMessage[] | ((messages: CustomMessage[]) => CustomMessage[]), // Updated to strictly CustomMessage[]
+  ) => void; // Updated to strictly CustomMessage[]
   reload: (
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
@@ -69,7 +69,7 @@ const PurePreviewMessage = ({
 
   // Type guard to determine if the message is a CustomMessage
   const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
-    return (msg as CustomMessage).reasoning !== undefined && Array.isArray((msg as CustomMessage).reasoning);
+    return 'chatId' in msg && 'reasoning' in msg && Array.isArray(msg.reasoning); // More precise check for reasoning as string[]
   };
 
   // Handle AI-driven edits via chat commands
@@ -81,7 +81,9 @@ const PurePreviewMessage = ({
     await append({
       role: 'user',
       content: `Edit message ${message.id} to say: ${newContent}`,
-    });
+      // Add chatId for CustomMessage if needed by append
+      chatId, // Include chatId to match CustomMessage
+    } as CustomMessage);
   }, [chatId, message.id, setMessages, append, isReadonly]);
 
   // Evaluate MDX content dynamically (runtime)
@@ -95,9 +97,9 @@ const PurePreviewMessage = ({
   }, [message.content]);
 
   // Handle reasoning based on message type
-  const reasoning = isCustomMessage(message) 
-    ? message.reasoning?.join(', ') || '' // Join array into a string or use empty string if undefined
-    : message.reasoning || '';
+  const reasoning = isCustomMessage(message)
+    ? message.reasoning || [] // Use empty array if undefined, ensuring string[]
+    : message.reasoning ? [message.reasoning] : []; // Convert string to string[] or use empty array
 
   return (
     <AnimatePresence>
@@ -136,14 +138,14 @@ const PurePreviewMessage = ({
               </div>
             )}
 
-            {reasoning && (
+            {reasoning.length > 0 && (
               <MessageReasoning
                 isLoading={isLoading}
-                reasoning={isCustomMessage(message) ? message.reasoning : [reasoning]} // Pass as array to MessageReasoning
+                reasoning={reasoning} // Pass reasoning as string[] consistently
               />
             )}
 
-            {(message.content || reasoning) && mode === 'view' && (
+            {(message.content || reasoning.length > 0) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
                 {message.role === 'user' && !isReadonly && (
                   <>
@@ -286,7 +288,14 @@ export const PreviewMessage = memo(
   PurePreviewMessage,
   (prevProps, nextProps) => {
     if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (prevProps.message.reasoning !== nextProps.message.reasoning) return false; // This needs adjustment for CustomMessage
+    // Adjust reasoning comparison for CustomMessage (string[] | undefined) vs Message (string | undefined)
+    if (
+      isCustomMessage(prevProps.message) !== isCustomMessage(nextProps.message) ||
+      (isCustomMessage(prevProps.message) && isCustomMessage(nextProps.message) && 
+       !equal(prevProps.message.reasoning, nextProps.message.reasoning)) || // Compare arrays for CustomMessage
+      (!isCustomMessage(prevProps.message) && !isCustomMessage(nextProps.message) && 
+       prevProps.message.reasoning !== nextProps.message.reasoning) // Compare strings for Message
+    ) return false;
     if (prevProps.message.content !== nextProps.message.content) return false;
     if (
       !equal(
