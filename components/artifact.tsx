@@ -513,7 +513,6 @@ function PureArtifact({
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
                   progress={progress}
-                  className="bg-background dark:bg-muted text-foreground dark:text-white"
                 />
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
@@ -528,7 +527,6 @@ function PureArtifact({
                     setAttachments={setAttachments}
                     messages={messages}
                     append={append}
-                    className="bg-background dark:bg-muted text-foreground dark:text-white"
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
                         // Handle function updater with type assertion
@@ -680,7 +678,6 @@ function PureArtifact({
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
                     onAddLogos={() => loadLogos()}
-                    className="bg-background dark:bg-muted border-t dark:border-zinc-700"
                   />
                 )}
               </AnimatePresence>
