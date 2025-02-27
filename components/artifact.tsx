@@ -58,13 +58,23 @@ function toCustomMessage(msg: Message, chatId: string): CustomMessage {
 
 // Helper function to convert CustomMessage to Message
 function toMessage(msg: CustomMessage): Message {
+  // Handle the reasoning property correctly
+  let reasoningValue: string | undefined = undefined;
+  
+  if (msg.reasoning) {
+    if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
+      reasoningValue = msg.reasoning[0];
+    } else if (typeof msg.reasoning === 'string') {
+      reasoningValue = msg.reasoning;
+    }
+  }
+  
   return {
     id: msg.id,
     role: msg.role,
     content: msg.content,
     createdAt: msg.createdAt,
-    // Convert string[] reasoning to string if needed
-    reasoning: typeof msg.reasoning === 'object' && msg.reasoning && msg.reasoning.length > 0 ? msg.reasoning[0] : msg.reasoning
+    reasoning: reasoningValue
   };
 }
 
