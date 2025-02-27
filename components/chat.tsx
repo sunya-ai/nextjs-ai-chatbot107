@@ -1,7 +1,7 @@
 'use client';
 
 import type { Attachment, Message, CreateMessage } from 'ai';
-import { useChat } from 'ai/react';
+import { useChat, type DataStreamWriter } from 'ai/react'; // Import DataStreamWriter explicitly
 import { useState, useEffect } from 'react';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -43,7 +43,8 @@ export function Chat({
     stop,
     reload,
     append,
-    setMessages: setChatMessages, // Rename to avoid confusion
+    setMessages: setChatMessages,
+    dataStream, // Destructure dataStream from useChat
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
@@ -64,9 +65,14 @@ export function Chat({
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
 
+  // Placeholder for votes (you'll need to fetch or derive this from your database or context)
+  const [votes, setVotes] = useState<Vote[]>([]); // Assuming Vote[] from lib/db/schema
+
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    // Fetch votes for this chatId if needed (e.g., from a database or API)
+    // Example: fetchVotes(id).then(setVotes);
+  }, [id]);
 
   if (!isMounted) return null;
 
@@ -113,7 +119,7 @@ export function Chat({
       <Messages
         chatId={id}
         isLoading={isLoading}
-        votes={undefined} // Pass actual votes if available, or update logic to fetch votes
+        votes={votes} // Pass votes to Messages if needed (optional, based on Messages component)
         messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for display
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
@@ -214,6 +220,8 @@ export function Chat({
           }
         }}
         reload={reload}
+        votes={votes} // Pass votes to Artifact
+        dataStream={dataStream} // Pass dataStream to Artifact
         isReadonly={isReadonly}
       />
     </div>
