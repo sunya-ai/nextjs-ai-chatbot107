@@ -19,6 +19,7 @@ interface ArtifactMessagesProps {
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
   artifactStatus: UIArtifact['status'];
+  progress: string; // Add progress property
 }
 
 function PureArtifactMessages({
@@ -29,6 +30,7 @@ function PureArtifactMessages({
   setMessages,
   reload,
   isReadonly,
+  progress, // Add progress to function parameters
 }: ArtifactMessagesProps) {
   // Remove the explicit type parameter <HTMLDivElement> from useScrollToBottom
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
@@ -36,6 +38,7 @@ function PureArtifactMessages({
   // Ensure messages is always an array with a safe fallback
   const safeMessages = Array.isArray(messages) ? messages : [];
 
+  // Optionally use progress in the UI (e.g., display it in the message container)
   return (
     <div
       ref={messagesContainerRef}
@@ -57,6 +60,13 @@ function PureArtifactMessages({
           isReadonly={isReadonly}
         />
       ))}
+
+      {/* Optionally display progress if needed */}
+      {progress && (
+        <div className="text-sm text-muted-foreground p-2 bg-background dark:bg-muted">
+          {progress}
+        </div>
+      )}
 
       <div
         ref={messagesEndRef}
@@ -88,9 +98,10 @@ function areEqual(
     return false;
   }
 
-  // Additional checks for loading state
+  // Additional checks for loading state and progress
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.isLoading && nextProps.isLoading) return false;
+  if (prevProps.progress !== nextProps.progress) return false; // Add progress comparison
 
   return true;
 }
