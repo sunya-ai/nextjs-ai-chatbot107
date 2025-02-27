@@ -38,7 +38,7 @@ export function Chat({
     stop,
     reload,
     append,
-    setMessages,
+    setMessages: setChatMessages, // Rename to avoid confusion
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
@@ -109,16 +109,16 @@ export function Chat({
         chatId={id}
         isLoading={isLoading}
         votes={undefined} // Pass actual votes if available, or update logic to fetch votes
-        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages
+        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for display
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
-            setMessages(prev => {
-              const prevAsMessages = (prev as Message[]).map(m => toMessage(m)); // Convert CustomMessage to Message for useChat
+            setChatMessages(prev => {
+              const prevAsMessages = prev; // Already Message[]
               const updatedMessages = messagesOrUpdater(prevAsMessages);
-              return updatedMessages.map(m => toCustomMessage(m, id)); // Convert back to CustomMessage
+              return updatedMessages.map(m => toMessage(toCustomMessage(m, id))); // Convert to Message[]
             });
           } else {
-            setMessages(messagesOrUpdater.map(m => toCustomMessage(m, id))); // Convert array to CustomMessage
+            setChatMessages(messagesOrUpdater.map(m => toMessage(toCustomMessage(m, id)))); // Convert to Message[]
           }
         }}
         reload={reload}
@@ -138,16 +138,16 @@ export function Chat({
             stop={stop}
             attachments={attachments}
             setAttachments={setAttachments}
-            messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages
+            messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for display
             setMessages={(messagesOrUpdater) => {
               if (typeof messagesOrUpdater === 'function') {
-                setMessages(prev => {
-                  const prevAsMessages = (prev as Message[]).map(m => toMessage(m)); // Convert CustomMessage to Message for useChat
+                setChatMessages(prev => {
+                  const prevAsMessages = prev; // Already Message[]
                   const updatedMessages = messagesOrUpdater(prevAsMessages);
-                  return updatedMessages.map(m => toCustomMessage(m, id)); // Convert back to CustomMessage
+                  return updatedMessages.map(m => toMessage(toCustomMessage(m, id))); // Convert to Message[]
                 });
               } else {
-                setMessages(messagesOrUpdater.map(m => toCustomMessage(m, id))); // Convert array to CustomMessage
+                setChatMessages(messagesOrUpdater.map(m => toMessage(toCustomMessage(m, id)))); // Convert to Message[]
               }
             }}
             append={append}
@@ -166,16 +166,16 @@ export function Chat({
         attachments={attachments}
         setAttachments={setAttachments}
         append={append}
-        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages
+        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for display
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
-            setMessages(prev => {
-              const prevAsMessages = (prev as Message[]).map(m => toMessage(m)); // Convert CustomMessage to Message for useChat
+            setChatMessages(prev => {
+              const prevAsMessages = prev; // Already Message[]
               const updatedMessages = messagesOrUpdater(prevAsMessages);
-              return updatedMessages.map(m => toCustomMessage(m, id)); // Convert back to CustomMessage
+              return updatedMessages.map(m => toMessage(toCustomMessage(m, id))); // Convert to Message[]
             });
           } else {
-            setMessages(messagesOrUpdater.map(m => toCustomMessage(m, id))); // Convert array to CustomMessage
+            setChatMessages(messagesOrUpdater.map(m => toMessage(toCustomMessage(m, id)))); // Convert to Message[]
           }
         }}
         reload={reload}
