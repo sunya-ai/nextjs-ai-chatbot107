@@ -213,21 +213,16 @@ export function Chat({
           if (typeof messagesOrUpdater === 'function') {
             setChatMessages(prev => {
               const prevAsMessages = prev; // Already Message[]
-              const updatedMessages = messagesOrUpdater(prevAsMessages);
-              return updatedMessages.map(m => {
-                if (isCustomMessage(m)) {
-                  return toMessage(m); // Convert CustomMessage to Message
-                }
-                return m; // Already a Message, return as-is
-              });
+              // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
+              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id));
+              const updatedMessages = messagesOrUpdater(prevAsCustomMessages);
+              // Convert back to Message[] for setChatMessages
+              return updatedMessages.map(m => toMessage(m));
             });
           } else {
-            setChatMessages(messagesOrUpdater.map(m => {
-              if (isCustomMessage(m)) {
-                return toMessage(m); // Convert CustomMessage to Message
-              }
-              return m; // Already a Message, return as-is
-            }));
+            // Convert Message[] to CustomMessage[] before setting, then back to Message[]
+            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id));
+            setChatMessages(customMessages.map(m => toMessage(m)));
           }
         }}
         reload={reload}
