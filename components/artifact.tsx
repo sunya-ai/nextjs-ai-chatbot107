@@ -503,8 +503,10 @@ function PureArtifact({
                         return messagesOrUpdater(prev) as CustomMessage[];
                       });
                     } else {
-                      // Handle array directly
-                      setMessages(messagesOrUpdater);
+                      // Handle array directly with explicit mapping
+                      setMessages(messagesOrUpdater.map(m => 
+                        isCustomMessage(m) ? m : toCustomMessage(m, chatId)
+                      ) as CustomMessage[]);
                     }
                   }}
                   reload={reload}
@@ -534,8 +536,10 @@ function PureArtifact({
                           return messagesOrUpdater(prev) as CustomMessage[];
                         });
                       } else {
-                        // Handle array directly
-                        setMessages(messagesOrUpdater);
+                        // Handle array directly with explicit mapping
+                        setMessages(messagesOrUpdater.map(m => 
+                          isCustomMessage(m) ? m : toCustomMessage(m, chatId)
+                        ) as CustomMessage[]);
                       }
                     }}
                   />
@@ -667,8 +671,10 @@ function PureArtifact({
                           return messagesOrUpdater(prev) as CustomMessage[];
                         });
                       } else {
-                        // Handle array directly
-                        setMessages(messagesOrUpdater);
+                        // Handle array directly with explicit mapping
+                        setMessages(messagesOrUpdater.map(m => 
+                          isCustomMessage(m) ? m : toCustomMessage(m, chatId)
+                        ) as CustomMessage[]);
                       }
                     }}
                     artifactKind={artifact.kind}
