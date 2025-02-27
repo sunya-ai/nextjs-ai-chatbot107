@@ -71,7 +71,7 @@ export function Chat({
   if (!isMounted) return null;
 
   // Helper function to convert CustomMessage to Message
-  function toMessage(msg: CustomMessage): Message {
+  function toMessage(msg: CustomMessage | Message): Message {
     let reasoningValue: string | undefined = undefined;
     if (msg.reasoning) {
       if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
@@ -153,7 +153,7 @@ export function Chat({
             stop={stop}
             attachments={attachments}
             setAttachments={setAttachments}
-            messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for MultimodalInput
+            messages={messages.map(m => toMessage(m))} // Convert Messages to Message[] for MultimodalInput
             setMessages={(messagesOrUpdater) => {
               if (typeof messagesOrUpdater === 'function') {
                 setChatMessages(prev => {
@@ -191,7 +191,7 @@ export function Chat({
         attachments={attachments}
         setAttachments={setAttachments}
         append={append}
-        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for Artifact
+        messages={messages.map(m => toMessage(m))} // Convert Messages to Message[] for Artifact
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
             setChatMessages(prev => {
