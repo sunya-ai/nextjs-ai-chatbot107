@@ -417,12 +417,12 @@ function PureArtifact({
     setMetadata,
   };
 
-  // Helper function to convert Message to CustomMessage (adding chatId)
+  // Helper function to convert Message to CustomMessage (adding chatId and handling sources)
   const toCustomMessage = (msg: Message, chatId: string): CustomMessage => ({
     ...msg,
     chatId, // Add chatId to match CustomMessage
-    sources: msg.sources as { title: string; url: string }[] | undefined, // Ensure sources matches CustomMessage
-    metadata: msg.metadata as any | null | undefined, // Ensure metadata matches CustomMessage
+    sources: (msg as Partial<CustomMessage>).sources || undefined, // Default to undefined if not present
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined, // Default to undefined if not present
     reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined, // Convert string to array if needed
   });
 
