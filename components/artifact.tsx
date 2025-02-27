@@ -56,6 +56,18 @@ function toCustomMessage(msg: Message, chatId: string): CustomMessage {
   };
 }
 
+// Helper function to convert CustomMessage to Message
+function toMessage(msg: CustomMessage): Message {
+  return {
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    createdAt: msg.createdAt,
+    // Convert string[] reasoning to string if needed
+    reasoning: typeof msg.reasoning === 'object' && msg.reasoning ? msg.reasoning[0] : msg.reasoning
+  };
+}
+
 export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'chart';
 
 export interface ArtifactAction {
@@ -525,7 +537,8 @@ function PureArtifact({
                     stop={stop}
                     attachments={attachments}
                     setAttachments={setAttachments}
-                    messages={messages}
+                    // Convert CustomMessage[] to Message[] by mapping each CustomMessage to a Message
+                    messages={messages.map(toMessage)}
                     append={append}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
