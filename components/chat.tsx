@@ -215,13 +215,13 @@ export function Chat({
               const prevAsMessages = prev; // Already Message[]
               // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
               const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id));
-              const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
+              const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[]; // Explicitly assert as CustomMessage[]
               // Convert back to Message[] for setChatMessages, handling reasoning correctly
               return updatedMessages.map(m => toMessage(m));
             });
           } else {
             // Convert Message[] to CustomMessage[] before setting, then back to Message[]
-            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id)) as CustomMessage[];
+            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id)) as CustomMessage[]; // Explicitly assert as CustomMessage[]
             setChatMessages(customMessages.map(m => toMessage(m)));
           }
         }}
