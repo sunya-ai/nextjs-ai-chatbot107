@@ -191,7 +191,7 @@ export function Chat({
         attachments={attachments}
         setAttachments={setAttachments}
         append={(message, options) => append(toMessage(message as CustomMessage), options)} // Convert CustomMessage to Message before appending
-        messages={messages.map(m => toMessage(m))} // Convert Messages to Message[] for Artifact
+        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for Artifact
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
             setChatMessages(prev => {
