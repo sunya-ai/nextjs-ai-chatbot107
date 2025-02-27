@@ -14,6 +14,11 @@ import { useArtifactSelector } from '@/hooks/use-artifact';
 import { toast } from 'sonner';
 import { CustomMessage } from '@/lib/types'; // Import CustomMessage
 
+// Type guard to check if a message is a CustomMessage
+function isCustomMessage(msg: Message | CustomMessage): msg is CustomMessage {
+  return 'chatId' in msg;
+}
+
 export function Chat({
   id,
   initialMessages,
@@ -115,10 +120,20 @@ export function Chat({
             setChatMessages(prev => {
               const prevAsMessages = prev; // Already Message[]
               const updatedMessages = messagesOrUpdater(prevAsMessages);
-              return updatedMessages.map(m => toMessage(toCustomMessage(m, id))); // Convert to Message[]
+              return updatedMessages.map(m => {
+                if (isCustomMessage(m)) {
+                  return toMessage(m); // Convert CustomMessage to Message
+                }
+                return m; // Already a Message, return as-is
+              });
             });
           } else {
-            setChatMessages(messagesOrUpdater.map(m => toMessage(toCustomMessage(m, id)))); // Convert to Message[]
+            setChatMessages(messagesOrUpdater.map(m => {
+              if (isCustomMessage(m)) {
+                return toMessage(m); // Convert CustomMessage to Message
+              }
+              return m; // Already a Message, return as-is
+            }));
           }
         }}
         reload={reload}
@@ -144,10 +159,20 @@ export function Chat({
                 setChatMessages(prev => {
                   const prevAsMessages = prev; // Already Message[]
                   const updatedMessages = messagesOrUpdater(prevAsMessages);
-                  return updatedMessages.map(m => toMessage(toCustomMessage(m, id))); // Convert to Message[]
+                  return updatedMessages.map(m => {
+                    if (isCustomMessage(m)) {
+                      return toMessage(m); // Convert CustomMessage to Message
+                    }
+                    return m; // Already a Message, return as-is
+                  });
                 });
               } else {
-                setChatMessages(messagesOrUpdater.map(m => toMessage(toCustomMessage(m, id)))); // Convert to Message[]
+                setChatMessages(messagesOrUpdater.map(m => {
+                  if (isCustomMessage(m)) {
+                    return toMessage(m); // Convert CustomMessage to Message
+                  }
+                  return m; // Already a Message, return as-is
+                }));
               }
             }}
             append={append}
@@ -172,10 +197,20 @@ export function Chat({
             setChatMessages(prev => {
               const prevAsMessages = prev; // Already Message[]
               const updatedMessages = messagesOrUpdater(prevAsMessages);
-              return updatedMessages.map(m => toMessage(toCustomMessage(m, id))); // Convert to Message[]
+              return updatedMessages.map(m => {
+                if (isCustomMessage(m)) {
+                  return toMessage(m); // Convert CustomMessage to Message
+                }
+                return m; // Already a Message, return as-is
+              });
             });
           } else {
-            setChatMessages(messagesOrUpdater.map(m => toMessage(toCustomMessage(m, id)))); // Convert to Message[]
+            setChatMessages(messagesOrUpdater.map(m => {
+              if (isCustomMessage(m)) {
+                return toMessage(m); // Convert CustomMessage to Message
+              }
+              return m; // Already a Message, return as-is
+            }));
           }
         }}
         reload={reload}
