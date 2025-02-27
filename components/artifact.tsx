@@ -40,6 +40,22 @@ import { DataStreamWriter } from 'ai';
 import * as Papa from 'papaparse';
 import { CustomMessage } from '@/lib/types';
 
+// Type guard function to check if a message is a CustomMessage
+function isCustomMessage(message: Message | CustomMessage): message is CustomMessage {
+  return 'chatId' in message;
+}
+
+// Helper function to convert Message to CustomMessage
+function toCustomMessage(msg: Message, chatId: string): CustomMessage {
+  return {
+    ...msg,
+    chatId,
+    sources: (msg as Partial<CustomMessage>).sources || undefined,
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined,
+  };
+}
+
 export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'chart';
 
 export interface ArtifactAction {
@@ -417,15 +433,6 @@ function PureArtifact({
     setMetadata,
   };
 
-  // Helper function to convert Message to CustomMessage (adding chatId and handling sources)
-  const toCustomMessage = (msg: Message, chatId: string): CustomMessage => ({
-    ...msg,
-    chatId, // Add chatId to match CustomMessage
-    sources: (msg as Partial<CustomMessage>).sources || undefined, // Default to undefined if not present
-    metadata: (msg as Partial<CustomMessage>).metadata || undefined, // Default to undefined if not present
-    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined, // Convert string to array if needed
-  });
-
   return (
     <AnimatePresence>
       {artifact.isVisible && (
@@ -491,16 +498,15 @@ function PureArtifact({
                   messages={messages}
                   setMessages={(messagesOrUpdater) => {
                     if (typeof messagesOrUpdater === 'function') {
-                      // Handle function updater
-                      setMessages(prev => {
-                        const updated = messagesOrUpdater(prev);
-                        return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                      // Handle function updater with type assertion
+                      setMessages((prev) => {
+                        return messagesOrUpdater(prev) as CustomMessage[];
                       });
                     } else {
                       // Handle array directly
-                      setMessages(messagesOrUpdater.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)));
+                      setMessages(messagesOrUpdater);
                     }
-                  }} // Custom implementation to ensure CustomMessage compatibility
+                  }}
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
@@ -523,16 +529,15 @@ function PureArtifact({
                     className="bg-background dark:bg-muted text-foreground dark:text-white"
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Handle function updater
-                        setMessages(prev => {
-                          const updated = messagesOrUpdater(prev);
-                          return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                        // Handle function updater with type assertion
+                        setMessages((prev) => {
+                          return messagesOrUpdater(prev) as CustomMessage[];
                         });
                       } else {
                         // Handle array directly
-                        setMessages(messagesOrUpdater.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)));
+                        setMessages(messagesOrUpdater);
                       }
-                    }} // Custom implementation to ensure CustomMessage compatibility
+                    }}
                   />
                 </form>
               </div>
@@ -657,16 +662,15 @@ function PureArtifact({
                     stop={stop}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Handle function updater
-                        setMessages(prev => {
-                          const updated = messagesOrUpdater(prev);
-                          return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                        // Handle function updater with type assertion
+                        setMessages((prev) => {
+                          return messagesOrUpdater(prev) as CustomMessage[];
                         });
                       } else {
                         // Handle array directly
-                        setMessages(messagesOrUpdater.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)));
+                        setMessages(messagesOrUpdater);
                       }
-                    }} // Custom implementation to ensure CustomMessage compatibility
+                    }}
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
                     onAddLogos={() => loadLogos()}
