@@ -1,6 +1,9 @@
 // lib/types.ts
 import { Message as BaseMessage } from 'ai';
 
+// Export BaseMessage as Message for external use
+export { BaseMessage as Message };
+
 // Define CustomMessage with required chatId to match database schema
 export interface CustomMessage extends BaseMessage {
   chatId: string; // Required for database alignment
