@@ -6,7 +6,7 @@ import { getChatById, getMessagesByChatId } from '@/lib/db/queries';
 import { convertToUIMessages, convertCustomToMessages } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
-import { CustomMessage, Message } from '@/lib/types'; // Import both CustomMessage and Message
+import { CustomMessage, Message } from '@/lib/types'; // Import Message from lib/types
 
 // Helper function to convert Message to CustomMessage (copied from message.tsx or chat.tsx)
 function toCustomMessage(msg: Message, chatId: string): CustomMessage {
