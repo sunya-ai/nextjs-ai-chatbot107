@@ -1,7 +1,7 @@
 'use client';
 
-import type { Attachment, Message, CreateMessage } from 'ai';
-import { useChat, type DataStreamWriter } from 'ai/react'; // Import DataStreamWriter explicitly
+import type { Attachment, Message, CreateMessage, DataStreamWriter } from 'ai';
+import { useChat } from 'ai/react';
 import { useState, useEffect } from 'react';
 import { ChatHeader } from '@/components/chat-header';
 import type { Vote } from '@/lib/db/schema';
@@ -65,13 +65,30 @@ export function Chat({
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
 
-  // Placeholder for votes (you'll need to fetch or derive this from your database or context)
-  const [votes, setVotes] = useState<Vote[]>([]); // Assuming Vote[] from lib/db/schema
+  // Initialize votes as Vote[] | undefined to match Artifact's prop type
+  const [votes, setVotes] = useState<Vote[] | undefined>(undefined); // Allow undefined
 
   useEffect(() => {
     setIsMounted(true);
     // Fetch votes for this chatId if needed (e.g., from a database or API)
     // Example: fetchVotes(id).then(setVotes);
+    const fetchVotes = async () => {
+      try {
+        // Placeholder for actual database query using @vercel/postgres or drizzle-orm
+        // Replace with your actual DB query logic
+        const response = await fetch(`/api/votes?chatId=${id}`);
+        if (response.ok) {
+          const votesData = await response.json() as Vote[];
+          setVotes(votesData);
+        } else {
+          setVotes([]); // Fallback to empty array if no votes are found
+        }
+      } catch (error) {
+        console.error('Failed to fetch votes:', error);
+        setVotes([]); // Fallback to empty array on error
+      }
+    };
+    fetchVotes();
   }, [id]);
 
   if (!isMounted) return null;
@@ -82,7 +99,7 @@ export function Chat({
     if (msg.reasoning) {
       if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
         reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string
-      } else if (typeof msg.reasoning === 'string') {
+      } else if (typeof mg.reasoning === 'string') { // Fixed typo: msg.reasoning
         reasoningValue = msg.reasoning;
       }
     }
@@ -220,7 +237,7 @@ export function Chat({
           }
         }}
         reload={reload}
-        votes={votes} // Pass votes to Artifact
+        votes={votes} // Pass votes as Vote[] | undefined to match Artifact's prop type
         dataStream={dataStream} // Pass dataStream to Artifact
         isReadonly={isReadonly}
       />
