@@ -417,6 +417,15 @@ function PureArtifact({
     setMetadata,
   };
 
+  // Helper function to convert Message to CustomMessage (adding chatId)
+  const toCustomMessage = (msg: Message, chatId: string): CustomMessage => ({
+    ...msg,
+    chatId, // Add chatId to match CustomMessage
+    sources: msg.sources as { title: string; url: string }[] | undefined, // Ensure sources matches CustomMessage
+    metadata: msg.metadata as any | null | undefined, // Ensure metadata matches CustomMessage
+    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined, // Convert string to array if needed
+  });
+
   return (
     <AnimatePresence>
       {artifact.isVisible && (
@@ -480,7 +489,18 @@ function PureArtifact({
                   isLoading={isLoading}
                   votes={votes}
                   messages={messages}
-                  setMessages={setMessages}
+                  setMessages={(messagesOrUpdater) => {
+                    if (typeof messagesOrUpdater === 'function') {
+                      // Handle function updater
+                      setMessages(prev => {
+                        const updated = messagesOrUpdater(prev);
+                        return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                      });
+                    } else {
+                      // Handle array directly
+                      setMessages(messagesOrUpdater.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)));
+                    }
+                  }} // Custom implementation to ensure CustomMessage compatibility
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
@@ -501,7 +521,18 @@ function PureArtifact({
                     messages={messages}
                     append={append}
                     className="bg-background dark:bg-muted text-foreground dark:text-white"
-                    setMessages={setMessages}
+                    setMessages={(messagesOrUpdater) => {
+                      if (typeof messagesOrUpdater === 'function') {
+                        // Handle function updater
+                        setMessages(prev => {
+                          const updated = messagesOrUpdater(prev);
+                          return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                        });
+                      } else {
+                        // Handle array directly
+                        setMessages(messagesOrUpdater.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)));
+                      }
+                    }} // Custom implementation to ensure CustomMessage compatibility
                   />
                 </form>
               </div>
@@ -624,7 +655,18 @@ function PureArtifact({
                     append={append}
                     isLoading={isLoading}
                     stop={stop}
-                    setMessages={setMessages}
+                    setMessages={(messagesOrUpdater) => {
+                      if (typeof messagesOrUpdater === 'function') {
+                        // Handle function updater
+                        setMessages(prev => {
+                          const updated = messagesOrUpdater(prev);
+                          return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                        });
+                      } else {
+                        // Handle array directly
+                        setMessages(messagesOrUpdater.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)));
+                      }
+                    }} // Custom implementation to ensure CustomMessage compatibility
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
                     onAddLogos={() => loadLogos()}
