@@ -12,7 +12,7 @@ import { Messages } from './messages';
 import { VisibilityType } from './visibility-selector';
 import { useArtifactSelector } from '@/hooks/use-artifact';
 import { toast } from 'sonner';
-import { CustomMessage } from '@/lib/types'; // Import CustomMessage
+import { CustomMessage } from '@/lib/types'; // Import updated CustomMessage
 
 // Type guard to check if a message is a CustomMessage
 function isCustomMessage(msg: Message | CustomMessage): msg is CustomMessage {
@@ -27,7 +27,7 @@ export function Chat({
   isReadonly,
 }: {
   id: string;
-  initialMessages: Array<CustomMessage>; // Updated to CustomMessage instead of Message
+  initialMessages: Array<CustomMessage>; // Updated to CustomMessage with reasoning: string | undefined
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
@@ -94,21 +94,13 @@ export function Chat({
 
   // Helper function to convert CustomMessage or Message to Message
   function toMessage(msg: CustomMessage | Message): Message {
-    let reasoningValue: string | undefined = undefined;
-    if (msg.reasoning) {
-      if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
-        reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string
-      } else if (typeof msg.reasoning === 'string') {
-        reasoningValue = msg.reasoning;
-      }
-      // Ensure reasoning is explicitly typed as string | undefined
-    }
+    let reasoningValue: string | undefined = msg.reasoning; // Directly use reasoning as string | undefined
     return {
       id: msg.id,
       role: msg.role,
       content: msg.content,
       createdAt: msg.createdAt,
-      reasoning: reasoningValue as string | undefined, // Explicitly assert type
+      reasoning: reasoningValue, // Already string | undefined, no conversion needed
     };
   }
 
@@ -119,7 +111,7 @@ export function Chat({
       chatId, // Add chatId to match CustomMessage
       sources: (msg as Partial<CustomMessage>).sources || undefined,
       metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-      reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined, // Ensure reasoning is string[] | undefined
+      reasoning: msg.reasoning, // Use reasoning as string | undefined directly
     } as CustomMessage; // Explicitly assert as CustomMessage
   }
 
@@ -150,7 +142,7 @@ export function Chat({
             });
           } else {
             // Convert Message[] to CustomMessage[] before setting, then back to Message[]
-            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id));
+            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id)) as CustomMessage[];
             setChatMessages(customMessages.map(m => toMessage(m)));
           }
         }}
@@ -216,7 +208,7 @@ export function Chat({
               const prevAsMessages = prev; // Already Message[]
               // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
               const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id));
-              const updatedMessages = messagesOrUpdater(prevAsCustomMessages);
+              const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
               // Convert back to Message[] for setChatMessages, handling reasoning correctly
               return updatedMessages.map(m => toMessage(m));
             });
