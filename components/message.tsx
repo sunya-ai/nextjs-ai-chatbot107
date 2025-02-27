@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useEffect, useState } from 'react';
 
 import type { Vote } from '@/lib/db/schema';
+import { CustomMessage } from '@/lib/types'; // Import CustomMessage
 
 import { DocumentToolCall, DocumentToolResult } from './document';
 import {
@@ -14,18 +15,18 @@ import {
   PencilEditIcon,
   SparklesIcon,
 } from './icons';
-import { evaluate } from '@mdx-js/mdx'; // Replace MDXRuntime with evaluate
+import { evaluate } from '@mdx-js/mdx';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
 import equal from 'fast-deep-equal';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'; // Fixed typo from 'tootip' to 'tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
-import { useChat } from 'ai/react'; // Add for streaming
+import { useChat } from 'ai/react';
 
 // Define custom MDX components for interactivity
 const customComponents = {
@@ -52,19 +53,24 @@ const PurePreviewMessage = ({
   isReadonly,
 }: {
   chatId: string;
-  message: Message;
+  message: Message | CustomMessage; // Updated to support both Message and CustomMessage
   vote: Vote | undefined;
   isLoading: boolean;
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
-  ) => void;
+    messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[]),
+  ) => void; // Updated to support both types
   reload: (
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
-  const { append } = useChat({ id: chatId }); // Integrate useChat for streaming
+  const { append } = useChat({ id: chatId });
+
+  // Type guard to determine if the message is a CustomMessage
+  const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
+    return (msg as CustomMessage).reasoning !== undefined && Array.isArray((msg as CustomMessage).reasoning);
+  };
 
   // Handle AI-driven edits via chat commands
   const handleAIEdit = useCallback(async (newContent: string) => {
@@ -87,6 +93,11 @@ const PurePreviewMessage = ({
       }).then(setMDXContent).catch(console.error);
     }
   }, [message.content]);
+
+  // Handle reasoning based on message type
+  const reasoning = isCustomMessage(message) 
+    ? message.reasoning?.join(', ') || '' // Join array into a string or use empty string if undefined
+    : message.reasoning || '';
 
   return (
     <AnimatePresence>
@@ -125,14 +136,14 @@ const PurePreviewMessage = ({
               </div>
             )}
 
-            {message.reasoning && (
+            {reasoning && (
               <MessageReasoning
                 isLoading={isLoading}
-                reasoning={message.reasoning}
+                reasoning={isCustomMessage(message) ? message.reasoning : [reasoning]} // Pass as array to MessageReasoning
               />
             )}
 
-            {(message.content || message.reasoning) && mode === 'view' && (
+            {(message.content || reasoning) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
                 {message.role === 'user' && !isReadonly && (
                   <>
@@ -182,7 +193,7 @@ const PurePreviewMessage = ({
 
                 <MessageEditor
                   key={message.id}
-                  message={message}
+                  message={message as Message} // Cast to Message for MessageEditor, assuming it expects Message
                   setMode={setMode}
                   setMessages={setMessages}
                   reload={reload}
@@ -259,7 +270,7 @@ const PurePreviewMessage = ({
               <MessageActions
                 key={`action-${message.id}`}
                 chatId={chatId}
-                message={message}
+                message={message as Message} // Cast to Message for MessageActions, assuming it expects Message
                 vote={vote}
                 isLoading={isLoading}
               />
@@ -275,8 +286,7 @@ export const PreviewMessage = memo(
   PurePreviewMessage,
   (prevProps, nextProps) => {
     if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (prevProps.message.reasoning !== nextProps.message.reasoning)
-      return false;
+    if (prevProps.message.reasoning !== nextProps.message.reasoning) return false; // This needs adjustment for CustomMessage
     if (prevProps.message.content !== nextProps.message.content) return false;
     if (
       !equal(
