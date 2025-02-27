@@ -12,6 +12,7 @@ import { getDocumentTimestampByIndex } from '@/lib/utils';
 import { LoaderIcon } from './icons';
 import { Button } from './ui/button';
 import { useArtifact } from '@/hooks/use-artifact';
+import { cn } from '@/lib/utils'; // Ensure you have `cn` from `class-variance-authority` or `clsx`
 
 interface VersionFooterProps {
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
