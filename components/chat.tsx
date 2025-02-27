@@ -70,7 +70,7 @@ export function Chat({
 
   if (!isMounted) return null;
 
-  // Helper function to convert CustomMessage to Message
+  // Helper function to convert CustomMessage or Message to Message
   function toMessage(msg: CustomMessage | Message): Message {
     let reasoningValue: string | undefined = undefined;
     if (msg.reasoning) {
@@ -175,7 +175,7 @@ export function Chat({
                 }));
               }
             }}
-            append={append}
+            append={append} // Use append directly, as it expects Message | CreateMessage
             className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
           />
         )}
@@ -190,7 +190,7 @@ export function Chat({
         stop={stop}
         attachments={attachments}
         setAttachments={setAttachments}
-        append={append}
+        append={(message, options) => append(toMessage(message as CustomMessage), options)} // Convert CustomMessage to Message before appending
         messages={messages.map(m => toMessage(m))} // Convert Messages to Message[] for Artifact
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
