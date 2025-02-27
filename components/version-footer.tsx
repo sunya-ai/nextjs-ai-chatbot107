@@ -17,12 +17,14 @@ interface VersionFooterProps {
   handleVersionChange: (type: 'next' | 'prev' | 'toggle' | 'latest') => void;
   documents: Array<Document> | undefined;
   currentVersionIndex: number;
+  className?: string; // Add optional className property for styling
 }
 
 export const VersionFooter = ({
   handleVersionChange,
   documents,
   currentVersionIndex,
+  className, // Add className to props destructuring
 }: VersionFooterProps) => {
   const { artifact } = useArtifact();
 
@@ -36,7 +38,7 @@ export const VersionFooter = ({
 
   return (
     <motion.div
-      className="absolute flex flex-col gap-4 lg:flex-row bottom-0 bg-background p-4 w-full border-t z-50 justify-between"
+      className={cn('absolute flex flex-col gap-4 lg:flex-row bottom-0 bg-background p-4 w-full border-t z-50 justify-between', className)} // Use className prop here
       initial={{ y: isMobile ? 200 : 77 }}
       animate={{ y: 0 }}
       exit={{ y: isMobile ? 200 : 77 }}
