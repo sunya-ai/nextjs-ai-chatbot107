@@ -172,7 +172,7 @@ interface ArtifactProps {
   ) => Promise<string | null | undefined>;
   reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
   votes: Vote[] | undefined; // Already optional
-  dataStream?: DataStreamWriter; // Made optional
+  dataStream?: DataStreamWriter; // Already optional (no change needed here)
   isReadonly: boolean;
 }
 
@@ -190,7 +190,7 @@ function PureArtifact({
   setMessages,
   reload,
   votes,
-  dataStream, // Now optional
+  dataStream, // Still optional
   isReadonly,
 }: ArtifactProps) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
@@ -411,7 +411,7 @@ function PureArtifact({
     }));
   }, [showLogos, chartData, logoMap]);
 
-  // Stream progress updates for artifacts with Vercel AI SDK 4.1 compatibility
+  // Stream progress updates for artifacts (removed dataStream event listeners since DataStreamWriter in ai@4.1.46 doesn’t support them)
   useEffect(() => {
     if (artifact.status === 'streaming' && (artifact.kind === 'sheet' || artifact.kind === 'chart')) {
       const totalRows = chartData.length || 1;
@@ -422,20 +422,8 @@ function PureArtifact({
       setTimeout(() => {
         setProgress('Processing complete');
       }, totalRows * 50);
-
-      // If dataStream is provided, use it for streaming (optional, since dataStream is now optional)
-      if (dataStream) {
-        dataStream.on('data', (data) => {
-          // Handle streaming data (e.g., update artifact content or progress)
-          console.log('[artifact] Streaming data:', data);
-          setProgress(`Streaming: ${data.toString()}`);
-        });
-        dataStream.on('end', () => {
-          setProgress('Streaming complete');
-        });
-      }
     }
-  }, [artifact.status, artifact.kind, chartData.length, dataStream]);
+  }, [artifact.status, artifact.kind, chartData.length]);
 
   const handleChartEdit = useCallback((newConfig: any) => {
     setMetadata((prev: any) => ({ ...prev, chartConfig: newConfig }));
