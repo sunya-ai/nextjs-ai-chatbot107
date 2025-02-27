@@ -6,6 +6,18 @@ import { getChatById, getMessagesByChatId } from '@/lib/db/queries';
 import { convertToUIMessages, convertCustomToMessages } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
+import { CustomMessage, Message } from '@/lib/types'; // Import both CustomMessage and Message
+
+// Helper function to convert Message to CustomMessage (copied from message.tsx or chat.tsx)
+function toCustomMessage(msg: Message, chatId: string): CustomMessage {
+  return {
+    ...msg,
+    chatId, // Add chatId to match CustomMessage
+    sources: (msg as Partial<CustomMessage>).sources || undefined,
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined,
+  };
+}
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -27,9 +39,9 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     id,
   });
   
-  // First convert from DBMessage to CustomMessage, then from CustomMessage to Message
+  // Convert from DBMessage to CustomMessage directly, bypassing convertCustomToMessages
   const customMessages = convertToUIMessages(messagesFromDb);
-  const uiMessages = convertCustomToMessages(customMessages);
+  const uiMessages = customMessages; // Use CustomMessage[] directly, no need for convertCustomToMessages
   
   const cookieStore = await cookies();
   const chatModelFromCookie = cookieStore.get('chat-model');
@@ -38,7 +50,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
       <>
         <Chat
           id={chat.id}
-          initialMessages={uiMessages}
+          initialMessages={uiMessages} // Now CustomMessage[]
           selectedChatModel={DEFAULT_CHAT_MODEL}
           selectedVisibilityType={chat.visibility}
           isReadonly={session?.user?.id !== chat.userId}
@@ -51,7 +63,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     <>
       <Chat
         id={chat.id}
-        initialMessages={uiMessages}
+        initialMessages={uiMessages} // Now CustomMessage[]
         selectedChatModel={chatModelFromCookie.value}
         selectedVisibilityType={chat.visibility}
         isReadonly={session?.user?.id !== chat.userId}
