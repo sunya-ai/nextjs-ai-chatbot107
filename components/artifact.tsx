@@ -6,7 +6,7 @@ import type {
 } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
+import React, {
   type Dispatch,
   memo,
   type SetStateAction,
