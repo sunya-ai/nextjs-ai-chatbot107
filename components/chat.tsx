@@ -1,6 +1,6 @@
 'use client';
 
-import type { Attachment, Message } from 'ai';
+import type { Attachment, Message, CreateMessage } from 'ai';
 import { useChat } from 'ai/react';
 import { useState, useEffect } from 'react';
 import { ChatHeader } from '@/components/chat-header';
@@ -42,20 +42,14 @@ export function Chat({
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
-    initialMessages: initialMessages as Message[], // Cast to Message[] for useChat, which expects Message
+    initialMessages: initialMessages.map(msg => toMessage(msg)), // Convert CustomMessage to Message for useChat
     experimental_throttle: 100,
     sendExtraMessageFields: true,
     generateId: generateUUID,
     onFinish: (message) => {
-      // Convert Message back to CustomMessage before appending
-      const customMessage = {
-        ...message,
-        chatId: id, // Add chatId to match CustomMessage
-        sources: (message as Partial<CustomMessage>).sources || undefined,
-        metadata: (message as Partial<CustomMessage>).metadata || undefined,
-        reasoning: message.reasoning ? (typeof message.reasoning === 'string' ? [message.reasoning] : message.reasoning) : undefined,
-      } as CustomMessage;
-      append(customMessage); // Default UI update behavior with CustomMessage
+      // Convert Message to CustomMessage, then back to Message for append, handling reasoning
+      const customMessage = toCustomMessage(message, id);
+      append(toMessage(customMessage)); // Convert to Message with reasoning as string
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
@@ -71,14 +65,35 @@ export function Chat({
 
   if (!isMounted) return null;
 
-  // Helper function to convert Message to CustomMessage (from message.tsx or utils)
-  const toCustomMessage = (msg: Message, chatId: string): CustomMessage => ({
-    ...msg,
-    chatId, // Add chatId to match CustomMessage
-    sources: (msg as Partial<CustomMessage>).sources || undefined,
-    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined,
-  });
+  // Helper function to convert CustomMessage to Message
+  function toMessage(msg: CustomMessage): Message {
+    let reasoningValue: string | undefined = undefined;
+    if (msg.reasoning) {
+      if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
+        reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string
+      } else if (typeof msg.reasoning === 'string') {
+        reasoningValue = msg.reasoning;
+      }
+    }
+    return {
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      createdAt: msg.createdAt,
+      reasoning: reasoningValue,
+    };
+  }
+
+  // Helper function to convert Message to CustomMessage
+  function toCustomMessage(msg: Message, chatId: string): CustomMessage {
+    return {
+      ...msg,
+      chatId, // Add chatId to match CustomMessage
+      sources: (msg as Partial<CustomMessage>).sources || undefined,
+      metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+      reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : [msg.reasoning]) : undefined, // Convert string to string[]
+    };
+  }
 
   return (
     <div className="flex flex-col min-w-0 h-dvh bg-gray-100 dark:bg-gray-900">
@@ -168,23 +183,4 @@ export function Chat({
       />
     </div>
   );
-}
-
-// Helper function to convert CustomMessage to Message (from message.tsx)
-function toMessage(msg: CustomMessage): Message {
-  let reasoningValue: string | undefined = undefined;
-  if (msg.reasoning) {
-    if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
-      reasoningValue = msg.reasoning[0];
-    } else if (typeof msg.reasoning === 'string') {
-      reasoningValue = msg.reasoning;
-    }
-  }
-  return {
-    id: msg.id,
-    role: msg.role,
-    content: msg.content,
-    createdAt: msg.createdAt,
-    reasoning: reasoningValue,
-  };
 }
