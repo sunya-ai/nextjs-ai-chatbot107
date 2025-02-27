@@ -488,7 +488,7 @@ function PureArtifact({
                   isLoading={isLoading}
                   votes={votes}
                   messages={messages as any} // Type cast to bypass the type check
-                  setMessages={setMessages}
+                  setMessages={setMessages as any} // Type cast setMessages to bypass the type check
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
@@ -509,7 +509,7 @@ function PureArtifact({
                     messages={messages as any} // Type cast to bypass the type check
                     append={append}
                     className="bg-background dark:bg-muted text-foreground dark:text-white" // Ensure UI consistency
-                    setMessages={setMessages}
+                    setMessages={setMessages as any} // Type cast setMessages to bypass the type check
                   />
                 </form>
               </div>
@@ -632,7 +632,7 @@ function PureArtifact({
                     append={append}
                     isLoading={isLoading}
                     stop={stop}
-                    setMessages={setMessages}
+                    setMessages={setMessages as any} // Type cast setMessages to bypass the type check
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
                     onAddLogos={() => loadLogos()} // Add logo fetching callback
