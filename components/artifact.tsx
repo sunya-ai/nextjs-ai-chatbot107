@@ -479,8 +479,8 @@ function PureArtifact({
                   chatId={chatId}
                   isLoading={isLoading}
                   votes={votes}
-                  messages={messages as Message[]} // Safe cast if messages match Message structure
-                  setMessages={setMessages as (messages: Message[] | CustomMessage[]) => void} // Type cast for flexibility
+                  messages={messages}
+                  setMessages={setMessages}
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
@@ -498,10 +498,10 @@ function PureArtifact({
                     stop={stop}
                     attachments={attachments}
                     setAttachments={setAttachments}
-                    messages={messages as Message[]} // Safe cast if messages match Message structure
+                    messages={messages}
                     append={append}
                     className="bg-background dark:bg-muted text-foreground dark:text-white"
-                    setMessages={setMessages as (messages: Message[] | CustomMessage[]) => void} // Type cast for flexibility
+                    setMessages={setMessages}
                   />
                 </form>
               </div>
@@ -624,7 +624,7 @@ function PureArtifact({
                     append={append}
                     isLoading={isLoading}
                     stop={stop}
-                    setMessages={setMessages as (messages: Message[] | CustomMessage[]) => void} // Type cast for flexibility
+                    setMessages={setMessages}
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
                     onAddLogos={() => loadLogos()}
