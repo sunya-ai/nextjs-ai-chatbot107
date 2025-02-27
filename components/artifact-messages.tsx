@@ -11,7 +11,7 @@ interface ArtifactMessagesProps {
   chatId: string;
   isLoading: boolean;
   votes: Array<Vote> | undefined;
-  messages: Array<Message | CustomMessage>; // Update to support both Message and CustomMessage
+  messages: Array<Message | CustomMessage>; // Support both Message and CustomMessage
   setMessages: (
     messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[])
   ) => void; // Update setMessages to handle both types
@@ -39,7 +39,11 @@ function PureArtifactMessages({
   // Ensure messages is always an array with a safe fallback
   const safeMessages = Array.isArray(messages) ? messages : [];
 
-  // Handle both Message and CustomMessage types in rendering
+  // Handle both Message and CustomMessage types in rendering with a type guard
+  const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
+    return (msg as CustomMessage).reasoning !== undefined && Array.isArray((msg as CustomMessage).reasoning);
+  };
+
   return (
     <div
       ref={messagesContainerRef}
@@ -49,14 +53,14 @@ function PureArtifactMessages({
         <PreviewMessage
           chatId={chatId}
           key={message.id}
-          message={message as Message} // Cast to Message for PreviewMessage, assuming it accepts Message
+          message={message} // No cast needed; rely on type guard in PreviewMessage
           isLoading={isLoading && safeMessages.length - 1 === index}
           vote={
             votes
               ? votes.find((vote) => vote.messageId === message.id)
               : undefined
           }
-          setMessages={setMessages as (messages: Message[] | CustomMessage[]) => void} // Cast for type safety
+          setMessages={setMessages} // No cast needed; type is now compatible
           reload={reload}
           isReadonly={isReadonly}
         />
