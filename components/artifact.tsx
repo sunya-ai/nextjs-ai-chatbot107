@@ -735,39 +735,41 @@ function PureArtifact({
                   >
                     Hide Chart
                   </button>
-                  <BarChart width={600} height={300} data={chartWithLogos}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      type="category"
-                      render={(props) => {
-                        const { x, y, payload } = props;
-                        const logo = logoMap[payload.value] || null;
-                        return logo ? (
-                          <image 
-                            x={x} 
-                            y={y - 10} 
-                            width={20} 
-                            height={20} 
-                            href={logo} 
-                            preserveAspectRatio="xMidYMid slice"
-                          />
-                        ) : (
-                          <text x={x} y={y} textAnchor="middle">
-                            {payload.value}
-                          </text>
-                        );
-                      }}
-                    />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="value" fill="#8884d8">
-                      {chartWithLogos.map((entry, index) => (
-                        <Cell key={`cell-${index}`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
+          <BarChart width={600} height={300} data={chartWithLogos}>
+  <CartesianGrid strokeDasharray="3 3" />
+  <XAxis 
+    dataKey="name" 
+    type="category"
+    tick={(props) => {
+      const { x, y, payload } = props;
+      const logo = logoMap[payload.value] || null;
+      return logo ? (
+        <g transform={`translate(${x},${y})`}>
+          <image 
+            x={-10} 
+            y={-20} 
+            width={20} 
+            height={20} 
+            href={logo} 
+            preserveAspectRatio="xMidYMid slice"
+          />
+        </g>
+      ) : (
+        <text x={x} y={y} dy={16} textAnchor="middle" fill="#666">
+          {payload.value}
+        </text>
+      );
+    }}
+  />
+  <YAxis />
+  <Tooltip />
+  <Legend />
+  <Bar dataKey="value" fill="#8884d8">
+    {chartWithLogos.map((entry, index) => (
+      <Cell key={`cell-${index}`} />
+    ))}
+  </Bar>
+</BarChart>
                   <button
                     onClick={() => handleChartEdit({ type: 'bar' })}
                     className="mt-2 bg-blue-500 text-white px-2 py-1 rounded"
