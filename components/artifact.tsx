@@ -1,3 +1,5 @@
+'use client';
+
 import type {
   Attachment,
   ChatRequestOptions,
@@ -520,17 +522,14 @@ function PureArtifact({
                   chatId={chatId}
                   isLoading={isLoading}
                   votes={votes}
-                  messages={messages}
+                  messages={messages} // Already CustomMessage[]
                   setMessages={(messagesOrUpdater) => {
                     if (typeof messagesOrUpdater === 'function') {
-                      // Create a wrapper for the function updater that handles type conversion
+                      // Convert CustomMessage[] to Message[] for the function input
                       setMessages((prevCustomMessages) => {
-                        // Convert CustomMessage[] to Message[] for the function input
                         const prevAsMessages = prevCustomMessages.map(toMessage);
-                        
                         // Call the updater function with the converted messages
-                        const updatedMessages = messagesOrUpdater(prevAsMessages);
-                        
+                        const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                         // Convert the result back to CustomMessage[]
                         return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                       });
@@ -538,7 +537,7 @@ function PureArtifact({
                       // Handle array directly with explicit mapping
                       setMessages(messagesOrUpdater.map(m => 
                         isCustomMessage(m) ? m : toCustomMessage(m, chatId)
-                      ));
+                      ) as CustomMessage[]);
                     }
                   }}
                   reload={reload}
@@ -562,14 +561,11 @@ function PureArtifact({
                     append={append}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Create a wrapper for the function updater that handles type conversion
+                        // Convert CustomMessage[] to Message[] for the function input
                         setMessages((prevCustomMessages) => {
-                          // Convert CustomMessage[] to Message[] for the function input
                           const prevAsMessages = prevCustomMessages.map(toMessage);
-                          
                           // Call the updater function with the converted messages
-                          const updatedMessages = messagesOrUpdater(prevAsMessages);
-                          
+                          const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                           // Convert the result back to CustomMessage[]
                           return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
@@ -577,7 +573,7 @@ function PureArtifact({
                         // Handle array directly with explicit mapping
                         setMessages(messagesOrUpdater.map(m => 
                           isCustomMessage(m) ? m : toCustomMessage(m, chatId)
-                        ));
+                        ) as CustomMessage[]);
                       }
                     }}
                   />
@@ -704,14 +700,11 @@ function PureArtifact({
                     stop={stop}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Create a wrapper for the function updater that handles type conversion
+                        // Convert CustomMessage[] to Message[] for the function input
                         setMessages((prevCustomMessages) => {
-                          // Convert CustomMessage[] to Message[] for the function input
                           const prevAsMessages = prevCustomMessages.map(toMessage);
-                          
                           // Call the updater function with the converted messages
-                          const updatedMessages = messagesOrUpdater(prevAsMessages);
-                          
+                          const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                           // Convert the result back to CustomMessage[]
                           return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
@@ -719,7 +712,7 @@ function PureArtifact({
                         // Handle array directly with explicit mapping
                         setMessages(messagesOrUpdater.map(m => 
                           isCustomMessage(m) ? m : toCustomMessage(m, chatId)
-                        ));
+                        ) as CustomMessage[]);
                       }
                     }}
                     artifactKind={artifact.kind}
@@ -737,41 +730,41 @@ function PureArtifact({
                   >
                     Hide Chart
                   </button>
-          <BarChart width={600} height={300} data={chartWithLogos}>
-  <CartesianGrid strokeDasharray="3 3" />
-  <XAxis 
-    dataKey="name" 
-    type="category"
-    tick={(props) => {
-      const { x, y, payload } = props;
-      const logo = logoMap[payload.value] || null;
-      return logo ? (
-        <g transform={`translate(${x},${y})`}>
-          <image 
-            x={-10} 
-            y={-20} 
-            width={20} 
-            height={20} 
-            href={logo} 
-            preserveAspectRatio="xMidYMid slice"
-          />
-        </g>
-      ) : (
-        <text x={x} y={y} dy={16} textAnchor="middle" fill="#666">
-          {payload.value}
-        </text>
-      );
-    }}
-  />
-  <YAxis />
-  <Tooltip />
-  <Legend />
-  <Bar dataKey="value" fill="#8884d8">
-    {chartWithLogos.map((entry, index) => (
-      <Cell key={`cell-${index}`} />
-    ))}
-  </Bar>
-</BarChart>
+                  <BarChart width={600} height={300} data={chartWithLogos}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      type="category"
+                      tick={(props) => {
+                        const { x, y, payload } = props;
+                        const logo = logoMap[payload.value] || null;
+                        return logo ? (
+                          <g transform={`translate(${x},${y})`}>
+                            <image 
+                              x={-10} 
+                              y={-20} 
+                              width={20} 
+                              height={20} 
+                              href={logo} 
+                              preserveAspectRatio="xMidYMid slice"
+                            />
+                          </g>
+                        ) : (
+                          <text x={x} y={y} dy={16} textAnchor="middle" fill="#666">
+                            {payload.value}
+                          </text>
+                        );
+                      }}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="value" fill="#8884d8">
+                      {chartWithLogos.map((entry, index) => (
+                        <Cell key={`cell-${index}`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
                   <button
                     onClick={() => handleChartEdit({ type: 'bar' })}
                     className="mt-2 bg-blue-500 text-white px-2 py-1 rounded"
