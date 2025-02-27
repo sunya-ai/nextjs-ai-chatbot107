@@ -12,6 +12,7 @@ import { Messages } from './messages';
 import { VisibilityType } from './visibility-selector';
 import { useArtifactSelector } from '@/hooks/use-artifact';
 import { toast } from 'sonner';
+import { CustomMessage } from '@/lib/types'; // Import CustomMessage
 
 export function Chat({
   id,
@@ -21,7 +22,7 @@ export function Chat({
   isReadonly,
 }: {
   id: string;
-  initialMessages: Array<Message>;
+  initialMessages: Array<CustomMessage>; // Updated to CustomMessage instead of Message
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
@@ -41,12 +42,20 @@ export function Chat({
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
-    initialMessages,
+    initialMessages: initialMessages as Message[], // Cast to Message[] for useChat, which expects Message
     experimental_throttle: 100,
     sendExtraMessageFields: true,
     generateId: generateUUID,
     onFinish: (message) => {
-      append(message); // Default UI update behavior
+      // Convert Message back to CustomMessage before appending
+      const customMessage = {
+        ...message,
+        chatId: id, // Add chatId to match CustomMessage
+        sources: (message as Partial<CustomMessage>).sources || undefined,
+        metadata: (message as Partial<CustomMessage>).metadata || undefined,
+        reasoning: message.reasoning ? (typeof message.reasoning === 'string' ? [message.reasoning] : message.reasoning) : undefined,
+      } as CustomMessage;
+      append(customMessage); // Default UI update behavior with CustomMessage
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
@@ -62,6 +71,15 @@ export function Chat({
 
   if (!isMounted) return null;
 
+  // Helper function to convert Message to CustomMessage (from message.tsx or utils)
+  const toCustomMessage = (msg: Message, chatId: string): CustomMessage => ({
+    ...msg,
+    chatId, // Add chatId to match CustomMessage
+    sources: (msg as Partial<CustomMessage>).sources || undefined,
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined,
+  });
+
   return (
     <div className="flex flex-col min-w-0 h-dvh bg-gray-100 dark:bg-gray-900">
       <ChatHeader
@@ -75,8 +93,19 @@ export function Chat({
       <Messages
         chatId={id}
         isLoading={isLoading}
-        messages={messages}
-        setMessages={setMessages}
+        votes={undefined} // Pass actual votes if available, or update logic to fetch votes
+        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages
+        setMessages={(messagesOrUpdater) => {
+          if (typeof messagesOrUpdater === 'function') {
+            setMessages(prev => {
+              const prevAsMessages = (prev as Message[]).map(m => toMessage(m)); // Convert CustomMessage to Message for useChat
+              const updatedMessages = messagesOrUpdater(prevAsMessages);
+              return updatedMessages.map(m => toCustomMessage(m, id)); // Convert back to CustomMessage
+            });
+          } else {
+            setMessages(messagesOrUpdater.map(m => toCustomMessage(m, id))); // Convert array to CustomMessage
+          }
+        }}
         reload={reload}
         isReadonly={isReadonly}
         isArtifactVisible={isArtifactVisible}
@@ -94,8 +123,18 @@ export function Chat({
             stop={stop}
             attachments={attachments}
             setAttachments={setAttachments}
-            messages={messages}
-            setMessages={setMessages}
+            messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages
+            setMessages={(messagesOrUpdater) => {
+              if (typeof messagesOrUpdater === 'function') {
+                setMessages(prev => {
+                  const prevAsMessages = (prev as Message[]).map(m => toMessage(m)); // Convert CustomMessage to Message for useChat
+                  const updatedMessages = messagesOrUpdater(prevAsMessages);
+                  return updatedMessages.map(m => toCustomMessage(m, id)); // Convert back to CustomMessage
+                });
+              } else {
+                setMessages(messagesOrUpdater.map(m => toCustomMessage(m, id))); // Convert array to CustomMessage
+              }
+            }}
             append={append}
             className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
           />
@@ -112,11 +151,40 @@ export function Chat({
         attachments={attachments}
         setAttachments={setAttachments}
         append={append}
-        messages={messages}
-        setMessages={setMessages}
+        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages
+        setMessages={(messagesOrUpdater) => {
+          if (typeof messagesOrUpdater === 'function') {
+            setMessages(prev => {
+              const prevAsMessages = (prev as Message[]).map(m => toMessage(m)); // Convert CustomMessage to Message for useChat
+              const updatedMessages = messagesOrUpdater(prevAsMessages);
+              return updatedMessages.map(m => toCustomMessage(m, id)); // Convert back to CustomMessage
+            });
+          } else {
+            setMessages(messagesOrUpdater.map(m => toCustomMessage(m, id))); // Convert array to CustomMessage
+          }
+        }}
         reload={reload}
         isReadonly={isReadonly}
       />
     </div>
   );
+}
+
+// Helper function to convert CustomMessage to Message (from message.tsx)
+function toMessage(msg: CustomMessage): Message {
+  let reasoningValue: string | undefined = undefined;
+  if (msg.reasoning) {
+    if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
+      reasoningValue = msg.reasoning[0];
+    } else if (typeof msg.reasoning === 'string') {
+      reasoningValue = msg.reasoning;
+    }
+  }
+  return {
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    createdAt: msg.createdAt,
+    reasoning: reasoningValue,
+  };
 }
