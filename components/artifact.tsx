@@ -3,6 +3,7 @@ import type {
   ChatRequestOptions,
   CreateMessage,
   Message,
+  DataStreamWriter,
 } from 'ai';
 import { formatDistance } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -36,7 +37,6 @@ import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import axios from 'axios';
-import { DataStreamWriter } from 'ai';
 import * as Papa from 'papaparse';
 import { CustomMessage } from '@/lib/types';
 
@@ -150,6 +150,32 @@ export interface UIArtifact {
   };
 }
 
+interface ArtifactProps {
+  chatId: string;
+  input: string;
+  setInput: (input: string) => void;
+  handleSubmit: (
+    event?: {
+      preventDefault?: () => void;
+    },
+    chatRequestOptions?: ChatRequestOptions,
+  ) => void;
+  isLoading: boolean;
+  stop: () => void;
+  attachments: Attachment[];
+  setAttachments: React.Dispatch<React.SetStateAction<Attachment[]>>;
+  messages: CustomMessage[];
+  setMessages: (messagesOrUpdater: CustomMessage[] | ((prev: CustomMessage[]) => CustomMessage[])) => void;
+  append: (
+    message: CustomMessage | CreateMessage,
+    chatRequestOptions?: ChatRequestOptions,
+  ) => Promise<string | null | undefined>;
+  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
+  votes: Vote[] | undefined; // Already optional
+  dataStream?: DataStreamWriter; // Made optional
+  isReadonly: boolean;
+}
+
 function PureArtifact({
   chatId,
   input,
@@ -164,33 +190,9 @@ function PureArtifact({
   setMessages,
   reload,
   votes,
+  dataStream, // Now optional
   isReadonly,
-  dataStream,
-}: {
-  chatId: string;
-  input: string;
-  setInput: (input: string) => void;
-  isLoading: boolean;
-  stop: () => void;
-  attachments: Array<Attachment>;
-  setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
-  messages: Array<CustomMessage>;
-  setMessages: Dispatch<SetStateAction<Array<CustomMessage>>>;
-  votes: Array<Vote> | undefined;
-  append: (
-    message: CustomMessage | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
-  handleSubmit: (
-    event?: {
-      preventDefault?: () => void;
-    },
-    chatRequestOptions?: ChatRequestOptions,
-  ) => void;
-  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
-  isReadonly: boolean;
-  dataStream: DataStreamWriter;
-}) {
+}: ArtifactProps) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
 
   const {
@@ -420,8 +422,20 @@ function PureArtifact({
       setTimeout(() => {
         setProgress('Processing complete');
       }, totalRows * 50);
+
+      // If dataStream is provided, use it for streaming (optional, since dataStream is now optional)
+      if (dataStream) {
+        dataStream.on('data', (data) => {
+          // Handle streaming data (e.g., update artifact content or progress)
+          console.log('[artifact] Streaming data:', data);
+          setProgress(`Streaming: ${data.toString()}`);
+        });
+        dataStream.on('end', () => {
+          setProgress('Streaming complete');
+        });
+      }
     }
-  }, [artifact.status, artifact.kind, chartData.length]);
+  }, [artifact.status, artifact.kind, chartData.length, dataStream]);
 
   const handleChartEdit = useCallback((newConfig: any) => {
     setMetadata((prev: any) => ({ ...prev, chartConfig: newConfig }));
