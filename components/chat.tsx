@@ -1,6 +1,6 @@
 'use client';
 
-import type { Attachment, Message, CreateMessage, DataStreamWriter } from 'ai';
+import type { Attachment, Message, CreateMessage } from 'ai';
 import { useChat } from 'ai/react';
 import { useState, useEffect } from 'react';
 import { ChatHeader } from '@/components/chat-header';
@@ -44,7 +44,6 @@ export function Chat({
     reload,
     append,
     setMessages: setChatMessages,
-    dataStream, // Destructure dataStream from useChat
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
@@ -99,7 +98,7 @@ export function Chat({
     if (msg.reasoning) {
       if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
         reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string
-      } else if (typeof mg.reasoning === 'string') { // Fixed typo: msg.reasoning
+      } else if (typeof msg.reasoning === 'string') {
         reasoningValue = msg.reasoning;
       }
     }
@@ -238,7 +237,7 @@ export function Chat({
         }}
         reload={reload}
         votes={votes} // Pass votes as Vote[] | undefined to match Artifact's prop type
-        dataStream={dataStream} // Pass dataStream to Artifact
+        // Removed dataStream as it's not available in useChat@4.1.46
         isReadonly={isReadonly}
       />
     </div>
