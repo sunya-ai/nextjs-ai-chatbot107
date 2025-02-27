@@ -125,6 +125,7 @@ export interface ArtifactDefinition {
   actions: ArtifactAction[];
   content: ComponentType<any>;
   initialize?: (options: { documentId: string; setMetadata: Dispatch<SetStateAction<any>> }) => void;
+  toolbar?: any[];
 }
 
 export const artifactDefinitions: ArtifactDefinition[] = [
