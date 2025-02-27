@@ -64,7 +64,7 @@ function toMessage(msg: CustomMessage): Message {
     content: msg.content,
     createdAt: msg.createdAt,
     // Convert string[] reasoning to string if needed
-    reasoning: typeof msg.reasoning === 'object' && msg.reasoning ? msg.reasoning[0] : msg.reasoning
+    reasoning: typeof msg.reasoning === 'object' && msg.reasoning && msg.reasoning.length > 0 ? msg.reasoning[0] : msg.reasoning
   };
 }
 
@@ -510,15 +510,18 @@ function PureArtifact({
                   messages={messages}
                   setMessages={(messagesOrUpdater) => {
                     if (typeof messagesOrUpdater === 'function') {
-                      // Handle function updater with type assertion
+                      // Handle function updater with explicit mapping
                       setMessages((prev) => {
-                        return messagesOrUpdater(prev) as CustomMessage[];
+                        // Call the original updater function to get the updated messages
+                        const updated = messagesOrUpdater(prev);
+                        // Then explicitly map each message to ensure they're all CustomMessage objects
+                        return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                       });
                     } else {
                       // Handle array directly with explicit mapping
                       setMessages(messagesOrUpdater.map(m => 
                         isCustomMessage(m) ? m : toCustomMessage(m, chatId)
-                      ) as CustomMessage[]);
+                      ));
                     }
                   }}
                   reload={reload}
@@ -542,15 +545,18 @@ function PureArtifact({
                     append={append}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Handle function updater with type assertion
+                        // Handle function updater with explicit mapping
                         setMessages((prev) => {
-                          return messagesOrUpdater(prev) as CustomMessage[];
+                          // Call the original updater function to get the updated messages
+                          const updated = messagesOrUpdater(prev);
+                          // Then explicitly map each message to ensure they're all CustomMessage objects
+                          return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
                       } else {
                         // Handle array directly with explicit mapping
                         setMessages(messagesOrUpdater.map(m => 
                           isCustomMessage(m) ? m : toCustomMessage(m, chatId)
-                        ) as CustomMessage[]);
+                        ));
                       }
                     }}
                   />
@@ -677,15 +683,18 @@ function PureArtifact({
                     stop={stop}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Handle function updater with type assertion
+                        // Handle function updater with explicit mapping
                         setMessages((prev) => {
-                          return messagesOrUpdater(prev) as CustomMessage[];
+                          // Call the original updater function to get the updated messages
+                          const updated = messagesOrUpdater(prev);
+                          // Then explicitly map each message to ensure they're all CustomMessage objects
+                          return updated.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
                       } else {
                         // Handle array directly with explicit mapping
                         setMessages(messagesOrUpdater.map(m => 
                           isCustomMessage(m) ? m : toCustomMessage(m, chatId)
-                        ) as CustomMessage[]);
+                        ));
                       }
                     }}
                     artifactKind={artifact.kind}
