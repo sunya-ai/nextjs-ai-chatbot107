@@ -5,24 +5,10 @@ import { Overview } from './overview';
 import { memo } from 'react';
 import { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
-import { MDXRemote } from 'next-mdx-remote'; // Replace MDXRuntime with next-mdx-remote
-import { serialize } from 'next-mdx-remote/serialize'; // For build-time MDX processing
-import { useChat } from 'ai/react'; // Add for streaming
-
-interface MessagesProps {
-  chatId: string;
-  isLoading: boolean;
-  votes: Array<Vote> | undefined;
-  messages: Array<Message>;
-  setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
-  ) => void;
-  reload: (
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
-  isReadonly: boolean;
-  isArtifactVisible: boolean;
-}
+import { MDXRemote } from 'next-mdx-remote';
+import { serialize } from 'next-mdx-remote/serialize';
+import { useChat } from 'ai/react';
+import { CustomMessage } from '@/lib/types'; // Import CustomMessage
 
 // Define custom MDX components for interactivity
 const customComponents = {
@@ -39,6 +25,22 @@ const customComponents = {
   input: (props) => <input {...props} className="border p-1 rounded" />,
 };
 
+interface MessagesProps {
+  chatId: string;
+  isLoading: boolean;
+  votes: Array<Vote> | undefined;
+  messages: Array<CustomMessage>; // Updated to use CustomMessage instead of Message
+  setMessages: (
+    messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[])
+  ) => void; // Updated to support both Message and CustomMessage
+  reload: (
+    chatRequestOptions?: ChatRequestOptions
+  ) => Promise<string | null | undefined>;
+  isReadonly: boolean;
+  isArtifactVisible: boolean;
+  className?: string; // Add optional className property for styling
+}
+
 function PureMessages({
   chatId,
   isLoading,
@@ -47,20 +49,27 @@ function PureMessages({
   setMessages,
   reload,
   isReadonly,
+  isArtifactVisible,
+  className, // Add className to props destructuring
 }: MessagesProps) {
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
-  const { append } = useChat({ id: chatId }); // Integrate useChat for streaming
+  const { append } = useChat({ id: chatId });
+
+  // Type guard to determine if a message is a CustomMessage
+  const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
+    return 'chatId' in msg;
+  };
 
   // Stream reasoning steps during loading
   useEffect(() => {
-    if (isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user') {
+    if (isLoading && messages.length > 0 && isCustomMessage(messages[messages.length - 1]) && messages[messages.length - 1].role === 'user') {
       append({
         role: 'assistant',
         content: '',
         reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'],
-      });
+      } as CustomMessage); // Cast to CustomMessage with chatId
     }
-  }, [isLoading, messages, append]);
+  }, [isLoading, messages, append, chatId]); // Added chatId to dependencies for chatId in CustomMessage
 
   // Handle AI-driven edits from chat commands
   useEffect(() => {
@@ -70,7 +79,7 @@ function PureMessages({
       if (match) {
         const messageId = match[1];
         const newContent = match[2];
-        setMessages(prev => prev.map(m =>
+        setMessages(prev => prev.map(m => 
           m.id === messageId ? { ...m, content: newContent } : m
         ));
       }
@@ -96,7 +105,7 @@ function PureMessages({
   return (
     <div
       ref={messagesContainerRef}
-      className="flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4"
+      className={cn('flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4', className)} // Use className prop here
     >
       {messages.length === 0 && <Overview />}
 
@@ -115,7 +124,7 @@ function PureMessages({
             reload={reload}
             isReadonly={isReadonly}
           />
-          {message.sources && (
+          {isCustomMessage(message) && message.sources && (
             <footer className="mt-2 p-2 bg-gray-800 rounded text-white text-sm">
               <button
                 onClick={() => {/* Toggle visibility (implement if needed) */}}
@@ -144,6 +153,7 @@ function PureMessages({
 
       {isLoading &&
         messages.length > 0 &&
+        isCustomMessage(messages[messages.length - 1]) &&
         messages[messages.length - 1].role === 'user' && <ThinkingMessage />}
 
       <div
