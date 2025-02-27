@@ -5,21 +5,22 @@ import { ChatRequestOptions, Message } from 'ai';
 import { memo } from 'react';
 import equal from 'fast-deep-equal';
 import { UIArtifact } from './artifact';
+import { CustomMessage } from '@/lib/types'; // Import CustomMessage
 
 interface ArtifactMessagesProps {
   chatId: string;
   isLoading: boolean;
   votes: Array<Vote> | undefined;
-  messages: Array<Message>;
+  messages: Array<Message | CustomMessage>; // Update to support both Message and CustomMessage
   setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[])
-  ) => void;
+    messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[])
+  ) => void; // Update setMessages to handle both types
   reload: (
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
   artifactStatus: UIArtifact['status'];
-  progress: string; // Add progress property
+  progress: string;
 }
 
 function PureArtifactMessages({
@@ -30,7 +31,7 @@ function PureArtifactMessages({
   setMessages,
   reload,
   isReadonly,
-  progress, // Add progress to function parameters
+  progress,
 }: ArtifactMessagesProps) {
   // Remove the explicit type parameter <HTMLDivElement> from useScrollToBottom
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
@@ -38,7 +39,7 @@ function PureArtifactMessages({
   // Ensure messages is always an array with a safe fallback
   const safeMessages = Array.isArray(messages) ? messages : [];
 
-  // Optionally use progress in the UI (e.g., display it in the message container)
+  // Handle both Message and CustomMessage types in rendering
   return (
     <div
       ref={messagesContainerRef}
@@ -48,14 +49,14 @@ function PureArtifactMessages({
         <PreviewMessage
           chatId={chatId}
           key={message.id}
-          message={message}
+          message={message as Message} // Cast to Message for PreviewMessage, assuming it accepts Message
           isLoading={isLoading && safeMessages.length - 1 === index}
           vote={
             votes
               ? votes.find((vote) => vote.messageId === message.id)
               : undefined
           }
-          setMessages={setMessages}
+          setMessages={setMessages as (messages: Message[] | CustomMessage[]) => void} // Cast for type safety
           reload={reload}
           isReadonly={isReadonly}
         />
