@@ -216,7 +216,7 @@ export function Chat({
               // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
               const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id));
               const updatedMessages = messagesOrUpdater(prevAsCustomMessages);
-              // Convert back to Message[] for setChatMessages
+              // Convert back to Message[] for setChatMessages, handling reasoning correctly
               return updatedMessages.map(m => toMessage(m));
             });
           } else {
