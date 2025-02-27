@@ -101,13 +101,14 @@ export function Chat({
       } else if (typeof msg.reasoning === 'string') {
         reasoningValue = msg.reasoning;
       }
+      // Ensure reasoning is explicitly typed as string | undefined
     }
     return {
       id: msg.id,
       role: msg.role,
       content: msg.content,
       createdAt: msg.createdAt,
-      reasoning: reasoningValue,
+      reasoning: reasoningValue as string | undefined, // Explicitly assert type
     };
   }
 
@@ -118,8 +119,8 @@ export function Chat({
       chatId, // Add chatId to match CustomMessage
       sources: (msg as Partial<CustomMessage>).sources || undefined,
       metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-      reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : [msg.reasoning]) : undefined, // Convert string to string[]
-    };
+      reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined, // Ensure reasoning is string[] | undefined
+    } as CustomMessage; // Explicitly assert as CustomMessage
   }
 
   return (
@@ -221,7 +222,7 @@ export function Chat({
             });
           } else {
             // Convert Message[] to CustomMessage[] before setting, then back to Message[]
-            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id));
+            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id)) as CustomMessage[];
             setChatMessages(customMessages.map(m => toMessage(m)));
           }
         }}
