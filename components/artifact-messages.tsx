@@ -6,15 +6,27 @@ import { memo } from 'react';
 import equal from 'fast-deep-equal';
 import { UIArtifact } from './artifact';
 import { CustomMessage } from '@/lib/types'; // Import CustomMessage
+import { cn } from '@/lib/utils';
+
+// Helper function to convert Message to CustomMessage (defined in chat.tsx, but included here for completeness)
+const toCustomMessage = (msg: Message, chatId: string): CustomMessage => {
+  return {
+    ...msg,
+    chatId, // Add chatId to match CustomMessage
+    sources: (msg as Partial<CustomMessage>).sources || undefined,
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning as string[]) : undefined, // Convert string to string[] | keep string[]
+  } as CustomMessage; // Explicitly assert as CustomMessage
+};
 
 interface ArtifactMessagesProps {
   chatId: string;
   isLoading: boolean;
   votes: Array<Vote> | undefined;
-  messages: Array<Message | CustomMessage>; // Support both Message and CustomMessage
+  messages: Array<CustomMessage>; // Updated to strictly CustomMessage[] (remove Message support)
   setMessages: (
-    messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[])
-  ) => void; // Update setMessages to handle both types
+    messagesOrUpdater: CustomMessage[] | ((messages: CustomMessage[]) => CustomMessage[])
+  ) => void; // Updated to strictly CustomMessage[]
   reload: (
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
@@ -36,12 +48,12 @@ function PureArtifactMessages({
   // Remove the explicit type parameter <HTMLDivElement> from useScrollToBottom
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
 
-  // Ensure messages is always an array with a safe fallback
-  const safeMessages = Array.isArray(messages) ? messages : [];
+  // Ensure messages is always an array with a safe fallback (already CustomMessage[])
+  const safeMessages = messages || [];
 
-  // Handle both Message and CustomMessage types in rendering with a type guard
+  // Type guard (already defined, but included for completeness and consistency)
   const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
-    return (msg as CustomMessage).reasoning !== undefined && Array.isArray((msg as CustomMessage).reasoning);
+    return 'chatId' in msg && 'reasoning' in msg && Array.isArray(msg.reasoning);
   };
 
   return (
@@ -53,14 +65,14 @@ function PureArtifactMessages({
         <PreviewMessage
           chatId={chatId}
           key={message.id}
-          message={message} // No cast needed; rely on type guard in PreviewMessage
+          message={message} // Already CustomMessage, no conversion needed
           isLoading={isLoading && safeMessages.length - 1 === index}
           vote={
             votes
               ? votes.find((vote) => vote.messageId === message.id)
               : undefined
           }
-          setMessages={setMessages} // No cast needed; type is now compatible
+          setMessages={setMessages} // Now strictly CustomMessage[]
           reload={reload}
           isReadonly={isReadonly}
         />
