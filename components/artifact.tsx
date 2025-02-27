@@ -531,7 +531,7 @@ function PureArtifact({
                         // Call the updater function with the converted messages
                         const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                         // Convert the result back to CustomMessage[]
-                        return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                        return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)) as CustomMessage[];
                       });
                     } else {
                       // Handle array directly with explicit mapping
@@ -567,7 +567,7 @@ function PureArtifact({
                           // Call the updater function with the converted messages
                           const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                           // Convert the result back to CustomMessage[]
-                          return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                          return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)) as CustomMessage[];
                         });
                       } else {
                         // Handle array directly with explicit mapping
@@ -706,7 +706,7 @@ function PureArtifact({
                           // Call the updater function with the converted messages
                           const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                           // Convert the result back to CustomMessage[]
-                          return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                          return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)) as CustomMessage[];
                         });
                       } else {
                         // Handle array directly with explicit mapping
