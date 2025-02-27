@@ -35,17 +35,13 @@ import { sheetArtifact } from '@/artifacts/sheet/client';
 import { textArtifact } from '@/artifacts/text/client';
 import equal from 'fast-deep-equal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
-import axios from 'axios'; // For Clearbit API
-import { DataStreamWriter } from 'ai'; // For streaming progress
-import * as Papa from 'papaparse'; // For CSV parsing
-
-// Import CustomMessage from your local types file
+import axios from 'axios';
+import { DataStreamWriter } from 'ai';
+import * as Papa from 'papaparse';
 import { CustomMessage } from '@/lib/types';
 
-// Define artifact kinds first to avoid circular reference
 export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'chart';
 
-// Define and export ArtifactAction type
 export interface ArtifactAction {
   icon: React.ReactNode;
   label?: string;
@@ -70,7 +66,6 @@ export interface ArtifactAction {
   }) => boolean;
 }
 
-// Common props for artifact content components
 export interface ArtifactContentProps {
   title: string;
   content: string;
@@ -87,11 +82,10 @@ export interface ArtifactContentProps {
   setMetadata: Dispatch<SetStateAction<any>>;
 }
 
-// Define and export ArtifactDefinition type with more flexible content type
 export interface ArtifactDefinition {
   kind: ArtifactKind;
   actions: ArtifactAction[];
-  content: ComponentType<any>; // More generic type to accommodate different artifact content components
+  content: ComponentType<any>;
   initialize?: (options: { documentId: string; setMetadata: Dispatch<SetStateAction<any>> }) => void;
 }
 
@@ -132,7 +126,7 @@ function PureArtifact({
   reload,
   votes,
   isReadonly,
-  dataStream, // Add dataStream for streaming progress
+  dataStream,
 }: {
   chatId: string;
   input: string;
@@ -141,11 +135,11 @@ function PureArtifact({
   stop: () => void;
   attachments: Array<Attachment>;
   setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
-  messages: Array<CustomMessage>; // Updated to use CustomMessage
-  setMessages: Dispatch<SetStateAction<Array<CustomMessage>>>; // Updated to use CustomMessage
+  messages: Array<CustomMessage>;
+  setMessages: Dispatch<SetStateAction<Array<CustomMessage>>>;
   votes: Array<Vote> | undefined;
   append: (
-    message: CustomMessage | CreateMessage, // Updated to use CustomMessage
+    message: CustomMessage | CreateMessage,
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   handleSubmit: (
@@ -154,11 +148,9 @@ function PureArtifact({
     },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
-  reload: (
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
+  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
   isReadonly: boolean;
-  dataStream: DataStreamWriter; // Add dataStream parameter
+  dataStream: DataStreamWriter;
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
 
@@ -176,9 +168,9 @@ function PureArtifact({
   const [mode, setMode] = useState<'edit' | 'diff'>('edit');
   const [document, setDocument] = useState<Document | null>(null);
   const [currentVersionIndex, setCurrentVersionIndex] = useState(-1);
-  const [showChart, setShowChart] = useState(false); // State for chart visibility
-  const [showLogos, setShowLogos] = useState(false); // State for logo visibility
-  const [progress, setProgress] = useState<string>(''); // State for progress updates
+  const [showChart, setShowChart] = useState(false);
+  const [showLogos, setShowLogos] = useState(false);
+  const [progress, setProgress] = useState<string>('');
 
   const { open: isSidebarOpen } = useSidebar();
 
@@ -487,13 +479,13 @@ function PureArtifact({
                   chatId={chatId}
                   isLoading={isLoading}
                   votes={votes}
-                  messages={messages as any} // Type cast to bypass the type check
-                  setMessages={setMessages as any} // Type cast setMessages to bypass the type check
+                  messages={messages}
+                  setMessages={setMessages}
                   reload={reload}
                   isReadonly={isReadonly}
                   artifactStatus={artifact.status}
-                  progress={progress} // Pass progress to display
-                  className="bg-background dark:bg-muted text-foreground dark:text-white" // Ensure UI consistency
+                  progress={progress}
+                  className="bg-background dark:bg-muted text-foreground dark:text-white"
                 />
 
                 <form className="flex flex-row gap-2 relative items-end w-full px-4 pb-4">
@@ -506,10 +498,10 @@ function PureArtifact({
                     stop={stop}
                     attachments={attachments}
                     setAttachments={setAttachments}
-                    messages={messages as any} // Type cast to bypass the type check
+                    messages={messages}
                     append={append}
-                    className="bg-background dark:bg-muted text-foreground dark:text-white" // Ensure UI consistency
-                    setMessages={setMessages as any} // Type cast setMessages to bypass the type check
+                    className="bg-background dark:bg-muted text-foreground dark:text-white"
+                    setMessages={setMessages}
                   />
                 </form>
               </div>
@@ -632,11 +624,11 @@ function PureArtifact({
                     append={append}
                     isLoading={isLoading}
                     stop={stop}
-                    setMessages={setMessages as any} // Type cast setMessages to bypass the type check
+                    setMessages={setMessages}
                     artifactKind={artifact.kind}
                     onGenerateChart={() => setShowChart(true)}
-                    onAddLogos={() => loadLogos()} // Add logo fetching callback
-                    className="bg-background dark:bg-muted border-t dark:border-zinc-700" // Ensure UI consistency
+                    onAddLogos={() => loadLogos()}
+                    className="bg-background dark:bg-muted border-t dark:border-zinc-700"
                   />
                 )}
               </AnimatePresence>
@@ -683,7 +675,7 @@ function PureArtifact({
                     </Bar>
                   </BarChart>
                   <button
-                    onClick={() => handleChartEdit({ type: 'bar' })} // Example chart type change
+                    onClick={() => handleChartEdit({ type: 'bar' })}
                     className="mt-2 bg-blue-500 text-white px-2 py-1 rounded"
                   >
                     Edit Chart
@@ -698,7 +690,7 @@ function PureArtifact({
                   currentVersionIndex={currentVersionIndex}
                   documents={documents}
                   handleVersionChange={handleVersionChange}
-                  className="bg-background dark:bg-muted border-t dark:border-zinc-700" // Ensure UI consistency
+                  className="bg-background dark:bg-muted border-t dark:border-zinc-700"
                 />
               )}
             </AnimatePresence>
