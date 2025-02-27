@@ -8,7 +8,8 @@ import equal from 'fast-deep-equal';
 import { MDXRemote } from 'next-mdx-remote';
 import { serialize } from 'next-mdx-remote/serialize';
 import { useChat } from 'ai/react';
-import { CustomMessage } from '@/lib/types'; // Import CustomMessage
+import { CustomMessage } from '@/lib/types'; // Import CustomMessage with reasoning: string[] | undefined
+import { cn } from '@/lib/utils'; // Import cn for className utility (assuming it's available)
 
 // Define custom MDX components for interactivity
 const customComponents = {
@@ -29,10 +30,10 @@ interface MessagesProps {
   chatId: string;
   isLoading: boolean;
   votes: Array<Vote> | undefined;
-  messages: Array<CustomMessage>; // Updated to use CustomMessage instead of Message
+  messages: Array<CustomMessage>; // Strictly CustomMessage[]
   setMessages: (
-    messages: Message[] | CustomMessage[] | ((messages: Message[] | CustomMessage[]) => Message[] | CustomMessage[])
-  ) => void; // Updated to support both Message and CustomMessage
+    messagesOrUpdater: CustomMessage[] | ((messages: CustomMessage[]) => CustomMessage[])
+  ) => void; // Updated to strictly CustomMessage[]
   reload: (
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
@@ -40,6 +41,36 @@ interface MessagesProps {
   isArtifactVisible: boolean;
   className?: string; // Add optional className property for styling
 }
+
+// Helper function to convert Message to CustomMessage (defined in chat.tsx, but included here for completeness)
+const toCustomMessage = (msg: Message, chatId: string): CustomMessage => {
+  return {
+    ...msg,
+    chatId, // Add chatId to match CustomMessage
+    sources: (msg as Partial<CustomMessage>).sources || undefined,
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning as string[]) : undefined, // Convert string to string[] | keep string[]
+  } as CustomMessage; // Explicitly assert as CustomMessage
+};
+
+// Helper function to convert CustomMessage to Message (defined in chat.tsx, but included here for completeness)
+const toMessage = (msg: CustomMessage): Message => {
+  let reasoningValue: string | undefined = undefined;
+  if (msg.reasoning) {
+    if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
+      reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string (matches SDK)
+    } else if (typeof msg.reasoning === 'string') {
+      reasoningValue = msg.reasoning;
+    }
+  }
+  return {
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    createdAt: msg.createdAt,
+    reasoning: reasoningValue as string | undefined, // Explicitly assert type to match Message
+  };
+};
 
 function PureMessages({
   chatId,
@@ -55,21 +86,22 @@ function PureMessages({
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
   const { append } = useChat({ id: chatId });
 
-  // Type guard to determine if a message is a CustomMessage
+  // Type guard to determine if a message is a CustomMessage (already defined, but included for completeness)
   const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
     return 'chatId' in msg;
   };
 
   // Stream reasoning steps during loading
   useEffect(() => {
-    if (isLoading && messages.length > 0 && isCustomMessage(messages[messages.length - 1]) && messages[messages.length - 1].role === 'user') {
+    if (isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user') {
       append({
         role: 'assistant',
         content: '',
-        reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'],
-      } as CustomMessage); // Cast to CustomMessage with chatId
+        reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'], // Use string[] for multiple steps
+        chatId, // Ensure chatId is included for CustomMessage
+      } as CustomMessage);
     }
-  }, [isLoading, messages, append, chatId]); // Added chatId to dependencies for chatId in CustomMessage
+  }, [isLoading, messages, append, chatId]);
 
   // Handle AI-driven edits from chat commands
   useEffect(() => {
@@ -96,9 +128,9 @@ function PureMessages({
             rehypePlugins: [require('rehype-highlight'), require('rehype-raw')],
           },
         });
-        return { ...message, mdxSource };
+        return { ...message, mdxSource } as CustomMessage; // Ensure the return type is CustomMessage
       }
-      return message;
+      return message as CustomMessage; // Ensure the return type is CustomMessage
     });
   }, [messages]);
 
@@ -113,18 +145,18 @@ function PureMessages({
         <div key={message.id} className="mb-4">
           <PreviewMessage
             chatId={chatId}
-            message={message}
+            message={message} // Already CustomMessage, no conversion needed
             isLoading={isLoading && messages.length - 1 === index}
             vote={
               votes
                 ? votes.find((vote) => vote.messageId === message.id)
                 : undefined
             }
-            setMessages={setMessages}
+            setMessages={setMessages} // Passes CustomMessage[]
             reload={reload}
             isReadonly={isReadonly}
           />
-          {isCustomMessage(message) && message.sources && (
+          {message.sources && ( // Safely access sources since message is CustomMessage
             <footer className="mt-2 p-2 bg-gray-800 rounded text-white text-sm">
               <button
                 onClick={() => {/* Toggle visibility (implement if needed) */}}
@@ -148,12 +180,23 @@ function PureMessages({
               </ul>
             </footer>
           )}
+          {message.reasoning && message.reasoning.length > 0 && ( // Render reasoning as string[] if present
+            <footer className="mt-2 p-2 bg-gray-600 rounded text-white text-sm">
+              <p>Reasoning:</p>
+              <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
+                {message.reasoning.map((step, index) => (
+                  <li key={index} className="truncate">
+                    {step}
+                  </li>
+                ))}
+              </ul>
+            </footer>
+          )}
         </div>
       ))}
 
       {isLoading &&
         messages.length > 0 &&
-        isCustomMessage(messages[messages.length - 1]) &&
         messages[messages.length - 1].role === 'user' && <ThinkingMessage />}
 
       <div
