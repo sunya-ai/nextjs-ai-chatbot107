@@ -330,6 +330,9 @@ const PureToolbar = ({
   stop,
   setMessages,
   artifactKind,
+  onGenerateChart,
+  onAddLogos,
+  className,
 }: {
   isToolbarVisible: boolean;
   setIsToolbarVisible: Dispatch<SetStateAction<boolean>>;
@@ -341,6 +344,9 @@ const PureToolbar = ({
   stop: () => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   artifactKind: ArtifactKind;
+  onGenerateChart?: () => void;
+  onAddLogos?: () => void;
+  className?: string;
 }) => {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -393,7 +399,30 @@ const PureToolbar = ({
   }
 
   // Use optional chaining or provide a default to handle optional toolbar
-  const toolsByArtifactKind = artifactDefinition.toolbar ?? [];
+  let toolsByArtifactKind = artifactDefinition.toolbar ?? [];
+
+  // Add Chart and Logo tools for sheet artifacts if the functions are provided
+  if (artifactKind === 'sheet') {
+    if (onGenerateChart) {
+      toolsByArtifactKind.push({
+        description: "Generate Chart",
+        icon: <SparklesIcon />, // Using SparklesIcon as a placeholder
+        onClick: ({ appendMessage }) => {
+          onGenerateChart();
+        }
+      });
+    }
+    
+    if (onAddLogos) {
+      toolsByArtifactKind.push({
+        description: "Add Logos",
+        icon: <CodeIcon />, // Using CodeIcon as a placeholder
+        onClick: ({ appendMessage }) => {
+          onAddLogos();
+        }
+      });
+    }
+  }
 
   if (toolsByArtifactKind.length === 0) {
     return null;
@@ -402,7 +431,10 @@ const PureToolbar = ({
   return (
     <TooltipProvider delayDuration={0}>
       <motion.div
-        className="cursor-pointer absolute right-6 bottom-6 p-1.5 border rounded-full shadow-lg bg-background flex flex-col justify-end"
+        className={cx(
+          "cursor-pointer absolute right-6 bottom-6 p-1.5 border rounded-full shadow-lg bg-background flex flex-col justify-end",
+          className
+        )}
         initial={{ opacity: 0, y: -20, scale: 1 }}
         animate={
           isToolbarVisible
@@ -486,6 +518,8 @@ export const Toolbar = memo(PureToolbar, (prevProps, nextProps) => {
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.isToolbarVisible !== nextProps.isToolbarVisible) return false;
   if (prevProps.artifactKind !== nextProps.artifactKind) return false;
+  if (prevProps.onGenerateChart !== nextProps.onGenerateChart) return false;
+  if (prevProps.onAddLogos !== nextProps.onAddLogos) return false;
 
   return true;
 });
