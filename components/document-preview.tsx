@@ -88,7 +88,7 @@ export function DocumentPreview({
   }
 
   // Widen type to include ArtifactKind and allow null
-  const document: { id: string; createdAt: Date; title: string; content: string | null; kind: ArtifactKind; userId: string } | null = previewDocument
+  const document = previewDocument
     ? previewDocument
     : artifact.status === 'streaming'
       ? {
@@ -150,7 +150,8 @@ const PureHitboxLayer = ({
   result,
   setArtifact,
 }: {
-  hitboxRef: React.RefObject<HTMLDivElement | null>;
+  // Fix the hitboxRef type to match what's expected
+  hitboxRef: React.RefObject<HTMLDivElement>;
   result: any;
   setArtifact: (
     updaterFn: UIArtifact | ((currentArtifact: UIArtifact) => UIArtifact),
@@ -237,7 +238,7 @@ const DocumentHeader = memo(PureDocumentHeader, (prevProps, nextProps) => {
   return true;
 });
 
-const DocumentContent = ({ document }: { document: { id: string; createdAt: Date; title: string; content: string | null; kind: ArtifactKind; userId: string } }) => {
+const DocumentContent = ({ document }: { document: Document }) => {
   const { artifact } = useArtifact();
 
   const containerClassName = cn(
