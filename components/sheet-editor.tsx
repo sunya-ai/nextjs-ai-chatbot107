@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState, useMemo } from 'react';
 import { HotTable } from '@handsontable/react';
 import Handsontable from 'handsontable';
 import { parse, unparse } from 'papaparse';
