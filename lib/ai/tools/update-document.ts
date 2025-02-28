@@ -3,6 +3,7 @@ import { Session } from 'next-auth';
 import { z } from 'zod';
 import { getDocumentById, saveDocument } from '@/lib/db/queries';
 import { documentHandlersByArtifactKind } from '@/lib/artifacts/server';
+import { ArtifactKind } from '@/components/artifact'; // Added import for ArtifactKind
 
 interface UpdateDocumentProps {
   session: Session;
@@ -66,7 +67,7 @@ export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
       await saveDocument({
         id,
         title: document.title,
-        kind: document.kind as ArtifactKind,
+        kind: document.kind as ArtifactKind, // Type assertion remains valid with import
         content: '', // Clear or update based on handler
         userId: session.user?.id || '',
         fileUrl: document.fileUrl, // Preserve or update Blob URL
@@ -75,7 +76,7 @@ export const updateDocument = ({ session, dataStream }: UpdateDocumentProps) =>
       return {
         id,
         title: document.title,
-        kind: document.kind as ArtifactKind,
+        kind: document.kind as ArtifactKind, // Type assertion works with the correct import
         content: 'The document has been updated successfully.',
       };
     },
