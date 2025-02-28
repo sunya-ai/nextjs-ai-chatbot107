@@ -142,7 +142,18 @@ If the query or file seems unrelated to energy, find relevant energy sector angl
             }
 
             const assistantMessages = await openai.beta.threads.messages.list(assistantThread.id);
-            const assistantContent = assistantMessages.data[0]?.content[0]?.text?.value || '';
+            
+            // Fix for the TypeScript error - find the first text content block
+            let assistantContent = '';
+            if (assistantMessages.data[0]?.content.length > 0) {
+              for (const contentBlock of assistantMessages.data[0].content) {
+                if (contentBlock.type === 'text') {
+                  assistantContent = contentBlock.text.value;
+                  break;
+                }
+              }
+            }
+            
             const assistantReasoning = ['Enhancing context with Assistants...', 'Integrating assistant insights...'];
             const assistantSources = extractSourcesFromResponse(assistantContent) || [];
 
