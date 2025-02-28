@@ -251,6 +251,27 @@ export function sanitizeUIMessages(messages: Array<CustomMessage>): Array<Custom
   );
 }
 
+/**
+ * Sanitizes UI messages and returns standard Message[] array
+ * This version is specifically for components that expect Message[] return type
+ */
+export function sanitizeUIMessagesAsStandard(messages: Array<Message>): Array<Message> {
+  // First sanitize as if they're CustomMessages (which they might be internally)
+  const sanitizedMessages = sanitizeUIMessages(messages as unknown as Array<CustomMessage>) as unknown as Array<Message>;
+  
+  // Then ensure each message has a proper reasoning property (string instead of string[])
+  return sanitizedMessages.map(message => {
+    // If reasoning exists and is an array, convert it to a string
+    if (message.reasoning && Array.isArray(message.reasoning)) {
+      return {
+        ...message,
+        reasoning: (message.reasoning as unknown as string[]).join('\n')
+      };
+    }
+    return message;
+  });
+}
+
 export function getMostRecentUserMessage(messages: Array<CustomMessage>) {
   const userMessages = messages.filter((message) => message.role === 'user');
   return userMessages.at(-1);
