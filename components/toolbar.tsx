@@ -27,6 +27,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { sanitizeUIMessages } from '@/lib/utils';
+// Import the actual CustomMessage type from your project
+import { CustomMessage } from '@/lib/types';
 
 import {
   ArrowUpIcon,
@@ -40,13 +42,6 @@ import {
 } from './icons';
 import { artifactDefinitions, ArtifactKind } from './artifact';
 import { UseChatHelpers } from 'ai/react';
-
-// Import or define CustomMessage type to match what sanitizeUIMessages expects
-// This is a placeholder - you'll need to replace this with your actual CustomMessage type
-interface CustomMessage extends Message {
-  chatId?: string;
-  // Add any other properties that might be in your CustomMessage type
-}
 
 // Export ArtifactToolbarItem
 export type ArtifactToolbarItem = {
@@ -492,12 +487,10 @@ const PureToolbar = ({
             className="p-3"
             onClick={() => {
               stop();
-              // Use a double type assertion to safely convert between types
+              // Use a simpler approach that doesn't create a local CustomMessage type
               setMessages((messages) => {
-                // First assert messages as CustomMessage[] to satisfy sanitizeUIMessages
-                const sanitized = sanitizeUIMessages(messages as CustomMessage[]);
-                // Then convert back to Message[] to satisfy setMessages
-                return sanitized as unknown as Message[];
+                // Just cast directly to avoid type issues
+                return sanitizeUIMessages(messages as any) as Message[];
               });
             }}
           >
