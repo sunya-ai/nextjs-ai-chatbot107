@@ -1,4 +1,6 @@
+// lib/ai/enhancers/index.ts
 import { ContextEnhancer, EnhancerResponse } from './types';
+import * as AssistantsModule from './assistants';
 
 export const combineEnhancers = (enhancers: ContextEnhancer[]) => {
   return {
@@ -22,5 +24,12 @@ export const combineEnhancers = (enhancers: ContextEnhancer[]) => {
   };
 };
 
-export * from './assistants';
+// Export the createAssistantsEnhancer function explicitly
+export const { createAssistantsEnhancer } = AssistantsModule;
+
+// Export all types from the types module
 export * from './types';
+
+// If you need to use the EnhancerResponse from assistants module elsewhere,
+// export it with a different name
+export type { EnhancerResponse as AssistantsEnhancerResponse } from './assistants';
