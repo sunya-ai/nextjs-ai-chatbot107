@@ -73,6 +73,40 @@ const PurePreviewMessage = ({
     return 'chatId' in msg && 'reasoning' in msg && Array.isArray(msg.reasoning); // More precise check for reasoning as string[]
   };
 
+  // Create a wrapper function to adapt setMessages to the expected type
+  const setMessagesAdapter = useCallback((messagesOrUpdater: Message[] | ((messages: Message[]) => Message[])) => {
+    if (typeof messagesOrUpdater === 'function') {
+      // Handle function updater
+      setMessages((prevCustomMessages) => {
+        // Convert CustomMessages to Messages for the updater function
+        const prevAsMessages = prevCustomMessages.map(msg => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt,
+          reasoning: msg.reasoning && msg.reasoning.length > 0 ? msg.reasoning[0] : undefined
+        }));
+        
+        // Apply the updater function
+        const updatedMessages = messagesOrUpdater(prevAsMessages);
+        
+        // Convert Messages back to CustomMessages
+        return updatedMessages.map(msg => ({
+          ...msg,
+          chatId,
+          reasoning: msg.reasoning ? [msg.reasoning] : [],
+        })) as CustomMessage[];
+      });
+    } else {
+      // Handle direct array assignment
+      setMessages(messagesOrUpdater.map(msg => ({
+        ...msg,
+        chatId,
+        reasoning: msg.reasoning ? [msg.reasoning] : [],
+      })) as CustomMessage[]);
+    }
+  }, [setMessages, chatId]);
+
   // Handle AI-driven edits via chat commands
   const handleAIEdit = useCallback(async (newContent: string) => {
     if (isReadonly) return;
@@ -196,9 +230,9 @@ const PurePreviewMessage = ({
 
                 <MessageEditor
                   key={message.id}
-                  message={message as Message} // Cast to Message for MessageEditor, assuming it expects Message
+                  message={message as Message} // Cast to Message for MessageEditor
                   setMode={setMode}
-                  setMessages={setMessages}
+                  setMessages={setMessagesAdapter} // Use the adapter function
                   reload={reload}
                 />
               </div>
