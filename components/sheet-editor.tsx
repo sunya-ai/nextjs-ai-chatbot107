@@ -17,7 +17,7 @@ type SheetEditorProps = {
 };
 
 // Define a type for Handsontable changes
-type HandsontableChange = [number, number | string, string | null, string | null];
+type HandsontableChange = [number, number | string, any, any];
 
 const MIN_ROWS = 50;
 const MIN_COLS = 26;
@@ -76,8 +76,21 @@ const PureSpreadsheetEditor = ({
   }, [parseData, logoMap, isCurrentVersion]);
 
   const handleSpreadsheetUpdate = (changes: HandsontableChange[] | null) => {
-    if (changes) {
-      const newData = changes.map((c: HandsontableChange) => c[3]); // Extract new values with type annotation
+    if (changes && changes.length > 0) {
+      // Create a deep copy of the current spreadsheet data
+      const newData = JSON.parse(JSON.stringify(spreadsheetData));
+      
+      // Apply each change to the corresponding position in the data
+      changes.forEach((change: HandsontableChange) => {
+        const [row, col, , newValue] = change;
+        // Handle both numeric and string column identifiers
+        const colIndex = typeof col === 'string' ? parseInt(col, 10) : col;
+        // Update the value at the specified position
+        if (newData[row]) {
+          newData[row][colIndex] = newValue;
+        }
+      });
+      
       setSpreadsheetData(newData);
       const csvContent = unparse(newData);
       saveContent(csvContent, true); // Debounced save
