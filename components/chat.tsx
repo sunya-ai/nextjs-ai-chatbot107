@@ -214,8 +214,8 @@ export function Chat({
             setChatMessages(prev => {
               const prevAsMessages = prev; // Already Message[]
               // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
-              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id));
-              const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[]; // Explicitly assert as CustomMessage[]
+              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id)) as Message[]; // Explicitly assert as Message[] before conversion
+              const updatedMessages = messagesOrUpdater(prevAsCustomMessages.map(m => toCustomMessage(m, id))) as CustomMessage[]; // Convert to CustomMessage[] and assert
               // Convert back to Message[] for setChatMessages, handling reasoning correctly
               return updatedMessages.map(m => toMessage(m));
             });
