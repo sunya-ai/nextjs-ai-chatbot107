@@ -44,6 +44,11 @@ const customComponents = {
     <input {...props} className="border p-1 rounded" />,
 };
 
+// Type guard to determine if the message is a CustomMessage - moved outside the component
+const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
+  return 'chatId' in msg && 'reasoning' in msg && Array.isArray(msg.reasoning); // More precise check for reasoning as string[]
+};
+
 const PurePreviewMessage = ({
   chatId,
   message,
@@ -67,11 +72,6 @@ const PurePreviewMessage = ({
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const { append } = useChat({ id: chatId });
-
-  // Type guard to determine if the message is a CustomMessage
-  const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
-    return 'chatId' in msg && 'reasoning' in msg && Array.isArray(msg.reasoning); // More precise check for reasoning as string[]
-  };
 
   // Create a wrapper function to adapt setMessages to the expected type
   const setMessagesAdapter = useCallback((messagesOrUpdater: Message[] | ((messages: Message[]) => Message[])) => {
