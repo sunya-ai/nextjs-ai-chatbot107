@@ -8,14 +8,16 @@ export interface CustomMessage extends BaseMessage {
   chatId: string; // Required for database alignment
   sources?: { title: string; url: string }[]; // Optional sources from AI SDK
   metadata?: any | null; // Optional metadata for artifacts or other data
-  reasoning?: string[]; // Optional reasoning, defaults to [] in practice (never null)
+  reasoning?: string | undefined; // Match BaseMessage's reasoning type (string or undefined)
 }
 
-// Optional: Define UIArtifact here for consistency, if used with messages
+// Define ArtifactKind for document kinds
+import { ArtifactKind } from '@/components/artifact';
+
 export interface UIArtifact {
   title: string;
   documentId: string;
-  kind: string; // Use string or reference ArtifactKind from components/artifact.tsx
+  kind: ArtifactKind; // Use ArtifactKind for type safety
   content: string;
   isVisible: boolean;
   status: 'streaming' | 'idle';
