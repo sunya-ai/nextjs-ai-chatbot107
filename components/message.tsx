@@ -3,7 +3,7 @@
 import type { ChatRequestOptions, Message } from 'ai';
 import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
-import { memo, useCallback, useEffect, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useState } from 'react';
 
 import type { Vote } from '@/lib/db/schema';
 import { CustomMessage } from '@/lib/types'; // Import CustomMessage with reasoning: string[] | undefined
@@ -89,7 +89,7 @@ const PurePreviewMessage = ({
   const [MDXContent, setMDXContent] = useState<any>(null);
   useEffect(() => {
     if (typeof message.content === 'string') {
-      evaluate(message.content, {})
+      evaluate(message.content, { Fragment })
         .then(setMDXContent)
         .catch(console.error);
     }
