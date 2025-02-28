@@ -220,9 +220,9 @@ export function Chat({
               return updatedMessages.map(m => toMessage(m));
             });
           } else {
-            // Convert Message[] to CustomMessage[] before setting, then back to Message[]
-            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id)) as CustomMessage[]; // Explicitly assert as CustomMessage[]
-            setChatMessages(customMessages.map(m => toMessage(m)));
+            // Convert CustomMessage[] to Message[] before setting
+            const customMessages = messagesOrUpdater.map(m => toMessage(m)) as Message[]; // Explicitly assert as Message[]
+            setChatMessages(customMessages);
           }
         }}
         reload={reload}
