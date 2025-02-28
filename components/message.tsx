@@ -89,9 +89,9 @@ const PurePreviewMessage = ({
   const [MDXContent, setMDXContent] = useState<any>(null);
   useEffect(() => {
     if (typeof message.content === 'string') {
-      evaluate(message.content, {
-        components: customComponents,
-      }).then(setMDXContent).catch(console.error);
+      evaluate(message.content)
+        .then(setMDXContent)
+        .catch(console.error);
     }
   }, [message.content]);
 
