@@ -528,10 +528,12 @@ function PureArtifact({
                       // Convert CustomMessage[] to Message[] for the function input
                       setMessages((prevCustomMessages) => {
                         const prevAsMessages = prevCustomMessages.map(toMessage);
+                        // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
+                        const prevAsCustomMessages = prevAsMessages.map(m => toCustomMessage(m, chatId));
                         // Call the updater function with the converted messages
-                        const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
-                        // Convert the result back to CustomMessage[]
-                        return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
+                        const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
+                        // No need to convert back since updatedMessages is already CustomMessage[]
+                        return updatedMessages;
                       });
                     } else {
                       // Handle array directly with explicit mapping (already CustomMessage[])
@@ -563,7 +565,7 @@ function PureArtifact({
                         setMessages((prevCustomMessages) => {
                           const prevAsMessages = prevCustomMessages.map(toMessage);
                           // Call the updater function with the converted messages
-                          const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[]; // Updated to Message[] to match MultimodalInput expectation
+                          const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                           // Convert the result back to CustomMessage[]
                           return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
@@ -702,7 +704,7 @@ function PureArtifact({
                         setMessages((prevCustomMessages) => {
                           const prevAsMessages = prevCustomMessages.map(toMessage);
                           // Call the updater function with the converted messages
-                          const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[]; // Updated to Message[] to match Toolbar expectation
+                          const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
                           // Convert the result back to CustomMessage[]
                           return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
