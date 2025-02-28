@@ -5,7 +5,7 @@ import { getDocumentById, saveSuggestions } from '@/lib/db/queries';
 import { Suggestion } from '@/lib/db/schema';
 import { generateUUID } from '@/lib/utils';
 import { myProvider } from '../models';
-import { ArtifactKind } from '@/lib/types'; // Updated import path if needed
+import { ArtifactKind } from '@/components/artifact'; // Updated import path to point to artifact.tsx
 
 interface RequestSuggestionsProps {
   session: Session;
@@ -88,7 +88,7 @@ export const requestSuggestions = ({
         return {
           id: documentId,
           title: document.title,
-          kind: document.kind as ArtifactKind, // Type assertion remains valid with import
+          kind: document.kind as ArtifactKind, // Type assertion works with the correct import
           message: 'Suggestions have been added to the document',
         };
       } catch (error) {
