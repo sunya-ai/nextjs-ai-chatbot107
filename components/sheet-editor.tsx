@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useState, useMemo } from 'react';
 import { HotTable } from '@handsontable/react';
-import Handsontable, { CellChange } from 'handsontable';
+import Handsontable from 'handsontable';
 import { parse, unparse } from 'papaparse';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -72,19 +72,22 @@ const PureSpreadsheetEditor = ({
     if (isCurrentVersion) loadLogos();
   }, [parseData, logoMap, isCurrentVersion]);
 
-  const handleSpreadsheetUpdate = (changes: CellChange[] | null) => {
+  // Use a more generic any[] type for changes to avoid type errors
+  const handleSpreadsheetUpdate = (changes: any[] | null) => {
     if (changes && changes.length > 0) {
       // Create a deep copy of the current spreadsheet data
       const newData = JSON.parse(JSON.stringify(spreadsheetData));
       
       // Apply each change to the corresponding position in the data
-      changes.forEach((change: CellChange) => {
-        const [row, col, , newValue] = change;
-        // Handle both numeric and string column identifiers
-        const colIndex = typeof col === 'string' ? parseInt(col, 10) : col;
-        // Update the value at the specified position
-        if (newData[row]) {
-          newData[row][colIndex] = newValue;
+      changes.forEach((change) => {
+        if (Array.isArray(change) && change.length >= 4) {
+          const [row, col, , newValue] = change;
+          // Handle both numeric and string column identifiers
+          const colIndex = typeof col === 'string' ? parseInt(col, 10) : col;
+          // Update the value at the specified position
+          if (newData[row]) {
+            newData[row][colIndex] = newValue;
+          }
         }
       });
       
