@@ -16,6 +16,9 @@ type SheetEditorProps = {
   currentVersionIndex: number;
 };
 
+// Define a type for Handsontable changes
+type HandsontableChange = [number, number | string, string | null, string | null];
+
 const MIN_ROWS = 50;
 const MIN_COLS = 26;
 
@@ -72,9 +75,9 @@ const PureSpreadsheetEditor = ({
     if (isCurrentVersion) loadLogos();
   }, [parseData, logoMap, isCurrentVersion]);
 
-  const handleSpreadsheetUpdate = (changes: any) => {
+  const handleSpreadsheetUpdate = (changes: HandsontableChange[] | null) => {
     if (changes) {
-      const newData = changes.map(c => c[3]); // Extract new values
+      const newData = changes.map((c: HandsontableChange) => c[3]); // Extract new values with type annotation
       setSpreadsheetData(newData);
       const csvContent = unparse(newData);
       saveContent(csvContent, true); // Debounced save
