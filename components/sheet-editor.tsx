@@ -140,10 +140,7 @@ const PureSpreadsheetEditor = ({
         filters={true}
         dropdownMenu={true}
         manualColumnSort={true}
-        formulas={{
-          engine: 'hyperformula',
-          enabled: true
-        }}
+        formulas={true} // Simplified to use default settings
         licenseKey="non-commercial-and-evaluation" // Use your license or non-commercial key
         height={400}
         width="100%"
