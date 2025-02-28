@@ -139,8 +139,7 @@ const PureSpreadsheetEditor = ({
         rowHeaders={true}
         filters={true}
         dropdownMenu={true}
-        manualColumnSort={true}
-        // formulas prop removed to avoid type errors
+        manualColumnMove={true} // Changed from manualColumnSort to manualColumnMove
         licenseKey="non-commercial-and-evaluation" // Use your license or non-commercial key
         height={400}
         width="100%"
