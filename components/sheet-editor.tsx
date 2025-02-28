@@ -54,7 +54,7 @@ const PureSpreadsheetEditor = ({
     // Load logos for companies in the first column
     const loadLogos = async () => {
       const companies = parseData.map(row => row[0]).filter(Boolean);
-      const newLogos = {};
+      const newLogos: { [key: string]: string | null } = {}; // Add proper type here
       for (const company of new Set(companies)) {
         if (!logoMap[company]) {
           try {
@@ -88,7 +88,16 @@ const PureSpreadsheetEditor = ({
     renderer: i === 0 ? logoRenderer : undefined, // Custom renderer for first column (logos)
   }));
 
-  const logoRenderer = (instance, td, row, col, prop, value, cellProperties) => {
+  // Add proper typing for the renderer
+  const logoRenderer = (
+    instance: Handsontable, 
+    td: HTMLTableCellElement, 
+    row: number, 
+    col: number, 
+    prop: string | number, 
+    value: any, 
+    cellProperties: Handsontable.CellProperties
+  ) => {
     if (col === 0 && value) { // First column for company names
       const logo = logoMap[value] || null;
       if (logo) {
