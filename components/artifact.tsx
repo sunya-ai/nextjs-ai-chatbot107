@@ -80,7 +80,7 @@ function toMessage(msg: CustomMessage): Message {
   };
 }
 
-export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'chart';
+export type ArtifactKind = 'text' | 'code' | 'image' | 'sheet' | 'table' | 'chart';
 
 export interface ArtifactAction {
   icon: React.ReactNode;
