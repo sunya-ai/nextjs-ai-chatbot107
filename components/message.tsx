@@ -30,17 +30,18 @@ import { useChat } from 'ai/react';
 
 // Define custom MDX components for interactivity
 const customComponents = {
-  button: ({ children, onClick }) => (
+  button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
     <button onClick={onClick} className="bg-blue-500 text-white px-2 py-1 rounded">
       {children}
     </button>
   ),
-  form: ({ children, onSubmit }) => (
+  form: ({ children, onSubmit }: { children: React.ReactNode; onSubmit?: (e: React.FormEvent) => void }) => (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
       {children}
     </form>
   ),
-  input: (props) => <input {...props} className="border p-1 rounded" />,
+  input: (props: React.InputHTMLAttributes<HTMLInputElement>) => 
+    <input {...props} className="border p-1 rounded" />,
 };
 
 const PurePreviewMessage = ({
