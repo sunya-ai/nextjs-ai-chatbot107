@@ -82,10 +82,8 @@ const PurePreviewMessage = ({
     await append({
       role: 'user',
       content: `Edit message ${message.id} to say: ${newContent}`,
-      // Add chatId for CustomMessage if needed by append
-      chatId, // Include chatId to match CustomMessage
-    } as CustomMessage);
-  }, [chatId, message.id, setMessages, append, isReadonly]);
+    });
+  }, [message.id, setMessages, append, isReadonly]);
 
   // Evaluate MDX content dynamically (runtime)
   const [MDXContent, setMDXContent] = useState<any>(null);
