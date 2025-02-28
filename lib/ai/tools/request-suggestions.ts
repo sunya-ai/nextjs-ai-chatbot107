@@ -5,7 +5,7 @@ import { getDocumentById, saveSuggestions } from '@/lib/db/queries';
 import { Suggestion } from '@/lib/db/schema';
 import { generateUUID } from '@/lib/utils';
 import { myProvider } from '../models';
-import { ArtifactKind } from '@/lib/types'; // Added import for ArtifactKind
+import { ArtifactKind } from '@/lib/types'; // Updated import path if needed
 
 interface RequestSuggestionsProps {
   session: Session;
