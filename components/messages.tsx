@@ -85,7 +85,6 @@ function PureMessages({
   isArtifactVisible,
   className, // Add className to props destructuring
 }: MessagesProps) {
-  // Fix: Remove the generic type parameter from useScrollToBottom
   const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
   const { append } = useChat({ id: chatId });
 
@@ -97,14 +96,28 @@ function PureMessages({
   // Stream reasoning steps during loading
   useEffect(() => {
     if (isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user') {
+      // Fix: Convert the array of reasoning steps to a single string for append
       append({
         role: 'assistant',
         content: '',
-        reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'], // Use string[] for multiple steps
-        chatId, // Ensure chatId is included for CustomMessage
-      } as CustomMessage);
+        reasoning: 'Analyzing response...', // Convert from array to single string for append
+      });
+      
+      // Then update our messages array to include all reasoning steps
+      setMessages(prevMessages => {
+        const lastAssistantMessageIndex = prevMessages.findIndex(m => m.role === 'assistant');
+        if (lastAssistantMessageIndex >= 0) {
+          const updatedMessages = [...prevMessages];
+          updatedMessages[lastAssistantMessageIndex] = {
+            ...updatedMessages[lastAssistantMessageIndex],
+            reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'],
+          };
+          return updatedMessages;
+        }
+        return prevMessages;
+      });
     }
-  }, [isLoading, messages, append, chatId]);
+  }, [isLoading, messages, append, chatId, setMessages]);
 
   // Handle AI-driven edits from chat commands
   useEffect(() => {
