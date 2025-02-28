@@ -2,7 +2,7 @@
 
 import React, { memo, useEffect, useState, useMemo } from 'react';
 import { HotTable } from '@handsontable/react';
-import Handsontable from 'handsontable';
+import Handsontable, { CellChange } from 'handsontable';
 import { parse, unparse } from 'papaparse';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
@@ -15,9 +15,6 @@ type SheetEditorProps = {
   isCurrentVersion: boolean;
   currentVersionIndex: number;
 };
-
-// Define a type for Handsontable changes
-type HandsontableChange = [number, number | string, any, any];
 
 const MIN_ROWS = 50;
 const MIN_COLS = 26;
@@ -75,13 +72,13 @@ const PureSpreadsheetEditor = ({
     if (isCurrentVersion) loadLogos();
   }, [parseData, logoMap, isCurrentVersion]);
 
-  const handleSpreadsheetUpdate = (changes: HandsontableChange[] | null) => {
+  const handleSpreadsheetUpdate = (changes: CellChange[] | null) => {
     if (changes && changes.length > 0) {
       // Create a deep copy of the current spreadsheet data
       const newData = JSON.parse(JSON.stringify(spreadsheetData));
       
       // Apply each change to the corresponding position in the data
-      changes.forEach((change: HandsontableChange) => {
+      changes.forEach((change: CellChange) => {
         const [row, col, , newValue] = change;
         // Handle both numeric and string column identifiers
         const colIndex = typeof col === 'string' ? parseInt(col, 10) : col;
@@ -139,8 +136,8 @@ const PureSpreadsheetEditor = ({
         rowHeaders={true}
         filters={true}
         dropdownMenu={true}
-        manualColumnMove={true} // Changed from manualColumnSort to manualColumnMove
-        licenseKey="non-commercial-and-evaluation" // Use your license or non-commercial key
+        manualColumnMove={true}
+        licenseKey="non-commercial-and-evaluation"
         height={400}
         width="100%"
         afterChange={(changes, source) => {
