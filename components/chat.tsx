@@ -107,7 +107,7 @@ export function Chat({
       role: msg.role,
       content: msg.content,
       createdAt: msg.createdAt,
-      reasoning: reasoningValue as string | undefined, // Explicitly assert type to match Message
+      reasoning: reasoningValue, // No need for explicit assertion, TypeScript infers string | undefined
     };
   }
 
@@ -118,7 +118,7 @@ export function Chat({
       chatId, // Add chatId to match CustomMessage
       sources: (msg as Partial<CustomMessage>).sources || undefined,
       metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-      reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning as string[]) : undefined, // Convert string to string[] | keep string[]
+      reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : [msg.reasoning]) : undefined, // Ensure reasoning is always string[] if present
     } as CustomMessage; // Explicitly assert as CustomMessage
   }
 
@@ -214,7 +214,7 @@ export function Chat({
             setChatMessages(prev => {
               const prevAsMessages = prev; // Already Message[]
               // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
-              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id)) as Message[]; // Explicitly assert as Message[] before conversion
+              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id)) as Message[]; // Explicitly assert as Message[]
               const updatedMessages = messagesOrUpdater(prevAsCustomMessages.map(m => toCustomMessage(m, id))) as CustomMessage[]; // Convert to CustomMessage[] and assert
               // Convert back to Message[] for setChatMessages, handling reasoning correctly
               return updatedMessages.map(m => toMessage(m));
