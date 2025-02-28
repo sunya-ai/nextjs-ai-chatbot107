@@ -41,6 +41,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } fro
 import axios from 'axios';
 import * as Papa from 'papaparse';
 import { CustomMessage } from '@/lib/types';
+import { DataStreamDelta } from './data-stream-handler'; // Added import for DataStreamDelta
 
 // Type guard function to check if a message is a CustomMessage
 function isCustomMessage(message: Message | CustomMessage): message is CustomMessage {
@@ -60,7 +61,6 @@ function toCustomMessage(msg: Message, chatId: string): CustomMessage {
 
 // Helper function to convert CustomMessage to Message
 function toMessage(msg: CustomMessage): Message {
-  // Handle the reasoning property correctly
   let reasoningValue: string | undefined = undefined;
   
   if (msg.reasoning) {
@@ -128,6 +128,11 @@ export interface ArtifactDefinition {
   content: ComponentType<any>;
   initialize?: (options: { documentId: string; setMetadata: Dispatch<SetStateAction<any>> }) => void;
   toolbar?: any[];
+  onStreamPart?: (params: {
+    streamPart: DataStreamDelta;
+    setArtifact: Dispatch<SetStateAction<UIArtifact>>;
+    setMetadata: Dispatch<SetStateAction<any>>;
+  }) => void; // Added onStreamPart property
 }
 
 export const artifactDefinitions: ArtifactDefinition[] = [
@@ -173,8 +178,8 @@ interface ArtifactProps {
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
   reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
-  votes: Vote[] | undefined; // Already optional
-  dataStream?: DataStreamWriter; // Already optional (no change needed here)
+  votes: Vote[] | undefined;
+  dataStream?: DataStreamWriter;
   isReadonly: boolean;
 }
 
@@ -192,7 +197,7 @@ function PureArtifact({
   setMessages,
   reload,
   votes,
-  dataStream, // Still optional
+  dataStream,
   isReadonly,
 }: ArtifactProps) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
@@ -361,12 +366,11 @@ function PureArtifact({
     }
   }, [artifact.documentId, artifactDefinition, setMetadata]);
 
-  // Parse spreadsheet data for charting and logos
   const parseSpreadsheetData = useCallback((csvContent: string) => {
     const parsed = Papa.parse<string[]>(csvContent, { skipEmptyLines: true, header: true });
     return parsed.data.map(row => ({
-      name: row[0] || 'Unknown', // Assuming first column is company name/label
-      value: parseFloat(row[1] || '0'), // Assuming second column is a numeric value
+      name: row[0] || 'Unknown',
+      value: parseFloat(row[1] || '0'),
     })).filter(row => row.name && !isNaN(row.value));
   }, []);
 
@@ -377,7 +381,6 @@ function PureArtifact({
     return [];
   }, [artifact.kind, artifact.content, parseSpreadsheetData]);
 
-  // Fetch logos for companies in spreadsheet data with error handling and fallback
   const fetchLogo = async (company: string) => {
     try {
       const domain = company.toLowerCase().replace(/\s+/g, '') + '.com';
@@ -385,7 +388,7 @@ function PureArtifact({
       return URL.createObjectURL(response.data);
     } catch (error) {
       console.error('[artifact] Failed to fetch logo for', company, ':', error);
-      return '/default-logo.png'; // Use a fallback logo
+      return '/default-logo.png';
     }
   };
 
@@ -413,11 +416,9 @@ function PureArtifact({
     }));
   }, [showLogos, chartData, logoMap]);
 
-  // Stream progress updates for artifacts (removed dataStream event listeners since DataStreamWriter in ai@4.1.46 doesn’t support them)
   useEffect(() => {
     if (artifact.status === 'streaming' && (artifact.kind === 'sheet' || artifact.kind === 'chart')) {
       const totalRows = chartData.length || 1;
-      // Update local progress state for UI display only
       for (let i = 0; i < totalRows; i++) {
         setProgress(`Processing row ${i + 1} of ${totalRows}`);
       }
@@ -430,7 +431,6 @@ function PureArtifact({
   const handleChartEdit = useCallback((newConfig: any) => {
     setMetadata((prev: any) => ({ ...prev, chartConfig: newConfig }));
     console.log('[artifact] Chart updated with new config:', JSON.stringify(newConfig));
-    // Simulate update via route.ts (placeholder for actual implementation)
     fetch(`/api/document?id=${artifact.documentId}`, {
       method: 'POST',
       body: JSON.stringify({
@@ -441,7 +441,6 @@ function PureArtifact({
     }).then(() => console.log('[artifact] Chart update sent to server'));
   }, [artifact.documentId, artifact.title, chartData, setMetadata]);
 
-  // Create props for the content component
   const contentProps = {
     title: artifact.title,
     content: isCurrentVersion
@@ -522,21 +521,16 @@ function PureArtifact({
                   chatId={chatId}
                   isLoading={isLoading}
                   votes={votes}
-                  messages={messages} // Already CustomMessage[]
+                  messages={messages}
                   setMessages={(messagesOrUpdater) => {
                     if (typeof messagesOrUpdater === 'function') {
-                      // Convert CustomMessage[] to Message[] for the function input
                       setMessages((prevCustomMessages) => {
                         const prevAsMessages = prevCustomMessages.map(toMessage);
-                        // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
                         const prevAsCustomMessages = prevAsMessages.map(m => toCustomMessage(m, chatId));
-                        // Call the updater function with the converted messages
                         const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
-                        // No need to convert back since updatedMessages is already CustomMessage[]
                         return updatedMessages;
                       });
                     } else {
-                      // Handle array directly with explicit mapping (already CustomMessage[])
                       setMessages(messagesOrUpdater as CustomMessage[]);
                     }
                   }}
@@ -556,21 +550,16 @@ function PureArtifact({
                     stop={stop}
                     attachments={attachments}
                     setAttachments={setAttachments}
-                    // Convert CustomMessage[] to Message[] by mapping each CustomMessage to a Message
                     messages={messages.map(toMessage)}
                     append={append}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Convert CustomMessage[] to Message[] for the function input
                         setMessages((prevCustomMessages) => {
                           const prevAsMessages = prevCustomMessages.map(toMessage);
-                          // Call the updater function with the converted messages
                           const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
-                          // Convert the result back to CustomMessage[]
                           return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
                       } else {
-                        // Handle array directly with explicit mapping (already CustomMessage[])
                         setMessages(messagesOrUpdater.map(m => 
                           isCustomMessage(m) ? m : toCustomMessage(m, chatId)
                         ) as CustomMessage[]);
@@ -700,16 +689,12 @@ function PureArtifact({
                     stop={stop}
                     setMessages={(messagesOrUpdater) => {
                       if (typeof messagesOrUpdater === 'function') {
-                        // Convert CustomMessage[] to Message[] for the function input
                         setMessages((prevCustomMessages) => {
                           const prevAsMessages = prevCustomMessages.map(toMessage);
-                          // Call the updater function with the converted messages
                           const updatedMessages = messagesOrUpdater(prevAsMessages) as Message[];
-                          // Convert the result back to CustomMessage[]
                           return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId));
                         });
                       } else {
-                        // Handle array directly with explicit mapping (already CustomMessage[])
                         setMessages(messagesOrUpdater.map(m => 
                           isCustomMessage(m) ? m : toCustomMessage(m, chatId)
                         ) as CustomMessage[]);
