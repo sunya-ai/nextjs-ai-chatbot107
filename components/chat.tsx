@@ -12,11 +12,41 @@ import { Messages } from './messages';
 import { VisibilityType } from './visibility-selector';
 import { useArtifactSelector } from '@/hooks/use-artifact';
 import { toast } from 'sonner';
-import { CustomMessage } from '@/lib/types'; // Import CustomMessage with reasoning: string[] | undefined
+import { CustomMessage } from '@/lib/types';
 
 // Type guard to check if a message is a CustomMessage
 function isCustomMessage(msg: Message | CustomMessage): msg is CustomMessage {
   return 'chatId' in msg;
+}
+
+// Convert CustomMessage or Message to Message
+function toMessage(msg: CustomMessage | Message): Message {
+  let reasoningValue: string | undefined = undefined;
+  if (msg.reasoning) {
+    if (Array.isArray(msg.reasoning)) {
+      reasoningValue = msg.reasoning[0]; // Take first element if array
+    } else if (typeof msg.reasoning === 'string') {
+      reasoningValue = msg.reasoning; // Use string directly
+    }
+  }
+  return {
+    id: msg.id,
+    role: msg.role,
+    content: msg.content,
+    createdAt: msg.createdAt,
+    reasoning: reasoningValue,
+  };
+}
+
+// Convert Message to CustomMessage
+function toCustomMessage(msg: Message, chatId: string): CustomMessage {
+  return {
+    ...msg,
+    chatId,
+    sources: (msg as Partial<CustomMessage>).sources || undefined,
+    metadata: (msg as Partial<CustomMessage>).metadata || undefined,
+    reasoning: msg.reasoning ? [msg.reasoning] : undefined, // Wrap string in array
+  };
 }
 
 export function Chat({
@@ -27,7 +57,7 @@ export function Chat({
   isReadonly,
 }: {
   id: string;
-  initialMessages: Array<CustomMessage>; // Updated to CustomMessage with reasoning: string[] | undefined
+  initialMessages: Array<CustomMessage>;
   selectedChatModel: string;
   selectedVisibilityType: VisibilityType;
   isReadonly: boolean;
@@ -36,7 +66,7 @@ export function Chat({
   const {
     messages,
     input,
-    setInput, // Add setInput to destructuring
+    setInput,
     handleInputChange,
     handleSubmit,
     isLoading,
@@ -47,14 +77,13 @@ export function Chat({
   } = useChat({
     id,
     body: { id, selectedChatModel: selectedChatModel },
-    initialMessages: initialMessages.map(msg => toMessage(msg)), // Convert CustomMessage to Message for useChat
+    initialMessages: initialMessages.map(msg => toMessage(msg)),
     experimental_throttle: 100,
     sendExtraMessageFields: true,
     generateId: generateUUID,
     onFinish: (message) => {
-      // Convert Message to CustomMessage, then back to Message for append, handling reasoning
       const customMessage = toCustomMessage(message, id);
-      append(toMessage(customMessage)); // Convert to Message with reasoning as string
+      append(toMessage(customMessage));
     },
     onError: (error) => {
       toast.error('An error occurred, please try again!');
@@ -63,64 +92,28 @@ export function Chat({
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
-
-  // Initialize votes as Vote[] | undefined to match Artifact's prop type
-  const [votes, setVotes] = useState<Vote[] | undefined>(undefined); // Allow undefined
+  const [votes, setVotes] = useState<Vote[] | undefined>(undefined);
 
   useEffect(() => {
     setIsMounted(true);
-    // Fetch votes for this chatId if needed (e.g., from a database or API)
-    // Example: fetchVotes(id).then(setVotes);
     const fetchVotes = async () => {
       try {
-        // Placeholder for actual database query using @vercel/postgres or drizzle-orm
-        // Replace with your actual DB query logic
         const response = await fetch(`/api/votes?chatId=${id}`);
         if (response.ok) {
           const votesData = await response.json() as Vote[];
           setVotes(votesData);
         } else {
-          setVotes([]); // Fallback to empty array if no votes are found
+          setVotes([]);
         }
       } catch (error) {
         console.error('Failed to fetch votes:', error);
-        setVotes([]); // Fallback to empty array on error
+        setVotes([]);
       }
     };
     fetchVotes();
   }, [id]);
 
   if (!isMounted) return null;
-
-  // Helper function to convert CustomMessage or Message to Message
-  function toMessage(msg: CustomMessage | Message): Message {
-    let reasoningValue: string | undefined = undefined;
-    if (msg.reasoning) {
-      if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
-        reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string (matches SDK)
-      } else if (typeof msg.reasoning === 'string') {
-        reasoningValue = msg.reasoning;
-      }
-    }
-    return {
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      createdAt: msg.createdAt,
-      reasoning: reasoningValue, // No need for explicit assertion, TypeScript infers string | undefined
-    };
-  }
-
-  // Helper function to convert Message to CustomMessage
-  function toCustomMessage(msg: Message, chatId: string): CustomMessage {
-    return {
-      ...msg,
-      chatId, // Add chatId to match CustomMessage
-      sources: (msg as Partial<CustomMessage>).sources || undefined,
-      metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-      reasoning: msg.reasoning ? [msg.reasoning] : undefined, // Ensure reasoning is always string[] if present
-    } as CustomMessage; // Explicitly assert as CustomMessage
-  }
 
   return (
     <div className="flex flex-col min-w-0 h-dvh bg-gray-100 dark:bg-gray-900">
@@ -135,22 +128,17 @@ export function Chat({
       <Messages
         chatId={id}
         isLoading={isLoading}
-        votes={votes} // Pass votes to Messages if needed (optional, based on Messages component)
-        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for display
+        votes={votes}
+        messages={messages.map(m => toCustomMessage(m, id))}
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
             setChatMessages(prev => {
-              const prevAsMessages = prev; // Already Message[]
-              // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
-              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id));
-              const updatedMessages = messagesOrUpdater(prevAsCustomMessages);
-              // Convert back to Message[] for setChatMessages
+              const prevCustomMessages = prev.map(m => toCustomMessage(m, id));
+              const updatedMessages = messagesOrUpdater(prevCustomMessages);
               return updatedMessages.map(m => toMessage(m));
             });
           } else {
-            // Convert Message[] to CustomMessage[] before setting, then back to Message[]
-            const customMessages = messagesOrUpdater.map(m => toCustomMessage(m, id)) as CustomMessage[];
-            setChatMessages(customMessages.map(m => toMessage(m)));
+            setChatMessages(messagesOrUpdater.map(m => toMessage(m)));
           }
         }}
         reload={reload}
@@ -164,35 +152,21 @@ export function Chat({
           <MultimodalInput
             chatId={id}
             input={input}
-            setInput={setInput} // Now correctly passed
+            setInput={setInput}
             handleSubmit={handleSubmit}
             isLoading={isLoading}
             stop={stop}
             attachments={attachments}
             setAttachments={setAttachments}
-            messages={messages.map(m => toMessage(m))} // Convert Messages to Message[] for MultimodalInput
+            messages={messages}
             setMessages={(messagesOrUpdater) => {
               if (typeof messagesOrUpdater === 'function') {
-                setChatMessages(prev => {
-                  const prevAsMessages = prev; // Already Message[]
-                  const updatedMessages = messagesOrUpdater(prevAsMessages);
-                  return updatedMessages.map(m => {
-                    if (isCustomMessage(m)) {
-                      return toMessage(m); // Convert CustomMessage to Message
-                    }
-                    return m; // Already a Message, return as-is
-                  });
-                });
+                setChatMessages(prev => messagesOrUpdater(prev));
               } else {
-                setChatMessages(messagesOrUpdater.map(m => {
-                  if (isCustomMessage(m)) {
-                    return toMessage(m); // Convert CustomMessage to Message
-                  }
-                  return m; // Already a Message, return as-is
-                }));
+                setChatMessages(messagesOrUpdater.map(m => toMessage(m)));
               }
             }}
-            append={append} // Use append directly, as it expects Message | CreateMessage
+            append={append}
             className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
           />
         )}
@@ -201,33 +175,27 @@ export function Chat({
       <Artifact
         chatId={id}
         input={input}
-        setInput={setInput} // Also pass to Artifact if needed
+        setInput={setInput}
         handleSubmit={handleSubmit}
         isLoading={isLoading}
         stop={stop}
         attachments={attachments}
         setAttachments={setAttachments}
-        append={(message, options) => append(toMessage(message as CustomMessage), options)} // Convert CustomMessage to Message before appending
-        messages={messages.map(m => toCustomMessage(m, id))} // Convert Messages to CustomMessages for Artifact
+        append={(message, options) => append(toMessage(message as CustomMessage), options)}
+        messages={messages.map(m => toCustomMessage(m, id))}
         setMessages={(messagesOrUpdater) => {
           if (typeof messagesOrUpdater === 'function') {
             setChatMessages(prev => {
-              const prevAsMessages = prev; // Already Message[]
-              // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
-              const prevAsCustomMessages = prev.map(m => toCustomMessage(m, id)) as Message[]; // Explicitly assert as Message[]
-              const updatedMessages = messagesOrUpdater(prevAsCustomMessages.map(m => toCustomMessage(m, id))) as CustomMessage[]; // Convert to CustomMessage[] and assert
-              // Convert back to Message[] for setChatMessages, handling reasoning correctly
+              const prevCustomMessages = prev.map(m => toCustomMessage(m, id));
+              const updatedMessages = messagesOrUpdater(prevCustomMessages);
               return updatedMessages.map(m => toMessage(m));
             });
           } else {
-            // Convert CustomMessage[] to Message[] before setting
-            const customMessages = messagesOrUpdater.map(m => toMessage(m)) as Message[]; // Explicitly assert as Message[]
-            setChatMessages(customMessages);
+            setChatMessages(messagesOrUpdater.map(m => toMessage(m)));
           }
         }}
         reload={reload}
-        votes={votes} // Pass votes as Vote[] | undefined to match Artifact's prop type
-        // Removed dataStream as it's not available in useChat@4.1.46
+        votes={votes}
         isReadonly={isReadonly}
       />
     </div>
