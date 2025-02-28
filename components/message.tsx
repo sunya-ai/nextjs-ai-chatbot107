@@ -95,10 +95,12 @@ const PurePreviewMessage = ({
     }
   }, [message.content]);
 
-  // Handle reasoning based on message type
+  // Handle reasoning based on message type - fixing the string[] vs string issue
   const reasoning = isCustomMessage(message)
-    ? message.reasoning || [] // Use empty array if undefined, ensuring string[]
-    : message.reasoning ? [message.reasoning] : []; // Convert string to string[] or use empty array
+    ? message.reasoning && message.reasoning.length > 0 
+      ? message.reasoning[0] // Use the first entry from the array
+      : undefined
+    : message.reasoning;
 
   return (
     <AnimatePresence>
@@ -137,14 +139,14 @@ const PurePreviewMessage = ({
               </div>
             )}
 
-            {reasoning.length > 0 && (
+            {reasoning && (
               <MessageReasoning
                 isLoading={isLoading}
-                reasoning={reasoning} // Pass reasoning as string[] consistently
+                reasoning={reasoning} // Now passing string
               />
             )}
 
-            {(message.content || reasoning.length > 0) && mode === 'view' && (
+            {(message.content || reasoning) && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
                 {message.role === 'user' && !isReadonly && (
                   <>
@@ -287,14 +289,18 @@ export const PreviewMessage = memo(
   PurePreviewMessage,
   (prevProps, nextProps) => {
     if (prevProps.isLoading !== nextProps.isLoading) return false;
-    // Adjust reasoning comparison for CustomMessage (string[] | undefined) vs Message (string | undefined)
-    if (
-      isCustomMessage(prevProps.message) !== isCustomMessage(nextProps.message) ||
-      (isCustomMessage(prevProps.message) && isCustomMessage(nextProps.message) && 
-       !equal(prevProps.message.reasoning, nextProps.message.reasoning)) || // Compare arrays for CustomMessage
-      (!isCustomMessage(prevProps.message) && !isCustomMessage(nextProps.message) && 
-       prevProps.message.reasoning !== nextProps.message.reasoning) // Compare strings for Message
-    ) return false;
+    // Adjust reasoning comparison to match our new approach
+    const prevReasoning = isCustomMessage(prevProps.message)
+      ? prevProps.message.reasoning && prevProps.message.reasoning.length > 0 
+        ? prevProps.message.reasoning[0] : undefined
+      : prevProps.message.reasoning;
+    
+    const nextReasoning = isCustomMessage(nextProps.message)
+      ? nextProps.message.reasoning && nextProps.message.reasoning.length > 0 
+        ? nextProps.message.reasoning[0] : undefined
+      : nextProps.message.reasoning;
+      
+    if (prevReasoning !== nextReasoning) return false;
     if (prevProps.message.content !== nextProps.message.content) return false;
     if (
       !equal(
