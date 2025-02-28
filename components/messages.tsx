@@ -85,7 +85,8 @@ function PureMessages({
   isArtifactVisible,
   className, // Add className to props destructuring
 }: MessagesProps) {
-  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
+  // Fix: Remove the generic type parameter from useScrollToBottom
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
   const { append } = useChat({ id: chatId });
 
   // Type guard to determine if a message is a CustomMessage (already defined, but included for completeness)
