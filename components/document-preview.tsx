@@ -87,7 +87,7 @@ export function DocumentPreview({
     return <LoadingSkeleton artifactKind={result?.kind ?? args?.kind} />;
   }
 
-  // Widen type to include ArtifactKind and allow null
+  // Add fileUrl: null to match the Document type
   const document = previewDocument
     ? previewDocument
     : artifact.status === 'streaming'
@@ -98,6 +98,7 @@ export function DocumentPreview({
           id: artifact.documentId,
           createdAt: new Date(),
           userId: 'noop',
+          fileUrl: null, // Add this to match Document type
         }
       : null;
 
@@ -150,7 +151,6 @@ const PureHitboxLayer = ({
   result,
   setArtifact,
 }: {
-  // Fix the hitboxRef type to match what's expected
   hitboxRef: React.RefObject<HTMLDivElement>;
   result: any;
   setArtifact: (
