@@ -41,6 +41,13 @@ import {
 import { artifactDefinitions, ArtifactKind } from './artifact';
 import { UseChatHelpers } from 'ai/react';
 
+// Import or define CustomMessage type to match what sanitizeUIMessages expects
+// This is a placeholder - you'll need to replace this with your actual CustomMessage type
+interface CustomMessage extends Message {
+  chatId?: string;
+  // Add any other properties that might be in your CustomMessage type
+}
+
 // Export ArtifactToolbarItem
 export type ArtifactToolbarItem = {
   description: string;
@@ -485,7 +492,13 @@ const PureToolbar = ({
             className="p-3"
             onClick={() => {
               stop();
-              setMessages((messages) => sanitizeUIMessages(messages) as Message[]);
+              // Use a double type assertion to safely convert between types
+              setMessages((messages) => {
+                // First assert messages as CustomMessage[] to satisfy sanitizeUIMessages
+                const sanitized = sanitizeUIMessages(messages as CustomMessage[]);
+                // Then convert back to Message[] to satisfy setMessages
+                return sanitized as unknown as Message[];
+              });
             }}
           >
             <StopIcon />
