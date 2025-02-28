@@ -407,7 +407,7 @@ const PureToolbar = ({
       toolsByArtifactKind.push({
         description: "Generate Chart",
         icon: <SparklesIcon />, // Using SparklesIcon as a placeholder
-        onClick: ({ appendMessage }: { appendMessage: UseChatHelpers['append'] }) => {
+        onClick: ({ appendMessage }) => {
           onGenerateChart();
         }
       });
@@ -417,7 +417,7 @@ const PureToolbar = ({
       toolsByArtifactKind.push({
         description: "Add Logos",
         icon: <CodeIcon />, // Using CodeIcon as a placeholder
-        onClick: ({ appendMessage }: { appendMessage: UseChatHelpers['append'] }) => {
+        onClick: ({ appendMessage }) => {
           onAddLogos();
         }
       });
@@ -485,7 +485,7 @@ const PureToolbar = ({
             className="p-3"
             onClick={() => {
               stop();
-              setMessages((messages) => sanitizeUIMessages(messages));
+              setMessages((messages) => sanitizeUIMessages(messages) as Message[]);
             }}
           >
             <StopIcon />
