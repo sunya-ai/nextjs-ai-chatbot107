@@ -3,19 +3,19 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/app/(auth)/auth';
 import { Chat } from '@/components/chat';
 import { getChatById, getMessagesByChatId } from '@/lib/db/queries';
-import { convertToUIMessages, convertCustomToMessages } from '@/lib/utils';
+import { convertToUIMessages } from '@/lib/utils';
 import { DataStreamHandler } from '@/components/data-stream-handler';
 import { DEFAULT_CHAT_MODEL } from '@/lib/ai/models';
 import { CustomMessage, Message } from '@/lib/types'; // Import Message from lib/types
 
-// Helper function to convert Message to CustomMessage (copied from message.tsx or chat.tsx)
+// Helper function to convert Message to CustomMessage
 function toCustomMessage(msg: Message, chatId: string): CustomMessage {
   return {
     ...msg,
     chatId, // Add chatId to match CustomMessage
     sources: (msg as Partial<CustomMessage>).sources || undefined,
     metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning) : undefined,
+    reasoning: msg.reasoning || undefined, // Preserve reasoning as string | undefined, no array wrapping
   };
 }
 
