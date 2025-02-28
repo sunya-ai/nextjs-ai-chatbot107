@@ -528,10 +528,12 @@ function PureArtifact({
                       // Convert CustomMessage[] to Message[] for the function input
                       setMessages((prevCustomMessages) => {
                         const prevAsMessages = prevCustomMessages.map(toMessage);
+                        // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
+                        const prevAsCustomMessages = prevAsMessages.map(m => toCustomMessage(m, chatId));
                         // Call the updater function with the converted messages
-                        // Ensure messagesOrUpdater returns CustomMessage[] by converting Message[] back
-                        const updatedMessages = messagesOrUpdater(prevAsMessages);
-                        return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)) as CustomMessage[];
+                        const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
+                        // No need to convert back since updatedMessages is already CustomMessage[]
+                        return updatedMessages;
                       });
                     } else {
                       // Handle array directly with explicit mapping (already CustomMessage[])
@@ -562,10 +564,12 @@ function PureArtifact({
                         // Convert CustomMessage[] to Message[] for the function input
                         setMessages((prevCustomMessages) => {
                           const prevAsMessages = prevCustomMessages.map(toMessage);
+                          // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
+                          const prevAsCustomMessages = prevAsMessages.map(m => toCustomMessage(m, chatId));
                           // Call the updater function with the converted messages
-                          // Ensure messagesOrUpdater returns CustomMessage[] by converting Message[] back
-                          const updatedMessages = messagesOrUpdater(prevAsMessages);
-                          return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)) as CustomMessage[];
+                          const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
+                          // No need to convert back since updatedMessages is already CustomMessage[]
+                          return updatedMessages;
                         });
                       } else {
                         // Handle array directly with explicit mapping (already CustomMessage[])
@@ -699,10 +703,12 @@ function PureArtifact({
                         // Convert CustomMessage[] to Message[] for the function input
                         setMessages((prevCustomMessages) => {
                           const prevAsMessages = prevCustomMessages.map(toMessage);
+                          // Convert Message[] to CustomMessage[] before passing to messagesOrUpdater
+                          const prevAsCustomMessages = prevAsMessages.map(m => toCustomMessage(m, chatId));
                           // Call the updater function with the converted messages
-                          // Ensure messagesOrUpdater returns CustomMessage[] by converting Message[] back
-                          const updatedMessages = messagesOrUpdater(prevAsMessages);
-                          return updatedMessages.map(m => isCustomMessage(m) ? m : toCustomMessage(m, chatId)) as CustomMessage[];
+                          const updatedMessages = messagesOrUpdater(prevAsCustomMessages) as CustomMessage[];
+                          // No need to convert back since updatedMessages is already CustomMessage[]
+                          return updatedMessages;
                         });
                       } else {
                         // Handle array directly with explicit mapping (already CustomMessage[])
