@@ -2,7 +2,7 @@ import { ChatRequestOptions, Message } from 'ai';
 import { PreviewMessage, ThinkingMessage } from './message';
 import { useScrollToBottom } from './use-scroll-to-bottom';
 import { Overview } from './overview';
-import { memo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { Vote } from '@/lib/db/schema';
 import equal from 'fast-deep-equal';
 import { MDXRemote } from 'next-mdx-remote';
@@ -10,20 +10,22 @@ import { serialize } from 'next-mdx-remote/serialize';
 import { useChat } from 'ai/react';
 import { CustomMessage } from '@/lib/types'; // Import CustomMessage with reasoning: string[] | undefined
 import { cn } from '@/lib/utils'; // Import cn for className utility (assuming it's available)
+import { ChevronDownIcon } from './icons'; // Add missing import
 
 // Define custom MDX components for interactivity
 const customComponents = {
-  button: ({ children, onClick }) => (
+  button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
     <button onClick={onClick} className="bg-blue-500 text-white px-2 py-1 rounded">
       {children}
     </button>
   ),
-  form: ({ children, onSubmit }) => (
+  form: ({ children, onSubmit }: { children: React.ReactNode; onSubmit?: (e: React.FormEvent) => void }) => (
     <form onSubmit={onSubmit} className="flex flex-col gap-2">
       {children}
     </form>
   ),
-  input: (props) => <input {...props} className="border p-1 rounded" />,
+  input: (props: React.InputHTMLAttributes<HTMLInputElement>) => 
+    <input {...props} className="border p-1 rounded" />,
 };
 
 interface MessagesProps {
