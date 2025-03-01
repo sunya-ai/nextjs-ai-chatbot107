@@ -8,9 +8,9 @@ import equal from 'fast-deep-equal';
 import { MDXRemote } from 'next-mdx-remote';
 import { serialize } from 'next-mdx-remote/serialize';
 import { useChat } from 'ai/react';
-import { CustomMessage } from '@/lib/types'; // Import CustomMessage with reasoning: string[] | undefined
-import { cn } from '@/lib/utils'; // Import cn for className utility (assuming it's available)
-import { ChevronDownIcon } from './icons'; // Add missing import
+import { CustomMessage } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { ChevronDownIcon } from './icons';
 
 // Define custom MDX components for interactivity
 const customComponents = {
@@ -32,45 +32,47 @@ interface MessagesProps {
   chatId: string;
   isLoading: boolean;
   votes: Array<Vote> | undefined;
-  messages: Array<CustomMessage>; // Strictly CustomMessage[]
+  messages: Array<CustomMessage>;
   setMessages: (
     messagesOrUpdater: CustomMessage[] | ((messages: CustomMessage[]) => CustomMessage[])
-  ) => void; // Updated to strictly CustomMessage[]
+  ) => void;
   reload: (
     chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   isReadonly: boolean;
   isArtifactVisible: boolean;
-  className?: string; // Add optional className property for styling
+  className?: string;
 }
 
-// Helper function to convert Message to CustomMessage (defined in chat.tsx, but included here for completeness)
+// Helper function to convert Message to CustomMessage
 const toCustomMessage = (msg: Message, chatId: string): CustomMessage => {
   return {
     ...msg,
-    chatId, // Add chatId to match CustomMessage
+    chatId,
     sources: (msg as Partial<CustomMessage>).sources || undefined,
     metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-    reasoning: msg.reasoning ? (typeof msg.reasoning === 'string' ? [msg.reasoning] : msg.reasoning as string[]) : undefined, // Convert string to string[] | keep string[]
-  } as CustomMessage; // Explicitly assert as CustomMessage
+    reasoning: msg.reasoning,
+  } as CustomMessage;
 };
 
-// Helper function to convert CustomMessage to Message (defined in chat.tsx, but included here for completeness)
+// Helper function to convert CustomMessage to Message
 const toMessage = (msg: CustomMessage): Message => {
   let reasoningValue: string | undefined = undefined;
+  
   if (msg.reasoning) {
     if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
-      reasoningValue = msg.reasoning[0]; // Use the first reasoning step as a string (matches SDK)
+      reasoningValue = msg.reasoning[0];
     } else if (typeof msg.reasoning === 'string') {
       reasoningValue = msg.reasoning;
     }
   }
+  
   return {
     id: msg.id,
     role: msg.role,
     content: msg.content,
     createdAt: msg.createdAt,
-    reasoning: reasoningValue as string | undefined, // Explicitly assert type to match Message
+    reasoning: reasoningValue
   };
 };
 
@@ -83,12 +85,12 @@ function PureMessages({
   reload,
   isReadonly,
   isArtifactVisible,
-  className, // Add className to props destructuring
+  className,
 }: MessagesProps) {
-  const [messagesContainerRef, messagesEndRef] = useScrollToBottom();
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
   const { append } = useChat({ id: chatId });
 
-  // Type guard to determine if a message is a CustomMessage (already defined, but included for completeness)
+  // Type guard to determine if a message is a CustomMessage
   const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
     return 'chatId' in msg;
   };
@@ -96,14 +98,12 @@ function PureMessages({
   // Stream reasoning steps during loading
   useEffect(() => {
     if (isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user') {
-      // Fix: Convert the array of reasoning steps to a single string for append
       append({
         role: 'assistant',
         content: '',
-        reasoning: 'Analyzing response...', // Convert from array to single string for append
+        reasoning: 'Analyzing response...',
       });
       
-      // Then update our messages array to include all reasoning steps
       setMessages(prevMessages => {
         const lastAssistantMessageIndex = prevMessages.findIndex(m => m.role === 'assistant');
         if (lastAssistantMessageIndex >= 0) {
@@ -144,19 +144,19 @@ function PureMessages({
             rehypePlugins: [require('rehype-highlight'), require('rehype-raw')],
           },
         });
-        return { ...message, mdxSource } as CustomMessage; // Ensure the return type is CustomMessage
+        return { ...message, mdxSource } as CustomMessage;
       }
-      return message as CustomMessage; // Ensure the return type is CustomMessage
+      return message as CustomMessage;
     });
   }, [messages]);
 
   return (
     <div
       ref={messagesContainerRef}
-      className={cn('flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4', className)}
+      className={cn("flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4", className)}
     >
       {messages.length === 0 && <Overview />}
-
+      
       {messages.map((message, index) => (
         <div key={message.id} className="mb-4">
           <PreviewMessage
@@ -172,6 +172,7 @@ function PureMessages({
             reload={reload}
             isReadonly={isReadonly}
           />
+          
           {message.sources && (
             <footer className="mt-2 p-2 bg-gray-800 rounded text-white text-sm">
               <button
@@ -196,15 +197,14 @@ function PureMessages({
               </ul>
             </footer>
           )}
+          
           {message.reasoning && (
             <footer className="mt-2 p-2 bg-gray-600 rounded text-white text-sm">
               <p>Reasoning:</p>
               <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
                 {Array.isArray(message.reasoning) 
                   ? message.reasoning.map((step, index) => (
-                      <li key={index} className="truncate">
-                        {step}
-                      </li>
+                      <li key={index} className="truncate">{step}</li>
                     ))
                   : typeof message.reasoning === 'string' ? <li>{message.reasoning}</li> : null}
               </ul>
@@ -212,11 +212,11 @@ function PureMessages({
           )}
         </div>
       ))}
-
+      
       {isLoading &&
         messages.length > 0 &&
         messages[messages.length - 1].role === 'user' && <ThinkingMessage />}
-
+        
       <div
         ref={messagesEndRef}
         className="shrink-0 min-w-[24px] min-h-[24px]"
@@ -227,12 +227,10 @@ function PureMessages({
 
 export const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (prevProps.isArtifactVisible && nextProps.isArtifactVisible) return true;
-
   if (prevProps.isLoading !== nextProps.isLoading) return false;
   if (prevProps.isLoading && nextProps.isLoading) return false;
   if (prevProps.messages.length !== nextProps.messages.length) return false;
   if (!equal(prevProps.messages, nextProps.messages)) return false;
   if (!equal(prevProps.votes, nextProps.votes)) return false;
-
   return true;
 });
