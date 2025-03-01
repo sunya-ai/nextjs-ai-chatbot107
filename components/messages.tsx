@@ -153,7 +153,7 @@ function PureMessages({
   return (
     <div
       ref={messagesContainerRef}
-      className={cn('flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4', className)} // Use className prop here
+      className={cn('flex flex-col min-w-0 gap-6 flex-1 overflow-y-scroll pt-4', className)}
     >
       {messages.length === 0 && <Overview />}
 
@@ -161,18 +161,18 @@ function PureMessages({
         <div key={message.id} className="mb-4">
           <PreviewMessage
             chatId={chatId}
-            message={message} // Already CustomMessage, no conversion needed
+            message={message}
             isLoading={isLoading && messages.length - 1 === index}
             vote={
               votes
                 ? votes.find((vote) => vote.messageId === message.id)
                 : undefined
             }
-            setMessages={setMessages} // Passes CustomMessage[]
+            setMessages={setMessages}
             reload={reload}
             isReadonly={isReadonly}
           />
-          {message.sources && ( // Safely access sources since message is CustomMessage
+          {message.sources && (
             <footer className="mt-2 p-2 bg-gray-800 rounded text-white text-sm">
               <button
                 onClick={() => {/* Toggle visibility (implement if needed) */}}
@@ -196,7 +196,7 @@ function PureMessages({
               </ul>
             </footer>
           )}
-          {message.reasoning && ( // Render reasoning as string[] if present
+          {message.reasoning && (
             <footer className="mt-2 p-2 bg-gray-600 rounded text-white text-sm">
               <p>Reasoning:</p>
               <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
