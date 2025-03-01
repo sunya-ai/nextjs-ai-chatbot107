@@ -1,373 +1,280 @@
-'use client';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { Message, Document } from '@/lib/db/schema';
+import { CustomMessage } from '@/lib/types';
 
-import type {
-  Attachment,
-  ChatRequestOptions,
-  CreateMessage,
-  Message,
-} from 'ai';
-import cx from 'classnames';
-import type React from 'react';
-import {
-  useRef,
-  useEffect,
-  useState,
-  useCallback,
-  type Dispatch,
-  type SetStateAction,
-  type ChangeEvent,
-  memo,
-} from 'react';
-import { toast } from 'sonner';
-import { useLocalStorage, useWindowSize } from 'usehooks-ts';
+export function cn(...inputs: any[]) {
+  return twMerge(clsx(inputs));
+}
 
-import { sanitizeUIMessagesAsStandard } from '@/lib/utils';
+interface ApplicationError extends Error {
+  info: string;
+  status: number;
+}
 
-import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
-import { PreviewAttachment } from './preview-attachment';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { SuggestedActions } from './suggested-actions';
-import equal from 'fast-deep-equal';
+export const fetcher = async (url: string) => {
+  const res = await fetch(url);
 
-function PureMultimodalInput({
-  chatId,
-  input,
-  setInput,
-  isLoading,
-  stop,
-  attachments,
-  setAttachments,
+  if (!res.ok) {
+    const error = new Error(
+      'An error occurred while fetching the data.',
+    ) as ApplicationError;
+
+    error.info = await res.json();
+    error.status = res.status;
+
+    throw error;
+  }
+
+  return res.json();
+};
+
+export function getLocalStorage(key: string) {
+  if (typeof window !== 'undefined') {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  }
+  return [];
+}
+
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+function addToolMessageToChat({
+  toolMessage,
   messages,
-  setMessages,
-  append,
-  handleSubmit,
-  className,
 }: {
-  chatId: string;
-  input: string;
-  setInput: (value: string) => void;
-  isLoading: boolean;
-  stop: () => void;
-  attachments: Array<Attachment>;
-  setAttachments: Dispatch<SetStateAction<Array<Attachment>>>;
-  messages: Array<Message>;
-  setMessages: Dispatch<SetStateAction<Array<Message>>>;
-  append: (
-    message: Message | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
-  handleSubmit: (
-    event?: {
-      preventDefault?: () => void;
-    },
-    chatRequestOptions?: ChatRequestOptions,
-  ) => void;
-  className?: string;
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { width } = useWindowSize();
+  toolMessage: CoreToolMessage;
+  messages: Array<CustomMessage>;
+}): Array<CustomMessage> {
+  return messages.map((message) => {
+    if (message.toolInvocations) {
+      return {
+        ...message,
+        toolInvocations: message.toolInvocations.map((toolInvocation) => {
+          const toolResult = toolMessage.content.find(
+            (tool) => tool.toolCallId === toolInvocation.toolCallId,
+          );
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      adjustHeight();
+          if (toolResult) {
+            return {
+              ...toolInvocation,
+              state: 'result',
+              result: toolResult.result,
+            };
+          }
+
+          return toolInvocation;
+        }),
+      };
     }
-  }, []);
 
-  const adjustHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight + 2}px`;
+    return message;
+  });
+}
+
+export function convertToUIMessages(
+  messages: Array<Message>,
+): Array<CustomMessage> {
+  return messages.reduce((chatMessages: Array<CustomMessage>, message) => {
+    if (message.role === 'tool') {
+      return addToolMessageToChat({
+        toolMessage: message as CoreToolMessage,
+        messages: chatMessages,
+      });
     }
-  };
 
-  const resetHeight = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = '98px';
+    let textContent = '';
+    const toolInvocations: Array<ToolInvocation> = [];
+    const sources: { title: string; url: string }[] = message.sources ?? [];
+    const metadata: any | null = message.metadata ?? null;
+    let reasoning: string | undefined = message.reasoning || undefined;
+
+    if (typeof message.content === 'string') {
+      textContent = message.content;
+    } else if (Array.isArray(message.content)) {
+      for (const content of message.content) {
+        if (content.type === 'text') {
+          textContent += content.text;
+        } else if (content.type === 'tool-call') {
+          toolInvocations.push({
+            state: 'call',
+            toolCallId: content.toolCallId,
+            toolName: content.toolName,
+            args: content.args,
+          });
+        } else if (content.type === 'reasoning') {
+          reasoning = content.reasoning as string || undefined;
+        }
+      }
     }
-  };
 
-  const [localStorageInput, setLocalStorageInput] = useLocalStorage(
-    'input',
-    '',
-  );
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      const domValue = textareaRef.current.value;
-      // Prefer DOM value over localStorage to handle hydration
-      const finalValue = domValue || localStorageInput || '';
-      setInput(finalValue);
-      adjustHeight();
-    }
-    // Only run once after hydration
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    setLocalStorageInput(input);
-  }, [input, setLocalStorageInput]);
-
-  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(event.target.value);
-    adjustHeight();
-  };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadQueue, setUploadQueue] = useState<Array<string>>([]);
-
-  const submitForm = useCallback(() => {
-    window.history.replaceState({}, '', `/chat/${chatId}`);
-
-    handleSubmit(undefined, {
-      experimental_attachments: attachments,
+    chatMessages.push({
+      id: message.id,
+      role: message.role as CustomMessage['role'],
+      content: textContent,
+      chatId: message.chatId,
+      reasoning,
+      toolInvocations,
+      sources,
+      metadata,
     });
 
-    setAttachments([]);
-    setLocalStorageInput('');
-    resetHeight();
+    return chatMessages;
+  }, []);
+}
 
-    if (width && width > 768) {
-      textareaRef.current?.focus();
-    }
-  }, [
-    attachments,
-    handleSubmit,
-    setAttachments,
-    setLocalStorageInput,
-    width,
-    chatId,
-  ]);
+/**
+ * Converts CustomMessage array to Message array for UI rendering compatibility
+ * Handles the conversion of the reasoning property from string to string (preserving or formatting)
+ */
+export function convertCustomToMessages(messages: Array<CustomMessage>): Array<Message> {
+  return messages.map(message => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    createdAt: message.createdAt,
+    reasoning: message.reasoning,
+    ...(message.metadata && { metadata: message.metadata }),
+    ...(message.sources && { sources: message.sources }),
+    ...(message.toolInvocations && { toolInvocations: message.toolInvocations })
+  })) as Message[];
+}
 
-  const uploadFile = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
+type ResponseMessageWithoutId = CoreToolMessage | CoreAssistantMessage;
+type ResponseMessage = ResponseMessageWithoutId & { id: string };
 
-    try {
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: formData,
-      });
+export function sanitizeResponseMessages({
+  messages,
+  reasoning,
+}: {
+  messages: Array<ResponseMessage>;
+  reasoning: string | undefined;
+}) {
+  const toolResultIds: Array<string> = [];
 
-      if (response.ok) {
-        const data = await response.json();
-        const { url, pathname, contentType } = data;
-
-        return {
-          url,
-          name: pathname,
-          contentType: contentType,
-        };
+  for (const message of messages) {
+    if (message.role === 'tool') {
+      for (const content of message.content) {
+        if (content.type === 'tool-result') {
+          toolResultIds.push(content.toolCallId);
+        }
       }
-      const { error } = await response.json();
-      toast.error(error);
-    } catch (error) {
-      toast.error('Failed to upload file, please try again!');
     }
-  };
+  }
 
-  const handleFileChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.target.files || []);
+  const messagesBySanitizedContent = messages.map((message) => {
+    if (message.role !== 'assistant') return message;
 
-      setUploadQueue(files.map((file) => file.name));
+    if (typeof message.content === 'string') return message;
 
-      try {
-        const uploadPromises = files.map((file) => uploadFile(file));
-        const uploadedAttachments = await Promise.all(uploadPromises);
-        const successfullyUploadedAttachments = uploadedAttachments.filter(
-          (attachment) => attachment !== undefined,
-        );
+    const sanitizedContent = message.content.filter((content) =>
+      content.type === 'tool-call'
+        ? toolResultIds.includes(content.toolCallId)
+        : content.type === 'text'
+          ? content.text.length > 0
+          : true,
+    );
 
-        setAttachments((currentAttachments) => [
-          ...currentAttachments,
-          ...successfullyUploadedAttachments,
-        ]);
-      } catch (error) {
-        console.error('Error uploading files!', error);
-      } finally {
-        setUploadQueue([]);
+    if (reasoning) {
+      sanitizedContent.push({ type: 'reasoning', reasoning });
+    }
+
+    return {
+      ...message,
+      content: sanitizedContent,
+    };
+  });
+
+  return messagesBySanitizedContent.filter(
+    (message) => message.content.length > 0,
+  );
+}
+
+export function sanitizeUIMessages(messages: Array<CustomMessage>): Array<CustomMessage> {
+  const messagesBySanitizedToolInvocations = messages.map((message) => {
+    if (message.role !== 'assistant') return message;
+
+    if (!message.toolInvocations) return message;
+
+    const toolResultIds: Array<string> = [];
+
+    for (const toolInvocation of message.toolInvocations) {
+      if (toolInvocation.state === 'result') {
+        toolResultIds.push(toolInvocation.toolCallId);
       }
-    },
-    [setAttachments],
-  );
+    }
 
-  return (
-    <div className="relative w-full flex flex-col gap-4">
-      {messages.length === 0 &&
-        attachments.length === 0 &&
-        uploadQueue.length === 0 && (
-          <SuggestedActions append={append} chatId={chatId} />
-        )}
+    const sanitizedToolInvocations = message.toolInvocations.filter(
+      (toolInvocation) =>
+        toolInvocation.state === 'result' ||
+        toolResultIds.includes(toolInvocation.toolCallId),
+    );
 
-      <input
-        type="file"
-        className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
-        ref={fileInputRef}
-        multiple
-        onChange={handleFileChange}
-        tabIndex={-1}
-      />
+    return {
+      ...message,
+      toolInvocations: sanitizedToolInvocations,
+    };
+  });
 
-      {(attachments.length > 0 || uploadQueue.length > 0) && (
-        <div className="flex flex-row gap-2 overflow-x-scroll items-end">
-          {attachments.map((attachment) => (
-            <PreviewAttachment key={attachment.url} attachment={attachment} />
-          ))}
-
-          {uploadQueue.map((filename) => (
-            <PreviewAttachment
-              key={filename}
-              attachment={{
-                url: '',
-                name: filename,
-                contentType: '',
-              }}
-              isUploading={true}
-            />
-          ))}
-        </div>
-      )}
-
-      <Textarea
-        ref={textareaRef}
-        placeholder="Send a message..."
-        value={input}
-        onChange={handleInput}
-        className={cx(
-          'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base bg-muted pb-10 dark:border-zinc-700',
-          className,
-        )}
-        rows={2}
-        autoFocus
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-
-            if (isLoading) {
-              toast.error('Please wait for the model to finish its response!');
-            } else {
-              submitForm();
-            }
-          }
-        }}
-      />
-
-      <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start">
-        <AttachmentsButton fileInputRef={fileInputRef} isLoading={isLoading} />
-      </div>
-
-      <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-        {isLoading ? (
-          <StopButton stop={stop} setMessages={setMessages} />
-        ) : (
-          <SendButton
-            input={input}
-            submitForm={submitForm}
-            uploadQueue={uploadQueue}
-          />
-        )}
-      </div>
-    </div>
+  return messagesBySanitizedToolInvocations.filter(
+    (message) =>
+      message.content.length > 0 ||
+      (message.toolInvocations && message.toolInvocations.length > 0) ||
+      (message.sources && message.sources.length > 0) ||
+      message.metadata !== null ||
+      message.chatId !== undefined,
   );
 }
 
-export const MultimodalInput = memo(
-  PureMultimodalInput,
-  (prevProps, nextProps) => {
-    if (prevProps.input !== nextProps.input) return false;
-    if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (!equal(prevProps.attachments, nextProps.attachments)) return false;
+/**
+ * Sanitizes UI messages and returns standard Message[] array
+ * This version is specifically for components that expect Message[] return type
+ */
+export function sanitizeUIMessagesAsStandard(messages: Array<Message>): Array<Message> {
+  // First sanitize as if they're CustomMessages, ensuring content remains a string
+  const sanitizedMessages = sanitizeUIMessages(messages as unknown as Array<CustomMessage>) as Array<CustomMessage>;
 
-    return true;
-  },
-);
+  // Then ensure each message conforms to Message type with content as string
+  return sanitizedMessages.map((message): Message => {
+    // Ensure content is a string (default to empty string if undefined or non-string)
+    const content = typeof message.content === 'string' ? message.content : '';
 
-function PureAttachmentsButton({
-  fileInputRef,
-  isLoading,
-}: {
-  fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
-  isLoading: boolean;
-}) {
-  return (
-    <Button
-      className="rounded-md rounded-bl-lg p-[7px] h-fit dark:border-zinc-700 hover:dark:bg-zinc-900 hover:bg-zinc-200"
-      onClick={(event) => {
-        event.preventDefault();
-        fileInputRef.current?.click();
-      }}
-      disabled={isLoading}
-      variant="ghost"
-    >
-      <PaperclipIcon size={14} />
-    </Button>
-  );
+    // Ensure reasoning is string | undefined, handling any potential array or unknown
+    let reasoning: string | undefined = undefined;
+    if (message.reasoning) {
+      if (typeof message.reasoning === 'string') {
+        reasoning = message.reasoning;
+      } else if (Array.isArray(message.reasoning)) {
+        reasoning = message.reasoning.join('\n');
+      }
+    }
+
+    return {
+      id: message.id,
+      role: message.role,
+      content, // Ensure content is a string
+      createdAt: message.createdAt,
+      reasoning, // Ensure reasoning is string | undefined
+    };
+  });
 }
 
-const AttachmentsButton = memo(PureAttachmentsButton);
-
-function PureStopButton({
-  stop,
-  setMessages,
-}: {
-  stop: () => void;
-  setMessages: Dispatch<SetStateAction<Array<Message>>>;
-}) {
-  return (
-    <Button
-      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
-      onClick={(event) => {
-        event.preventDefault();
-        stop();
-        setMessages((messages) => {
-          const sanitized = sanitizeUIMessagesAsStandard(messages) as Message[];
-          // Filter out extra properties to match Message type
-          return sanitized.map((msg) => ({
-            id: msg.id,
-            role: msg.role,
-            content: typeof msg.content === 'string' ? msg.content : '',
-            createdAt: msg.createdAt,
-            reasoning: msg.reasoning,
-          }));
-        });
-      }}
-      disabled={!isLoading}
-    >
-      <StopIcon size={14} />
-    </Button>
-  );
+export function getMostRecentUserMessage(messages: Array<CustomMessage>) {
+  const userMessages = messages.filter((message) => message.role === 'user');
+  return userMessages.at(-1);
 }
 
-const StopButton = memo(PureStopButton);
+export function getDocumentTimestampByIndex(
+  documents: Array<Document>,
+  index: number,
+) {
+  if (!documents) return new Date();
+  if (index > documents.length) return new Date();
 
-function PureSendButton({
-  submitForm,
-  input,
-  uploadQueue,
-}: {
-  submitForm: () => void;
-  input: string;
-  uploadQueue: Array<string>;
-}) {
-  return (
-    <Button
-      className="rounded-full p-1.5 h-fit border dark:border-zinc-600"
-      onClick={(event) => {
-        event.preventDefault();
-        submitForm();
-      }}
-      disabled={input.length === 0 || uploadQueue.length > 0}
-    >
-      <ArrowUpIcon size={14} />
-    </Button>
-  );
+  return documents[index].createdAt;
 }
-
-const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
-  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length)
-    return false;
-  if (prevProps.input !== nextProps.input) return false;
-  return true;
-});
