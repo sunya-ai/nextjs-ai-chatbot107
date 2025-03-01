@@ -3,6 +3,40 @@ import { twMerge } from 'tailwind-merge';
 import { Message, Document } from '@/lib/db/schema';
 import { CustomMessage } from '@/lib/types';
 
+// Add these type definitions at the top of utils.ts
+interface CoreToolMessage {
+  id: string;
+  role: 'tool';
+  content: Array<{
+    type: string;
+    toolCallId: string;
+    result?: any;
+  }>;
+  createdAt: Date;
+}
+
+interface ToolInvocation {
+  state: 'call' | 'result';
+  toolCallId: string;
+  toolName?: string;
+  args?: any;
+  result?: any;
+}
+
+interface CoreAssistantMessage {
+  id: string;
+  role: 'assistant';
+  content: Array<{
+    type: string;
+    text?: string;
+    toolCallId?: string;
+    toolName?: string;
+    args?: any;
+    reasoning?: string;
+  }> | string;
+  createdAt: Date;
+}
+
 export function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
 }
