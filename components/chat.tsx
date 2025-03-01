@@ -16,25 +16,17 @@ import { CustomMessage } from '@/lib/types';
 
 // Type guard to check if a message is a CustomMessage
 function isCustomMessage(msg: Message | CustomMessage): msg is CustomMessage {
-  return 'chatId' in msg;
+  return 'chatId' in msg && typeof msg.chatId === 'string';
 }
 
 // Convert CustomMessage or Message to Message
 function toMessage(msg: CustomMessage | Message): Message {
-  let reasoningValue: string | undefined = undefined;
-  if (msg.reasoning) {
-    if (Array.isArray(msg.reasoning)) {
-      reasoningValue = msg.reasoning[0]; // Take first element if array
-    } else if (typeof msg.reasoning === 'string') {
-      reasoningValue = msg.reasoning; // Use string directly
-    }
-  }
   return {
     id: msg.id,
     role: msg.role,
     content: msg.content,
     createdAt: msg.createdAt,
-    reasoning: reasoningValue,
+    reasoning: msg.reasoning,
   };
 }
 
