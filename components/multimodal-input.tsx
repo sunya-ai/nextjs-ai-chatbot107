@@ -321,8 +321,9 @@ function PureStopButton({
       onClick={(event) => {
         event.preventDefault();
         stop();
-        setMessages((messages) => sanitizeUIMessagesAsStandard(messages));
+        setMessages((messages) => sanitizeUIMessagesAsStandard(messages)); // Updated to ensure Message[]
       }}
+      disabled={!isLoading}
     >
       <StopIcon size={14} />
     </Button>
