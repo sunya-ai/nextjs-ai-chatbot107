@@ -331,9 +331,18 @@ export async function POST(request: Request) {
       return new Response("No user message found", { status: 400 })
     }
 
-    console.log("[route] Processing user message (first 100 chars):", userMessage.content.slice(0, 100))
+    console.log(
+      "[route] Processing user message (first 100 chars):",
+      typeof userMessage.content === "string"
+        ? userMessage.content.slice(0, 100)
+        : JSON.stringify(userMessage.content).slice(0, 100),
+    )
 
-    const content = userMessage.content.toLowerCase()
+    const content =
+      typeof userMessage.content === "string"
+        ? userMessage.content.toLowerCase()
+        : userMessage.content.map((item) => (typeof item === "string" ? item.toLowerCase() : "")).join(" ")
+
     const isSpreadsheetUpdate = content.includes("add") && (content.includes("deal") || content.includes("spreadsheet"))
 
     const userMessageFromMessagesArray = messages[messages.length - 1]
