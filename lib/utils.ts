@@ -1,20 +1,10 @@
-// lib/utils.ts
-import type {
-  CoreAssistantMessage,
-  CoreToolMessage,
-  Message,
-  TextStreamPart,
-  ToolInvocation,
-  ToolSet,
-} from 'ai';
-import { type ClassValue, clsx } from 'clsx';
+import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-
-// Import your custom types for consistency
-import type { DBMessage, Document } from '@/lib/db/schema';
+import { Message, Document } from '@/lib/db/schema'; // Updated from DBMessage to Message
 import { CustomMessage } from '@/lib/types'; // Ensure this import matches your lib/types.ts
 
-export function cn(...inputs: ClassValue[]) {
+// Utility to merge class names
+export function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
 }
 
@@ -89,7 +79,7 @@ function addToolMessageToChat({
 }
 
 export function convertToUIMessages(
-  messages: Array<DBMessage>,
+  messages: Array<Message>, // Updated from DBMessage to Message
 ): Array<CustomMessage> {
   return messages.reduce((chatMessages: Array<CustomMessage>, message) => {
     if (message.role === 'tool') {
@@ -103,7 +93,7 @@ export function convertToUIMessages(
     const toolInvocations: Array<ToolInvocation> = [];
     const sources: { title: string; url: string }[] = message.sources ?? [];
     const metadata: any | null = message.metadata ?? null;
-    let reasoning: string[] = [];
+    let reasoning: string | undefined = message.reasoning || undefined; // Updated to string | undefined
 
     if (typeof message.content === 'string') {
       textContent = message.content;
@@ -119,8 +109,8 @@ export function convertToUIMessages(
             args: content.args,
           });
         } else if (content.type === 'reasoning') {
-          // Handle reasoning as an array, defaulting to [] if undefined
-          reasoning = content.reasoning ? [content.reasoning] : [];
+          // Handle reasoning as a string, defaulting to undefined if not present
+          reasoning = content.reasoning as string || undefined;
         }
       }
     }
@@ -129,11 +119,11 @@ export function convertToUIMessages(
       id: message.id,
       role: message.role as CustomMessage['role'],
       content: textContent,
-      chatId: message.chatId, // Include chatId from DBMessage
-      reasoning: message.reasoning ?? [], // Default to empty array if undefined
+      chatId: message.chatId, // Include chatId from Message
+      reasoning, // Now string | undefined
       toolInvocations,
-      sources, // Include sources from DBMessage
-      metadata, // Include metadata from DBMessage
+      sources, // Include sources from Message
+      metadata, // Include metadata from Message
     });
 
     return chatMessages;
@@ -142,7 +132,7 @@ export function convertToUIMessages(
 
 /**
  * Converts CustomMessage array to Message array for UI rendering compatibility
- * Handles the conversion of the reasoning property from string[] to string
+ * Handles the conversion of the reasoning property from string to string (preserving or formatting)
  */
 export function convertCustomToMessages(messages: Array<CustomMessage>): Array<Message> {
   return messages.map(message => ({
@@ -150,12 +140,8 @@ export function convertCustomToMessages(messages: Array<CustomMessage>): Array<M
     role: message.role,
     content: message.content,
     createdAt: message.createdAt,
-    // Convert reasoning array to string if it exists
-    ...(message.reasoning && {
-      reasoning: Array.isArray(message.reasoning) 
-        ? message.reasoning.join('\n') 
-        : message.reasoning
-    }),
+    // Preserve reasoning as string | undefined, no array handling needed
+    reasoning: message.reasoning,
     // Include other properties as needed
     ...(message.metadata && { metadata: message.metadata }),
     ...(message.sources && { sources: message.sources }),
@@ -171,7 +157,7 @@ export function sanitizeResponseMessages({
   reasoning,
 }: {
   messages: Array<ResponseMessage>;
-  reasoning: string | string[] | undefined; // Updated to handle array or string
+  reasoning: string | undefined; // Updated to handle only string or undefined
 }) {
   const toolResultIds: Array<string> = [];
 
@@ -199,9 +185,8 @@ export function sanitizeResponseMessages({
     );
 
     if (reasoning) {
-      const reasoningArray = Array.isArray(reasoning) ? reasoning : [reasoning];
       // @ts-expect-error: reasoning message parts in SDK are WIP
-      sanitizedContent.push({ type: 'reasoning', reasoning: reasoningArray });
+      sanitizedContent.push({ type: 'reasoning', reasoning });
     }
 
     return {
@@ -261,14 +246,7 @@ export function sanitizeUIMessagesAsStandard(messages: Array<Message>): Array<Me
   
   // Then ensure each message has a proper reasoning property (string instead of string[])
   return sanitizedMessages.map(message => {
-    // If reasoning exists and is an array, convert it to a string
-    if (message.reasoning && Array.isArray(message.reasoning)) {
-      return {
-        ...message,
-        reasoning: (message.reasoning as unknown as string[]).join('\n')
-      };
-    }
-    return message;
+    return message; // No change needed, reasoning is already string | undefined
   });
 }
 
