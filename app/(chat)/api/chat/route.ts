@@ -237,13 +237,11 @@ Format your response as:
   }
 }
 
-// Modified to correctly handle Message type
+// Modified to correctly handle Message type with convertContentToString
 async function processSpreadsheetUpdate(
   messages: Message[],
   currentData?: any
 ): Promise<any> {
-  // TypeScript needs an explicit cast here because getMostRecentUserMessage 
-  // might be expecting CustomMessage[] in your implementation
   const userMessage = getMostRecentUserMessage(messages as any);
   
   if (!userMessage) return currentData || [['Date', 'Deal Type', 'Amount']];
@@ -252,10 +250,13 @@ async function processSpreadsheetUpdate(
 
   const spreadsheetPromptText = sheetPrompt;
   try {
+    // Convert userMessage.content to a string
+    const userContent = convertContentToString(userMessage.content);
+    
     const result = await generateText({
       model: google('gemini-2.0-flash'),
       system: spreadsheetPromptText,
-      messages: [{ role: 'user', content: userMessage.content }]
+      messages: [{ role: 'user', content: userContent }]
     });
 
     try {
