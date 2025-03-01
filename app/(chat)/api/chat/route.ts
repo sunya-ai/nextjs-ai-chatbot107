@@ -205,7 +205,7 @@ Format your response as:
       ? reasoningMatch[1]
           .trim()
           .split("\n")
-          .map((line) => line.trim())
+          .map((line: string) => line.trim())
           .filter(Boolean)
       : []
 
