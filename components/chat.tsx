@@ -45,7 +45,7 @@ function toCustomMessage(msg: Message, chatId: string): CustomMessage {
     chatId,
     sources: (msg as Partial<CustomMessage>).sources || undefined,
     metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-    reasoning: msg.reasoning ? [msg.reasoning] : undefined, // Wrap string in array
+    reasoning: msg.reasoning,
   };
 }
 
