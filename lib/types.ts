@@ -8,7 +8,7 @@ export interface CustomMessage extends BaseMessage {
   chatId: string; // Required for database alignment
   sources?: { title: string; url: string }[]; // Optional sources from AI SDK
   metadata?: any | null; // Optional metadata for artifacts or other data
-  reasoning?: string | undefined; // Match BaseMessage's reasoning type (string or undefined)
+  reasoning?: string | string[] | undefined; // Updated to allow both string and string[]
 }
 
 // Define ArtifactKind for document kinds
