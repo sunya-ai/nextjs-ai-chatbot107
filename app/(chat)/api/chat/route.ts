@@ -219,7 +219,7 @@ Format your response as:
 
     if (sourcesMatch && sourcesMatch[1]) {
       const sourcesText = sourcesMatch[1].trim()
-      const urlMatches = [...sourcesText.matchAll(/\[([^\]]+)\]$$(https?:\/\/[^)]+)$$/g)]
+      const urlMatches = [...sourcesText.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g)]
       sources = urlMatches.map((match) => ({
         title: match[1] || "Unknown Source",
         url: match[2],
@@ -550,7 +550,11 @@ export async function POST(request: Request) {
               text: finalContext,
               reasoning: combinedReasoning,
               sources: combinedSources,
-            } = await assistantsEnhancer(userMessage.content, fileBuffer, fileMime)
+            } = await assistantsEnhancer(
+              convertContentToString(userMessage.content),
+              fileBuffer,
+              fileMime
+            )
 
             const finalPrompt = `Context:\n${finalContext}\n\nQuery: ${userMessage.content}`
             const finalModel = getFinalModel(selectedChatModel)
