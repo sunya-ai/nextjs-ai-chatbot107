@@ -1,4 +1,4 @@
-import { type Message, createDataStreamResponse, streamText } from "ai"
+import { type Message, createDataStreamResponse, streamText, type MessageContent } from "ai"
 import { auth } from "@/app/(auth)/auth"
 import { openai } from "@ai-sdk/openai"
 import { systemPrompt, sheetPrompt } from "@/lib/ai/prompts"
@@ -159,13 +159,17 @@ function extractReasoning(message: CustomMessage | null): string[] {
 }
 
 async function needsNewSearch(
-  message: string,
+  message: string | MessageContent[],
   previousMessages: CustomMessage[],
   previousContext: { text: string; reasoning: string[]; sources: { title: string; url: string }[] },
 ): Promise<{ needsSearch: boolean; text: string; reasoning: string[]; sources: { title: string; url: string }[] }> {
+  const messageContent = Array.isArray(message)
+    ? message.map((m) => (typeof m === "string" ? m : m.text)).join(" ")
+    : message
+
   console.log(
     "[route] Starting new search check with Gemini Flash 2.0 for message (first 100 chars):",
-    message.slice(0, 100),
+    messageContent.slice(0, 100),
   )
 
   const searchPrompt = `
@@ -176,7 +180,7 @@ You are an energy research query classifier. Determine if the user's message req
 
 Previous messages: ${JSON.stringify(previousMessages)}
 Previous context: ${JSON.stringify(previousContext)}
-Current message: ${message}
+Current message: ${messageContent}
 
 Format your response as:
 - needsSearch: [true/false]
@@ -189,7 +193,7 @@ Format your response as:
     const result = await generateText({
       model: openai("gpt-3.5-turbo"), //using openai model for testing purposes.  Replace with appropriate model if needed.
       system: searchPrompt,
-      messages: [{ role: "user", content: message }],
+      messages: [{ role: "user", content: messageContent }],
     })
 
     const responseText = result.text
@@ -197,7 +201,7 @@ Format your response as:
     const needsSearch = needsSearchMatch ? needsSearchMatch[1].toLowerCase() === "true" : true
 
     const textMatch = responseText.match(/Text:\s*([^\n]+)/i)
-    const text = textMatch ? textMatch[1].trim() : message
+    const text = textMatch ? textMatch[1].trim() : messageContent
 
     const reasoningRegex = /Reasoning:\s*([\s\S]*?)(?=Sources:|$)/i
     const reasoningMatch = responseText.match(reasoningRegex)
@@ -226,7 +230,7 @@ Format your response as:
     return { needsSearch, text, reasoning, sources }
   } catch (error) {
     console.error("[route] New search check error:", error instanceof Error ? error.message : String(error))
-    return { needsSearch: true, text: message, reasoning: [], sources: [] }
+    return { needsSearch: true, text: messageContent, reasoning: [], sources: [] }
   }
 }
 
