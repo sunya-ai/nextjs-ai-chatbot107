@@ -1,9 +1,8 @@
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Message, Document } from '@/lib/db/schema'; // Updated from DBMessage to Message
-import { CustomMessage } from '@/lib/types'; // Ensure this import matches your lib/types.ts
+import { Message, Document } from '@/lib/db/schema';
+import { CustomMessage } from '@/lib/types';
 
-// Utility to merge class names
 export function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
 }
@@ -79,7 +78,7 @@ function addToolMessageToChat({
 }
 
 export function convertToUIMessages(
-  messages: Array<Message>, // Updated from DBMessage to Message
+  messages: Array<Message>,
 ): Array<CustomMessage> {
   return messages.reduce((chatMessages: Array<CustomMessage>, message) => {
     if (message.role === 'tool') {
@@ -93,7 +92,7 @@ export function convertToUIMessages(
     const toolInvocations: Array<ToolInvocation> = [];
     const sources: { title: string; url: string }[] = message.sources ?? [];
     const metadata: any | null = message.metadata ?? null;
-    let reasoning: string | undefined = message.reasoning || undefined; // Updated to string | undefined
+    let reasoning: string | undefined = message.reasoning || undefined;
 
     if (typeof message.content === 'string') {
       textContent = message.content;
@@ -109,7 +108,6 @@ export function convertToUIMessages(
             args: content.args,
           });
         } else if (content.type === 'reasoning') {
-          // Handle reasoning as a string, defaulting to undefined if not present
           reasoning = content.reasoning as string || undefined;
         }
       }
@@ -119,11 +117,11 @@ export function convertToUIMessages(
       id: message.id,
       role: message.role as CustomMessage['role'],
       content: textContent,
-      chatId: message.chatId, // Include chatId from Message
-      reasoning, // Now string | undefined
+      chatId: message.chatId,
+      reasoning,
       toolInvocations,
-      sources, // Include sources from Message
-      metadata, // Include metadata from Message
+      sources,
+      metadata,
     });
 
     return chatMessages;
@@ -140,9 +138,7 @@ export function convertCustomToMessages(messages: Array<CustomMessage>): Array<M
     role: message.role,
     content: message.content,
     createdAt: message.createdAt,
-    // Preserve reasoning as string | undefined, no array handling needed
     reasoning: message.reasoning,
-    // Include other properties as needed
     ...(message.metadata && { metadata: message.metadata }),
     ...(message.sources && { sources: message.sources }),
     ...(message.toolInvocations && { toolInvocations: message.toolInvocations })
@@ -157,7 +153,7 @@ export function sanitizeResponseMessages({
   reasoning,
 }: {
   messages: Array<ResponseMessage>;
-  reasoning: string | undefined; // Updated to handle only string or undefined
+  reasoning: string | undefined;
 }) {
   const toolResultIds: Array<string> = [];
 
@@ -185,7 +181,6 @@ export function sanitizeResponseMessages({
     );
 
     if (reasoning) {
-      // @ts-expect-error: reasoning message parts in SDK are WIP
       sanitizedContent.push({ type: 'reasoning', reasoning });
     }
 
@@ -230,9 +225,9 @@ export function sanitizeUIMessages(messages: Array<CustomMessage>): Array<Custom
     (message) =>
       message.content.length > 0 ||
       (message.toolInvocations && message.toolInvocations.length > 0) ||
-      (message.sources && message.sources.length > 0) || // Include sources in filtering
-      message.metadata !== null || // Include metadata in filtering
-      message.chatId !== undefined, // Include chatId in filtering
+      (message.sources && message.sources.length > 0) ||
+      message.metadata !== null ||
+      message.chatId !== undefined,
   );
 }
 
@@ -241,12 +236,31 @@ export function sanitizeUIMessages(messages: Array<CustomMessage>): Array<Custom
  * This version is specifically for components that expect Message[] return type
  */
 export function sanitizeUIMessagesAsStandard(messages: Array<Message>): Array<Message> {
-  // First sanitize as if they're CustomMessages (which they might be internally)
-  const sanitizedMessages = sanitizeUIMessages(messages as unknown as Array<CustomMessage>) as unknown as Array<Message>;
-  
-  // Then ensure each message has a proper reasoning property (string instead of string[])
-  return sanitizedMessages.map(message => {
-    return message; // No change needed, reasoning is already string | undefined
+  // First sanitize as if they're CustomMessages, ensuring content remains a string
+  const sanitizedMessages = sanitizeUIMessages(messages as unknown as Array<CustomMessage>) as Array<CustomMessage>;
+
+  // Then ensure each message conforms to Message type with content as string
+  return sanitizedMessages.map((message): Message => {
+    // Ensure content is a string (default to empty string if undefined or non-string)
+    const content = typeof message.content === 'string' ? message.content : '';
+
+    // Ensure reasoning is string | undefined, handling any potential array or unknown
+    let reasoning: string | undefined = undefined;
+    if (message.reasoning) {
+      if (typeof message.reasoning === 'string') {
+        reasoning = message.reasoning;
+      } else if (Array.isArray(message.reasoning)) {
+        reasoning = message.reasoning.join('\n');
+      }
+    }
+
+    return {
+      id: message.id,
+      role: message.role,
+      content, // Ensure content is a string
+      createdAt: message.createdAt,
+      reasoning, // Ensure reasoning is string | undefined
+    };
   });
 }
 
