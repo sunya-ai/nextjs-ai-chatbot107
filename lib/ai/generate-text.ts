@@ -1,4 +1,3 @@
-import { openai } from "@ai-sdk/openai"
 import type { AIChatRequest, AIModel } from "ai"
 import { generateText as vercelGenerateText } from "ai"
 
@@ -8,9 +7,25 @@ type GenerateTextOptions = {
   messages: { role: string; content: string }[]
   temperature?: number
   max_tokens?: number
+  seed?: number
+  top_p?: number
+  n?: number
+  functions?: any[]
+  function_call?: any
 }
 
-export async function generateText({ model, system, messages, temperature = 0.7, max_tokens }: GenerateTextOptions) {
+export async function generateText({ 
+  model, 
+  system, 
+  messages, 
+  temperature = 0.7, 
+  max_tokens,
+  seed,
+  top_p,
+  n,
+  functions,
+  function_call
+}: GenerateTextOptions) {
   try {
     const request: AIChatRequest = {
       model,
@@ -20,6 +35,11 @@ export async function generateText({ model, system, messages, temperature = 0.7,
       ],
       temperature,
       max_tokens,
+      seed,
+      top_p,
+      n,
+      functions,
+      function_call
     }
     
     const response = await vercelGenerateText(request)
@@ -28,6 +48,7 @@ export async function generateText({ model, system, messages, temperature = 0.7,
       text: response.content,
       model: response.model,
       id: response.id,
+      usage: response.usage
     }
   } catch (error) {
     console.error("[generate-text] Error:", error instanceof Error ? error.message : String(error))
