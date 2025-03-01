@@ -183,7 +183,7 @@ function PureMessages({
               <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
                 {message.sources.map((source, index) => (
                   <li key={index} className="truncate">
-                    <a
+                    
                       href={source.url}
                       target="_blank"
                       className="underline hover:text-blue-400"
@@ -196,15 +196,17 @@ function PureMessages({
               </ul>
             </footer>
           )}
-          {message.reasoning && message.reasoning.length > 0 && ( // Render reasoning as string[] if present
+          {message.reasoning && ( // Render reasoning as string[] if present
             <footer className="mt-2 p-2 bg-gray-600 rounded text-white text-sm">
               <p>Reasoning:</p>
               <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
-                {message.reasoning.map((step, index) => (
-                  <li key={index} className="truncate">
-                    {step}
-                  </li>
-                ))}
+                {Array.isArray(message.reasoning) 
+                  ? message.reasoning.map((step, index) => (
+                      <li key={index} className="truncate">
+                        {step}
+                      </li>
+                    ))
+                  : typeof message.reasoning === 'string' ? <li>{message.reasoning}</li> : null}
               </ul>
             </footer>
           )}
