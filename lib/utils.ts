@@ -274,12 +274,15 @@ export function sanitizeMessages(messages: CustomMessage[]): CustomMessage[] {
   return messages.map((message) => {
     if (Array.isArray(message.content)) {
       const toolResultIds = message.content
-        .filter((content): content is { type: "tool-result"; toolCallId: string } => content.type === "tool-result")
+        .filter(
+          (content): content is { type: "tool-result"; toolCallId: string } =>
+            content.type === "tool-result" && typeof content.toolCallId === "string",
+        )
         .map((content) => content.toolCallId)
 
       const sanitizedContent = message.content.filter((content) =>
         content.type === "tool-call"
-          ? toolResultIds.includes(content.toolCallId || "")
+          ? content.toolCallId && toolResultIds.includes(content.toolCallId)
           : content.type === "text"
             ? content.text.length > 0
             : true,
