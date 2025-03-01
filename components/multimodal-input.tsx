@@ -21,8 +21,6 @@ import {
 import { toast } from 'sonner';
 import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
-import { sanitizeUIMessagesAsStandard } from '@/lib/utils';
-
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
@@ -260,7 +258,7 @@ function PureMultimodalInput({
 
       <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
         {isLoading ? (
-          <StopButton stop={stop} setMessages={setMessages} />
+          <StopButton stop={stop} setMessages={setMessages} isLoading={isLoading} />
         ) : (
           <SendButton
             input={input}
@@ -311,9 +309,11 @@ const AttachmentsButton = memo(PureAttachmentsButton);
 function PureStopButton({
   stop,
   setMessages,
+  isLoading,
 }: {
   stop: () => void;
   setMessages: Dispatch<SetStateAction<Array<Message>>>;
+  isLoading: boolean;
 }) {
   return (
     <Button
