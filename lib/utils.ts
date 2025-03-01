@@ -152,15 +152,15 @@ let reasoning: string | undefined = typeof message.reasoning === 'string'
     }
 
     chatMessages.push({
-      id: message.id,
-      role: message.role as CustomMessage['role'],
-      content: textContent,
-      chatId: message.chatId,
-      reasoning,
-      toolInvocations,
-      sources,
-      metadata,
-    });
+  id: message.id,
+  role: message.role as CustomMessage['role'],
+  content: textContent,
+  chatId: message.chatId,
+  reasoning,
+  toolInvocations: toolInvocations as any, // Add this type assertion
+  sources,
+  metadata,
+});
 
     return chatMessages;
   }, []);
