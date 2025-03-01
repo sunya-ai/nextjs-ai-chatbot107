@@ -102,7 +102,7 @@ const PurePreviewMessage = ({
       setMessages(messagesOrUpdater.map(msg => ({
         ...msg,
         chatId,
-        reasoning: msg.reasoning ? [msg.reasoning] : [],
+        reasoning: msg.reasoning || undefined,
       })) as CustomMessage[]);
     }
   }, [setMessages, chatId]);
