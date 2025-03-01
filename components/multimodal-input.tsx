@@ -321,7 +321,17 @@ function PureStopButton({
       onClick={(event) => {
         event.preventDefault();
         stop();
-        setMessages((messages) => sanitizeUIMessagesAsStandard(messages) as Message[]); // Explicitly cast to Message[]
+        setMessages((messages) => {
+          const sanitized = sanitizeUIMessagesAsStandard(messages);
+          // Filter out extra properties to match Message type
+          return sanitized.map((msg) => ({
+            id: msg.id,
+            role: msg.role,
+            content: typeof msg.content === 'string' ? msg.content : '',
+            createdAt: msg.createdAt,
+            reasoning: msg.reasoning,
+          })) as Message[];
+        });
       }}
       disabled={!isLoading}
     >
