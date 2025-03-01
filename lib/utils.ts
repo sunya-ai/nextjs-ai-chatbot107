@@ -3,7 +3,7 @@ import { twMerge } from 'tailwind-merge';
 import { Message, Document } from '@/lib/db/schema';
 import { CustomMessage } from '@/lib/types';
 
-// Add these type definitions at the top of utils.ts
+// Add these type definitions
 interface CoreToolMessage {
   id: string;
   role: 'tool';
@@ -124,8 +124,10 @@ export function convertToUIMessages(
 
     let textContent = '';
     const toolInvocations: Array<ToolInvocation> = [];
-    const sources: { title: string; url: string }[] = message.sources ?? [];
-    const metadata: any | null = message.metadata ?? null;
+    const sources: { title: string; url: string }[] = Array.isArray(message.sources) 
+      ? message.sources as { title: string; url: string }[]
+      : [];
+    const metadata: any | null = message.metadata !== undefined ? message.metadata : null;
     let reasoning: string | undefined = message.reasoning || undefined;
 
     if (typeof message.content === 'string') {
@@ -278,22 +280,12 @@ export function sanitizeUIMessagesAsStandard(messages: Array<Message>): Array<Me
     // Ensure content is a string (default to empty string if undefined or non-string)
     const content = typeof message.content === 'string' ? message.content : '';
 
-    // Ensure reasoning is string | undefined, handling any potential array or unknown
-    let reasoning: string | undefined = undefined;
-    if (message.reasoning) {
-      if (typeof message.reasoning === 'string') {
-        reasoning = message.reasoning;
-      } else if (Array.isArray(message.reasoning)) {
-        reasoning = message.reasoning.join('\n');
-      }
-    }
-
     return {
       id: message.id,
       role: message.role,
       content, // Ensure content is a string
       createdAt: message.createdAt,
-      reasoning, // Ensure reasoning is string | undefined
+      reasoning: message.reasoning, // Now string | undefined
     };
   });
 }
