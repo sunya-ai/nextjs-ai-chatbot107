@@ -24,8 +24,9 @@ const customComponents = {
       {children}
     </form>
   ),
-  input: (props: React.InputHTMLAttributes<HTMLInputElement>) => 
-    <input {...props} className="border p-1 rounded" />,
+  input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...props} className="border p-1 rounded" />
+  ),
 };
 
 interface MessagesProps {
@@ -36,9 +37,7 @@ interface MessagesProps {
   setMessages: (
     messagesOrUpdater: CustomMessage[] | ((messages: CustomMessage[]) => CustomMessage[])
   ) => void;
-  reload: (
-    chatRequestOptions?: ChatRequestOptions
-  ) => Promise<string | null | undefined>;
+  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
   isReadonly: boolean;
   isArtifactVisible: boolean;
   className?: string;
@@ -51,28 +50,18 @@ const toCustomMessage = (msg: Message, chatId: string): CustomMessage => {
     chatId,
     sources: (msg as Partial<CustomMessage>).sources || undefined,
     metadata: (msg as Partial<CustomMessage>).metadata || undefined,
-    reasoning: msg.reasoning,
+    reasoning: msg.reasoning || undefined, // Preserve reasoning as string | undefined, no array wrapping
   } as CustomMessage;
 };
 
 // Helper function to convert CustomMessage to Message
 const toMessage = (msg: CustomMessage): Message => {
-  let reasoningValue: string | undefined = undefined;
-  
-  if (msg.reasoning) {
-    if (Array.isArray(msg.reasoning) && msg.reasoning.length > 0) {
-      reasoningValue = msg.reasoning[0];
-    } else if (typeof msg.reasoning === 'string') {
-      reasoningValue = msg.reasoning;
-    }
-  }
-  
   return {
     id: msg.id,
     role: msg.role,
     content: msg.content,
     createdAt: msg.createdAt,
-    reasoning: reasoningValue
+    reasoning: msg.reasoning, // Now string | undefined, no array handling
   };
 };
 
@@ -110,7 +99,7 @@ function PureMessages({
           const updatedMessages = [...prevMessages];
           updatedMessages[lastAssistantMessageIndex] = {
             ...updatedMessages[lastAssistantMessageIndex],
-            reasoning: ['Analyzing...', 'Processing data...', 'Generating response...'],
+            reasoning: 'Analyzing response...', // Now a string, not an array
           };
           return updatedMessages;
         }
@@ -184,7 +173,7 @@ function PureMessages({
               <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
                 {message.sources.map((source, index) => (
                   <li key={index} className="truncate">
-                    
+                    <a
                       href={source.url}
                       target="_blank"
                       className="underline hover:text-blue-400"
@@ -201,13 +190,9 @@ function PureMessages({
           {message.reasoning && (
             <footer className="mt-2 p-2 bg-gray-600 rounded text-white text-sm">
               <p>Reasoning:</p>
-              <ul className="list-disc pl-4 max-h-20 overflow-y-auto">
-                {Array.isArray(message.reasoning) 
-                  ? message.reasoning.map((step, index) => (
-                      <li key={index} className="truncate">{step}</li>
-                    ))
-                  : typeof message.reasoning === 'string' ? <li>{message.reasoning}</li> : null}
-              </ul>
+              <div className="list-disc pl-4 max-h-20 overflow-y-auto">
+                {message.reasoning} {/* Now rendering as a string, not an array */}
+              </div>
             </footer>
           )}
         </div>
