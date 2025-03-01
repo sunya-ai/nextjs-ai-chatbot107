@@ -205,7 +205,7 @@ Format your response as:
       ? reasoningMatch[1]
           .trim()
           .split("\n")
-          .map((line: string) => line.trim())
+          .map((line) => line.trim())
           .filter(Boolean)
       : []
 
@@ -242,7 +242,12 @@ async function processSpreadsheetUpdate(messages: CustomMessage[], currentData?:
     const result = await generateText({
       model: openai("gpt-3.5-turbo"), //using openai model for testing purposes. Replace with appropriate model if needed.
       system: spreadsheetPromptText,
-      messages: [{ role: "user", content: userMessage.content }],
+      messages: [
+        {
+          role: "user",
+          content: typeof userMessage.content === "string" ? userMessage.content : JSON.stringify(userMessage.content),
+        },
+      ],
     })
 
     try {
@@ -350,7 +355,7 @@ export async function POST(request: Request) {
       })
     }
 
-    const chat = await getChatById({ id })
+    const chat = await getChatById(id)
     if (!chat) {
       console.log("[route] No chat found, creating new chat with ID:", id)
       const title = await generateTitleFromUserMessage({ message: userMessage as Message })
@@ -362,10 +367,10 @@ export async function POST(request: Request) {
       messages: [
         {
           id: userMessage.id,
+          chatId: id,
           role: userMessage.role,
           content: userMessage.content,
           createdAt: new Date(),
-          chatId: id,
           metadata: null,
           reasoning: Array.isArray(userMessage.reasoning) ? userMessage.reasoning : [],
           sources: Array.isArray(userMessage.sources) ? userMessage.sources : [],
@@ -489,9 +494,9 @@ export async function POST(request: Request) {
                         role: "assistant",
                         content,
                         createdAt: new Date(),
-                        reasoning: reasoning as string[],
-                        sources: sources as { title: string; url: string }[],
                         metadata,
+                        reasoning,
+                        sources,
                       },
                     ],
                   })
@@ -584,9 +589,9 @@ export async function POST(request: Request) {
                         role: "assistant",
                         content,
                         createdAt: new Date(),
-                        reasoning: reasoning as string[],
-                        sources: sources as { title: string; url: string }[],
                         metadata,
+                        reasoning,
+                        sources,
                       },
                     ],
                   })
@@ -635,14 +640,14 @@ export async function DELETE(request: Request) {
 
   try {
     console.log("[route] Checking chat with ID:", id)
-    const chat = await getChatById({ id })
+    const chat = await getChatById(id)
     if (!chat || chat.userId !== session.user.id) {
       console.log("[route] Chat not found or not owned => 401")
       return new Response("Unauthorized", { status: 401 })
     }
 
     console.log("[route] Deleting chat with ID:", id)
-    await deleteChatById({ id })
+    await deleteChatById(id)
     return new Response("Chat deleted", { status: 200 })
   } catch (error) {
     console.error("[route] Error during DELETE:", error instanceof Error ? error.message : String(error))
