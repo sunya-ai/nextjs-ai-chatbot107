@@ -83,3 +83,51 @@ export type ServerActionResult<Result> = Promise<
       error: string
     }
 >
+
+// Stream delta types
+export interface DataStreamDelta {
+  type: string;
+  artifact?: {
+    title?: string;
+    content?: string;
+    kind?: string;
+    status?: 'streaming' | 'idle';
+  };
+  progress?: string;
+  message?: string;
+  error?: string;
+}
+
+// API types
+export interface ApiError {
+  error: string;
+  status?: number;
+  details?: any;
+}
+
+// Chat API types
+export interface ChatRequest {
+  id?: string;
+  messages: CustomMessage[];
+  selectedChatModel?: string;
+  file?: string | ArrayBuffer | null;
+  currentData?: any;
+}
+
+export interface ChatResponse {
+  messages: CustomMessage[];
+}
+
+// For global window augmentation
+declare global {
+  interface Window {
+    artifactDefinitions?: Array<{
+      kind: string;
+      onStreamPart?: (params: {
+        streamPart: DataStreamDelta;
+        setArtifact: Function;
+        setMetadata: Function;
+      }) => void;
+    }>;
+  }
+}
