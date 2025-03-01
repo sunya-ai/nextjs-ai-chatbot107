@@ -282,7 +282,7 @@ export function sanitizeMessages(messages: CustomMessage[]): CustomMessage[] {
 
       const sanitizedContent = message.content.filter((content) =>
         content.type === "tool-call"
-          ? content.toolCallId && toolResultIds.includes(content.toolCallId)
+          ? content.toolCallId && typeof content.toolCallId === "string" && toolResultIds.includes(content.toolCallId)
           : content.type === "text"
             ? content.text && content.text.length > 0
             : true,
