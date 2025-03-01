@@ -76,7 +76,7 @@ function PureMessages({
   isArtifactVisible,
   className,
 }: MessagesProps) {
-  const [messagesContainerRef, messagesEndRef] = useScrollToBottom<HTMLDivElement>();
+  const [messagesContainerRef, messagesEndRef] = useScrollToBottom(); // Remove <HTMLDivElement> type argument
   const { append } = useChat({ id: chatId });
 
   // Type guard to determine if a message is a CustomMessage
