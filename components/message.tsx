@@ -46,7 +46,7 @@ const customComponents = {
 
 // Type guard to determine if the message is a CustomMessage - moved outside the component
 const isCustomMessage = (msg: Message | CustomMessage): msg is CustomMessage => {
-  return 'chatId' in msg && 'reasoning' in msg && Array.isArray(msg.reasoning); // More precise check for reasoning as string[]
+  return 'chatId' in msg && typeof msg.chatId === 'string';
 };
 
 const PurePreviewMessage = ({
