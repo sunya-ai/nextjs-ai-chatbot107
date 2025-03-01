@@ -1,4 +1,4 @@
-import { type Message, createDataStreamResponse, streamText, type MessageContent } from "ai"
+import { type Message, createDataStreamResponse, streamText } from "ai"
 import { auth } from "@/app/(auth)/auth"
 import { openai } from "@ai-sdk/openai"
 import { systemPrompt, sheetPrompt } from "@/lib/ai/prompts"
@@ -159,12 +159,12 @@ function extractReasoning(message: CustomMessage | null): string[] {
 }
 
 async function needsNewSearch(
-  message: string | MessageContent[],
+  message: string | any[],
   previousMessages: CustomMessage[],
   previousContext: { text: string; reasoning: string[]; sources: { title: string; url: string }[] },
 ): Promise<{ needsSearch: boolean; text: string; reasoning: string[]; sources: { title: string; url: string }[] }> {
   const messageContent = Array.isArray(message)
-    ? message.map((m) => (typeof m === "string" ? m : m.text)).join(" ")
+    ? message.map((m) => (typeof m === "string" ? m : m.text || "")).join(" ")
     : message
 
   console.log(
