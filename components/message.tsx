@@ -130,11 +130,7 @@ const PurePreviewMessage = ({
   }, [message.content]);
 
   // Handle reasoning based on message type - fixing the string[] vs string issue
-  const reasoning = isCustomMessage(message)
-    ? message.reasoning && message.reasoning.length > 0 
-      ? message.reasoning[0] // Use the first entry from the array
-      : undefined
-    : message.reasoning;
+const reasoning = message.reasoning;
 
   return (
     <AnimatePresence>
