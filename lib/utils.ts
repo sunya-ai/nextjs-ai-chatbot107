@@ -228,7 +228,7 @@ export function sanitizeUIMessages(messages: Array<CustomMessage>): Array<Custom
       (message.sources && message.sources.length > 0) ||
       message.metadata !== null ||
       message.chatId !== undefined,
-  );
+  ) as Array<CustomMessage>; // Explicitly type as CustomMessage to maintain type safety
 }
 
 /**
@@ -239,7 +239,7 @@ export function sanitizeUIMessagesAsStandard(messages: Array<Message>): Array<Me
   // First sanitize as if they're CustomMessages, ensuring content remains a string
   const sanitizedMessages = sanitizeUIMessages(messages as unknown as Array<CustomMessage>) as Array<CustomMessage>;
 
-  // Then ensure each message conforms to Message type with content as string
+  // Then ensure each message conforms to Message type with content as string, excluding extra CustomMessage properties
   return sanitizedMessages.map((message): Message => {
     // Ensure content is a string (default to empty string if undefined or non-string)
     const content = typeof message.content === 'string' ? message.content : '';
