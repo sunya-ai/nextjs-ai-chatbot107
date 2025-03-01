@@ -341,7 +341,9 @@ export async function POST(request: Request) {
     const content =
       typeof userMessage.content === "string"
         ? userMessage.content.toLowerCase()
-        : userMessage.content.map((item) => (typeof item === "string" ? item.toLowerCase() : "")).join(" ")
+        : Array.isArray(userMessage.content)
+          ? userMessage.content.map((item) => (typeof item === "string" ? item.toLowerCase() : "")).join(" ")
+          : ""
 
     const isSpreadsheetUpdate = content.includes("add") && (content.includes("deal") || content.includes("spreadsheet"))
 
