@@ -343,7 +343,17 @@ export async function POST(request: Request) {
         return userMessage.content.toLowerCase()
       }
       if (Array.isArray(userMessage.content)) {
-        return userMessage.content.map((item) => (typeof item === "string" ? item.toLowerCase() : "")).join(" ")
+        return (userMessage.content as (string | { text?: string })[])
+          .map((item) => {
+            if (typeof item === "string") {
+              return item.toLowerCase()
+            }
+            if (typeof item === "object" && item !== null && typeof item.text === "string") {
+              return item.text.toLowerCase()
+            }
+            return ""
+          })
+          .join(" ")
       }
       return ""
     })()
