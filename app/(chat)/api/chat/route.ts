@@ -338,12 +338,15 @@ export async function POST(request: Request) {
         : JSON.stringify(userMessage.content).slice(0, 100),
     )
 
-    const content =
-      typeof userMessage.content === "string"
-        ? userMessage.content.toLowerCase()
-        : Array.isArray(userMessage.content)
-          ? userMessage.content.map((item) => (typeof item === "string" ? item.toLowerCase() : "")).join(" ")
-          : ""
+    const content = (() => {
+      if (typeof userMessage.content === "string") {
+        return userMessage.content.toLowerCase()
+      }
+      if (Array.isArray(userMessage.content)) {
+        return userMessage.content.map((item) => (typeof item === "string" ? item.toLowerCase() : "")).join(" ")
+      }
+      return ""
+    })()
 
     const isSpreadsheetUpdate = content.includes("add") && (content.includes("deal") || content.includes("spreadsheet"))
 
