@@ -9,9 +9,14 @@ export interface CustomMessage extends BaseMessage {
   chatId: string // Required for database alignment
   sources?: { title: string; url: string }[] // Optional sources from AI SDK
   metadata?: any | null // Optional metadata for artifacts or other data
-  reasoning?: string | undefined // Match BaseMessage's reasoning type (string or undefined)
+  reasoning?: string // Match BaseMessage's reasoning type (string or undefined)
   content: string | MessageContent[]
   toolInvocations?: ToolInvocation[]
+}
+
+// Interface for database representation of the message
+export interface DBMessage extends Omit<CustomMessage, 'reasoning'> {
+  reasoning: string[] | string | undefined;
 }
 
 export interface ToolCallContent {
@@ -78,4 +83,3 @@ export type ServerActionResult<Result> = Promise<
       error: string
     }
 >
-
