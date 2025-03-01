@@ -284,7 +284,7 @@ export function sanitizeMessages(messages: CustomMessage[]): CustomMessage[] {
         content.type === "tool-call"
           ? content.toolCallId && toolResultIds.includes(content.toolCallId)
           : content.type === "text"
-            ? content.text.length > 0
+            ? content.text && content.text.length > 0
             : true,
       )
 
@@ -304,5 +304,14 @@ export const getDocumentTimestampByIndex = (documents: Array<Document>, index: n
 interface ApplicationError extends Error {
   info: string
   status: number
+}
+
+export function formatDate(input: string | number): string {
+  const date = new Date(input)
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })
 }
 
