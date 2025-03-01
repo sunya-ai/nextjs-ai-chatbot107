@@ -17,9 +17,13 @@ import {
   vote,
 } from './schema';
 import { ArtifactKind } from '@/components/artifact';
+import { CustomMessage } from '../types';
+import { prepareMessagesForDB, convertSchemaMessagesToCustomMessages } from './adapters';
 
 // Use Vercel's Edge-compatible Postgres client
 const db = drizzle(sql);
+
+// Original functions...
 
 export async function getUser(email: string): Promise<Array<User>> {
   try {
@@ -106,24 +110,29 @@ export async function getChatById({ id }: { id: string }) {
   }
 }
 
-export async function saveMessages({ messages }: { messages: Array<Message> }) {
+// UPDATED: saveMessages with Vercel AI SDK compatibility
+export async function saveMessages({ messages }: { messages: Array<CustomMessage> }) {
   try {
     console.log('[db] Saving messages, count:', messages.length);
-    return await db.insert(message).values(messages);
+    const schemaMessages = prepareMessagesForDB(messages);
+    return await db.insert(message).values(schemaMessages);
   } catch (error) {
     console.error('[db] Failed to save messages in database:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
 
+// UPDATED: getMessagesByChatId with Vercel AI SDK compatibility
 export async function getMessagesByChatId({ id }: { id: string }) {
   try {
     console.log('[db] Fetching messages for chat ID:', id);
-    return await db
+    const schemaMessages = await db
       .select()
       .from(message)
       .where(eq(message.chatId, id))
       .orderBy(asc(message.createdAt));
+    
+    return convertSchemaMessagesToCustomMessages(schemaMessages);
   } catch (error) {
     console.error('[db] Failed to get messages by chat id from database:', error instanceof Error ? error.message : String(error));
     throw error;
@@ -301,7 +310,8 @@ export async function getSuggestionsByDocumentId({
 export async function getMessageById({ id }: { id: string }) {
   try {
     console.log('[db] Fetching message with ID:', id);
-    return await db.select().from(message).where(eq(message.id, id));
+    const schemaMessages = await db.select().from(message).where(eq(message.id, id));
+    return convertSchemaMessagesToCustomMessages(schemaMessages);
   } catch (error) {
     console.error('[db] Failed to get message by id from database:', error instanceof Error ? error.message : String(error));
     throw error;
