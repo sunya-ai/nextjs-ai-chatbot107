@@ -400,12 +400,10 @@ export async function POST(request: Request) {
           content: userMessage.content,
           createdAt: new Date(),
           metadata: null,
-          // FIX: Convert the reasoning array to string or undefined
-          reasoning: typeof userMessage.reasoning === 'string'
-            ? userMessage.reasoning
-            : Array.isArray(userMessage.reasoning) && userMessage.reasoning.length > 0
-              ? userMessage.reasoning[0]  // Take the first element if it's an array
-              : undefined,                // Use undefined instead of empty array
+          // FIX: Correctly handling reasoning with proper type narrowing
+          reasoning: Array.isArray(userMessage.reasoning) 
+            ? (userMessage.reasoning.length > 0 ? userMessage.reasoning[0] : undefined)
+            : (typeof userMessage.reasoning === 'string' ? userMessage.reasoning : undefined),
           sources: Array.isArray(userMessage.sources) ? userMessage.sources : [],
         },
       ],
@@ -478,7 +476,7 @@ export async function POST(request: Request) {
                   let content = convertContentToString(assistantMessage.content)
                   let metadata: Metadata | null = null
                   const sources = followUpSources ?? []
-                  // FIX: Use the first element of the reasoning array if available, otherwise undefined
+                  // FIX: Properly extract first item from reasoning array
                   const reasoning = followUpReasoning.length > 0 ? followUpReasoning[0] : undefined
 
                   console.log("[route] Processing final response for follow-up, content length:", content.length)
@@ -574,7 +572,7 @@ export async function POST(request: Request) {
                   let content = convertContentToString(assistantMessage.content)
                   let metadata: Metadata | null = null
                   const sources = combinedSources ?? []
-                  // FIX: Use the first element of the reasoning array if available, otherwise undefined
+                  // FIX: Properly extract first item from reasoning array
                   const reasoning = combinedReasoning.length > 0 ? combinedReasoning[0] : undefined
 
                   console.log("[route] Processing final response for full process, content length:", content.length)
