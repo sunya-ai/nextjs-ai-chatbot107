@@ -128,8 +128,10 @@ export function convertToUIMessages(
       ? message.sources as { title: string; url: string }[]
       : [];
     const metadata: any | null = message.metadata !== undefined ? message.metadata : null;
-    let reasoning: string | undefined = message.reasoning || undefined;
-
+let reasoning: string | undefined = typeof message.reasoning === 'string' 
+  ? message.reasoning 
+  : undefined;
+    
     if (typeof message.content === 'string') {
       textContent = message.content;
     } else if (Array.isArray(message.content)) {
