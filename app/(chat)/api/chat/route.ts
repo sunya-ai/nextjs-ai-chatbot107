@@ -110,7 +110,6 @@ function convertContentToString(content: any): string {
 function extractSources(message: CustomMessage | null): Array<{ title: string; url: string }> {
   if (!message) return [];
 
-  // Direct sources property
   if (message.sources) {
     return message.sources
       .map(source => ({
@@ -120,11 +119,9 @@ function extractSources(message: CustomMessage | null): Array<{ title: string; u
       .filter(source => source.url);
   }
 
-  // Extract from parts if available
   if (message.parts) {
     const sourceParts: Array<{ title: string; url: string }> = [];
     
-    // Use a for loop with explicit checking for type safety
     for (const part of message.parts) {
       if (part.type === 'source' && 'source' in part && part.source) {
         sourceParts.push({
@@ -237,7 +234,6 @@ Format your response as:
   }
 }
 
-// Modified to correctly handle Message type with convertContentToString
 async function processSpreadsheetUpdate(
   messages: Message[],
   currentData?: any
@@ -246,11 +242,10 @@ async function processSpreadsheetUpdate(
   
   if (!userMessage) return currentData || [['Date', 'Deal Type', 'Amount']];
 
-  console.log('[route] Processing spreadsheet update for message (first 100 chars):', userMessage.content.slice(0, 100));
+  console.log('[route] Processing spreadsheet update for message (first 100 chars):', convertContentToString(userMessage.content).slice(0, 100));
 
   const spreadsheetPromptText = sheetPrompt;
   try {
-    // Convert userMessage.content to a string
     const userContent = convertContentToString(userMessage.content);
     
     const result = await generateText({
@@ -326,16 +321,15 @@ export async function POST(request: Request) {
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Cast messages to any to avoid type error with getMostRecentUserMessage
     const userMessage = getMostRecentUserMessage(messages as any);
     if (!userMessage) {
       console.log('[route] No user message found => 400');
       return new Response('No user message found', { status: 400 });
     }
 
-    console.log('[route] Processing user message (first 100 chars):', userMessage.content.slice(0, 100));
+    console.log('[route] Processing user message (first 100 chars):', convertContentToString(userMessage.content).slice(0, 100));
 
-    const content = userMessage.content.toLowerCase();
+    const content = convertContentToString(userMessage.content).toLowerCase();
     const isSpreadsheetUpdate = content.includes('add') && (content.includes('deal') || content.includes('spreadsheet'));
 
     if (isSpreadsheetUpdate) {
@@ -410,7 +404,7 @@ export async function POST(request: Request) {
             sources: extractSources(previousResponse) 
           } : { text: '', reasoning: [], sources: [] };
 
-          const { needsSearch, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await needsNewSearch(userMessage.content, previousMessages, previousContext);
+          const { needsSearch, text: refinedText, reasoning: followUpReasoning, sources: followUpSources } = await needsNewSearch(convertContentToString(userMessage.content), previousMessages, previousContext);
 
           if (!needsSearch) {
             console.log('[route] No new search needed, using existing context for follow-up');
@@ -494,10 +488,10 @@ export async function POST(request: Request) {
             });
           } else {
             console.log('[route] New search needed, running full context enhancement');
-            console.log('[route] Enhancing context with assistantsEnhancer for message:', userMessage.content.slice(0, 100));
-            const { text: finalContext, reasoning: combinedReasoning, sources: combinedSources } = await assistantsEnhancer(userMessage.content, fileBuffer, fileMime);
+            console.log('[route] Enhancing context with assistantsEnhancer for message:', convertContentToString(userMessage.content).slice(0, 100));
+            const { text: finalContext, reasoning: combinedReasoning, sources: combinedSources } = await assistantsEnhancer(convertContentToString(userMessage.content), fileBuffer, fileMime);
 
-            const finalPrompt = `Context:\n${finalContext}\n\nQuery: ${userMessage.content}`;
+            const finalPrompt = `Context:\n${finalContext}\n\nQuery: ${convertContentToString(userMessage.content)}`;
             const finalModel = getFinalModel(selectedChatModel);
 
             console.log('[route] Streaming full response with model:', selectedChatModel);
