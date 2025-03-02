@@ -361,8 +361,8 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null,
-        reasoning: (userMessage as CustomMessage).reasoning, // Fixed: no ?? []
-        sources: (userMessage as CustomMessage).sources // Fixed: no ?? []
+        reasoning: (userMessage as CustomMessage).reasoning,
+        sources: (userMessage as CustomMessage).sources
       }],
     });
 
@@ -473,7 +473,7 @@ export async function POST(request: Request) {
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning,
+                      reasoning: reasoning.join('\n'), // Fixed: Convert string[] to string
                       sources,
                       metadata,
                     }],
@@ -556,7 +556,7 @@ export async function POST(request: Request) {
                       role: 'assistant',
                       content,
                       createdAt: new Date(),
-                      reasoning,
+                      reasoning: reasoning.join('\n'), // Fixed: Convert string[] to string
                       sources,
                       metadata,
                     }],
