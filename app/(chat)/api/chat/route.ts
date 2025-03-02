@@ -361,8 +361,8 @@ export async function POST(request: Request) {
         createdAt: new Date(),
         chatId: id,
         metadata: null,
-        reasoning: (userMessage as CustomMessage).reasoning ?? [],
-        sources: (userMessage as CustomMessage).sources ?? []
+        reasoning: (userMessage as CustomMessage).reasoning, // Fixed: no ?? []
+        sources: (userMessage as CustomMessage).sources // Fixed: no ?? []
       }],
     });
 
